@@ -1,3 +1,33 @@
 <resources>
     <string name="app_name">STV</string>
+
+    <!-- MainActivity -->
+    <string name="history">Historique</string>
+    <string name="favorites">Favoris</string>
+    <string name="settings">Paramètres</string>
+    <string name="menu_content_description">Menu</string>
+    <string name="stream_url_label">URL du stream</string>
+    <string name="url_empty_error">L\'URL ne peut pas être vide</string>
+    <string name="play_stream_button">Lire le stream</string>
+    <string name="launch_error_prefix">Erreur lors du lancement : %1$s</string>
+
+    <!-- PlayerActivity -->
+    <string name="url_not_provided">URL non fournie</string>
+    <string name="format_content_description">Format</string>
+    <string name="quality_content_description">Qualité</string>
+    <string name="resize_dialog_title">Format d\'affichage</string>
+    <string name="resize_mode_fit">Ajuster (Fit)</string>
+    <string name="resize_mode_fill">Remplir (Fill)</string>
+    <string name="resize_mode_zoom">Zoom</string>
+    <string name="resize_mode_fixed_width">Largeur fixe</string>
+    <string name="resize_mode_fixed_height">Hauteur fixe</string>
+    <string name="close_button">Fermer</string>
+    <string name="quality_dialog_title">Qualité vidéo</string>
+
+    <!-- PlayerViewModel -->
+    <string name="playback_error_prefix">Erreur de lecture : %1$s</string>
+    <string name="quality_auto">Auto</string>
+    <string name="quality_unknown">Inconnu</string>
+    <string name="quality_auto_with_resolution">Auto (%1$dp)</string>
+    <string name="quality_manual">Manuel</string>
 </resources>

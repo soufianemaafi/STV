@@ -39,6 +39,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.stv.ui.theme.STVTheme
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
@@ -73,17 +75,17 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             ModalDrawerSheet {
                 Spacer(Modifier.height(12.dp))
                 NavigationDrawerItem(
-                    label = { Text("Historique") },
+                    label = { Text(stringResource(R.string.history)) },
                     selected = false,
                     onClick = { /* TODO */ }
                 )
                 NavigationDrawerItem(
-                    label = { Text("Favoris") },
+                    label = { Text(stringResource(R.string.favorites)) },
                     selected = false,
                     onClick = { /* TODO */ }
                 )
                 NavigationDrawerItem(
-                    label = { Text("Paramètres") },
+                    label = { Text(stringResource(R.string.settings)) },
                     selected = false,
                     onClick = { /* TODO */ }
                 )
@@ -94,14 +96,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("STV") },
+                    title = { Text(stringResource(R.string.app_name)) },
                     navigationIcon = {
                         IconButton(onClick = {
                             scope.launch {
                                 drawerState.open()
                             }
                         }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Menu")
+                            Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.menu_content_description))
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -129,14 +131,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         onValueChange = {
                             viewModel.updateUrl(it)
                         },
-                        label = { Text("URL du stream") },
+                        label = { Text(stringResource(R.string.stream_url_label)) },
                         isError = isError,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     if (isError) {
                         Text(
-                            text = "L'URL ne peut pas être vide",
+                            text = stringResource(R.string.url_empty_error),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(start = 16.dp, top = 4.dp)
@@ -153,18 +155,17 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
                                     scope.launch {
-                                        snackbarHostState.showSnackbar("Erreur lors du lancement : ${e.message}")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.launch_error_prefix, e.message))
                                     }
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Lire le stream")
+                        Text(stringResource(R.string.play_stream_button))
                     }
                 }
             }
         }
     }
 }
-

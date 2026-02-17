@@ -1,18 +1,13 @@
 package com.example.stv
 
-import android.net.Uri
-import android.os.Build
+import android.content.res.Configuration
 import android.os.Bundle
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,9 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.HighQuality
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,39 +27,31 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.TrackGroup
-import androidx.media3.common.TrackSelectionOverride
-import androidx.media3.common.Tracks
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.example.stv.ui.theme.STVTheme
 
 @UnstableApi
 class PlayerActivity : ComponentActivity() {
+
+    private var isInPipMode by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,13 +67,20 @@ class PlayerActivity : ComponentActivity() {
                     color = Color.Black
                 ) {
                     if (videoUrl != null) {
-                        VideoPlayer(videoUrl)
+                        VideoPlayer(videoUrl, isInPipMode)
                     } else {
-                        ErrorScreen("URL non fournie")
+                        ErrorScreen(stringResource(R.string.url_not_provided))
                     }
                 }
             }
         }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        }
+        isInPipMode = isInPictureInPictureMode
     }
 
     private fun hideSystemUI() {
@@ -98,116 +90,32 @@ class PlayerActivity : ComponentActivity() {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().build())
+        }
+    }
 }
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoPlayer(url: String) {
-    val context = LocalContext.current
+fun VideoPlayer(url: String, isInPipMode: Boolean, viewModel: PlayerViewModel = viewModel()) {
 
-    // ExoPlayer state
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    // ExoPlayer state from ViewModel
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val videoTracks by viewModel.videoTracks.collectAsState()
+    val currentTrackName by viewModel.currentTrackName.collectAsState()
 
     // UI state
     var showQualityDialog by remember { mutableStateOf(false) }
     var showResizeDialog by remember { mutableStateOf(false) }
     var resizeMode by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
 
-    // Track selection state
-    val videoTracks = remember { mutableStateListOf<VideoTrackInfo>() }
-    var currentTrackName by remember { mutableStateOf("Auto") }
-
-
-    val trackSelector = remember { DefaultTrackSelector(context) }
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context)
-            .setTrackSelector(trackSelector)
-            .build()
-            .apply {
-                playWhenReady = true
-            }
-    }
-
-    DisposableEffect(Unit) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) {
-                    isLoading = false
-                }
-                if (playbackState == Player.STATE_BUFFERING) {
-                    isLoading = true
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                isLoading = false
-                errorMessage = "Erreur de lecture: ${error.message}"
-            }
-
-            override fun onTracksChanged(tracks: Tracks) {
-                // Update available video tracks
-                videoTracks.clear()
-                var hasVideoTracks = false
-
-                // Add Auto option first
-                videoTracks.add(VideoTrackInfo("Auto", null, null))
-
-                for (group in tracks.groups) {
-                    if (group.type == C.TRACK_TYPE_VIDEO) {
-                        for (i in 0 until group.length) {
-                            val trackFormat = group.getTrackFormat(i)
-                            if (group.isTrackSupported(i)) {
-                                hasVideoTracks = true
-                                val height = trackFormat.height
-                                val bitrate = trackFormat.bitrate
-                                val name = if (height != -1) "${height}p" else "Inconnu"
-                                // Avoid duplicates if possible, though simple list is ok for now
-                                videoTracks.add(VideoTrackInfo(name, group.mediaTrackGroup, i, height, bitrate))
-                            }
-                        }
-                    }
-                }
-
-                // Determine current selection name
-                val parameters = exoPlayer.trackSelectionParameters
-                if (parameters.overrides.isEmpty()) {
-                    // Auto mode - try to find what's actually playing
-                    val width = exoPlayer.videoFormat?.width ?: 0
-                    val height = exoPlayer.videoFormat?.height ?: 0
-                    currentTrackName = if (height > 0) "Auto (${height}p)" else "Auto"
-                } else {
-                    // Manual mode
-                    // Find the track that matches the override
-                   val override = parameters.overrides.values.firstOrNull()
-                   if (override != null) {
-                       // Find matching track in our list
-                       val matching = videoTracks.find {
-                           it.group == override.mediaTrackGroup && override.trackIndices.contains(it.trackIndex)
-                       }
-                       currentTrackName = matching?.name ?: "Manuel"
-                   }
-                }
-            }
-
-            // Listen for video size changes to update Auto label
-             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                 val parameters = exoPlayer.trackSelectionParameters
-                 if (parameters.overrides.isEmpty()) {
-                     currentTrackName = "Auto (${videoSize.height}p)"
-                 }
-             }
-        }
-
-        exoPlayer.addListener(listener)
-        val mediaItem = MediaItem.fromUri(Uri.parse(url))
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-
-        onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
-        }
+    LaunchedEffect(url) {
+        viewModel.initializePlayer(url)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -218,39 +126,48 @@ fun VideoPlayer(url: String) {
                 modifier = Modifier.align(Alignment.Center)
             )
         } else {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exoPlayer
-                        useController = true
-                        keepScreenOn = true
-                        setShowNextButton(false)
-                        setShowPreviousButton(false)
-                    }
-                },
-                update = { playerView ->
-                    playerView.resizeMode = resizeMode
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+            val exoPlayer = viewModel.exoPlayer
+            if (exoPlayer != null) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                            useController = !isInPipMode
+                            keepScreenOn = true
+                            setShowNextButton(false)
+                            setShowPreviousButton(false)
+                        }
+                    },
+                    update = { playerView ->
+                        playerView.resizeMode = resizeMode
+                        playerView.useController = !isInPipMode
+                        // Important: reconnecter le player si la vue est recréée mais le VM a gardé le player
+                        if (playerView.player != exoPlayer) {
+                            playerView.player = exoPlayer
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
-            // Boutons d'overlay (Qualité & Format)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.TopEnd
-            ) {
-                Row {
-                    // Bouton Format d'affichage
-                    IconButton(
-                        onClick = { showResizeDialog = true },
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.5f), shape = MaterialTheme.shapes.small)
-                    ) {
-                         Icon(
+            // Boutons d'overlay (Qualité & Format) - Masqués en mode PiP
+            if (!isInPipMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    Row {
+                        // Bouton Format d'affichage
+                        IconButton(
+                            onClick = { showResizeDialog = true },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), shape = MaterialTheme.shapes.small)
+                        ) {
+                             Icon(
                              imageVector = Icons.Default.AspectRatio,
-                             contentDescription = "Format",
+                             contentDescription = stringResource(R.string.format_content_description),
                              tint = Color.White
                          )
                     }
@@ -265,12 +182,13 @@ fun VideoPlayer(url: String) {
                     ) {
                         Icon(
                             imageVector = Icons.Default.HighQuality,
-                            contentDescription = "Qualité",
+                            contentDescription = stringResource(R.string.quality_content_description),
                             tint = Color.White
                         )
                     }
                 }
-            }
+            } // Fermeture Box
+        } // Fermeture if
 
             if (showResizeDialog) {
                 ResizeSelectionDialog(
@@ -289,24 +207,7 @@ fun VideoPlayer(url: String) {
                     currentTrackName = currentTrackName,
                     onDismiss = { showQualityDialog = false },
                     onTrackSelected = { trackInfo ->
-                        if (trackInfo.group != null && trackInfo.trackIndex != null) {
-                            // Manual selection
-                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                                .buildUpon()
-                                .setOverrideForType(
-                                    TrackSelectionOverride(trackInfo.group, trackInfo.trackIndex)
-                                )
-                                .build()
-                            currentTrackName = trackInfo.name
-                        } else {
-                            // Auto selection
-                            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                                .buildUpon()
-                                .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
-                                .build()
-                            val height = exoPlayer.videoFormat?.height ?: 0
-                            currentTrackName = if (height > 0) "Auto (${height}p)" else "Auto"
-                        }
+                        viewModel.selectTrack(trackInfo)
                         showQualityDialog = false
                     }
                 )
@@ -322,14 +223,6 @@ fun VideoPlayer(url: String) {
     }
 }
 
-data class VideoTrackInfo(
-    val name: String,
-    val group: TrackGroup?,
-    val trackIndex: Int?,
-    val height: Int = 0,
-    val bitrate: Int = 0
-)
-
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun ResizeSelectionDialog(
@@ -338,16 +231,16 @@ fun ResizeSelectionDialog(
     onModeSelected: (Int) -> Unit
 ) {
     val modes = listOf(
-        "Ajuster (Fit)" to AspectRatioFrameLayout.RESIZE_MODE_FIT,
-        "Remplir (Fill)" to AspectRatioFrameLayout.RESIZE_MODE_FILL,
-        "Zoom" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-        "Largeur fixe" to AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
-        "Hauteur fixe" to AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+        stringResource(R.string.resize_mode_fit) to AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        stringResource(R.string.resize_mode_fill) to AspectRatioFrameLayout.RESIZE_MODE_FILL,
+        stringResource(R.string.resize_mode_zoom) to AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+        stringResource(R.string.resize_mode_fixed_width) to AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH,
+        stringResource(R.string.resize_mode_fixed_height) to AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = "Format d'affichage") },
+        title = { Text(text = stringResource(R.string.resize_dialog_title)) },
         text = {
             LazyColumn {
                 items(modes) { (name, mode) ->
@@ -370,7 +263,7 @@ fun ResizeSelectionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fermer")
+                Text(stringResource(R.string.close_button))
             }
         }
     )
@@ -385,7 +278,7 @@ fun QualitySelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = "Qualité vidéo") },
+        title = { Text(text = stringResource(R.string.quality_dialog_title)) },
         text = {
             LazyColumn {
                 items(tracks) { track ->
@@ -413,7 +306,7 @@ fun QualitySelectionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fermer")
+                Text(stringResource(R.string.close_button))
             }
         }
     )

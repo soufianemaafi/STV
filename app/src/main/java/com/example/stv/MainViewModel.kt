@@ -1,5 +1,6 @@
 package com.example.stv
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,13 +21,14 @@ class MainViewModel : ViewModel() {
     }
 
     fun validateUrl(): Boolean {
-        return if (_streamUrl.value.isBlank()) {
+        val url = _streamUrl.value.trim()
+        val isValid = url.isNotEmpty() && Patterns.WEB_URL.matcher(url).matches()
+
+        if (!isValid) {
             _isError.value = true
-            false
         } else {
             _isError.value = false
-            true
         }
+        return isValid
     }
 }
-
