@@ -43,14 +43,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.stv.ui.theme.STVTheme
+import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private lateinit var adManager: AdManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialiser AdMob
+        MobileAds.initialize(this) {}
+
+        // Initialiser AdManager et charger l'interstitiel
+        adManager = AdManager(this)
+        adManager.loadInterstitialAd()
+
         setContent {
             STVTheme {
-                MainScreen()
+                MainScreen(adManager = adManager)
             }
         }
     }
@@ -59,7 +70,7 @@ class MainActivity : ComponentActivity() {
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel()) {
+fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = null) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -148,15 +159,29 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     Button(
                         onClick = {
                             if (viewModel.validateUrl()) {
-                                try {
-                                    val intent = Intent(context, PlayerActivity::class.java).apply {
-                                        putExtra("VIDEO_URL", streamUrl)
+                                // Fonction pour lancer la vidéo
+                                val startVideo = {
+                                    try {
+                                        val intent = Intent(context, PlayerActivity::class.java).apply {
+                                            putExtra("VIDEO_URL", streamUrl)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.launch_error_prefix, e.message))
+                                        }
                                     }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(context.getString(R.string.launch_error_prefix, e.message))
+                                }
+
+                                if (adManager != null && context is android.app.Activity) {
+                                    // Tenter d'afficher la pub interstitielle
+                                    adManager.showInterstitial(context) {
+                                        // Ce code s'exécute après la fermeture de la pub ou si elle échoue
+                                        startVideo()
                                     }
+                                } else {
+                                    // Fallback si pas de gestionnaire de pub
+                                    startVideo()
                                 }
                             }
                         },

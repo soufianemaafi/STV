@@ -65,6 +65,8 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
 
+    implementation("com.google.android.gms:play-services-ads:23.0.0")
+
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     testImplementation(libs.junit)
