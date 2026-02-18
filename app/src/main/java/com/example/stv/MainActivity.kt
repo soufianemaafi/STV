@@ -34,8 +34,10 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -79,6 +81,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
     val isError by viewModel.isError.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // État pour gérer le debounce du clic
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+    val debounceTime = 1000L // 1 seconde de délai
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -158,6 +164,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastClickTime < debounceTime) {
+                                return@Button // Ignore le clic si trop rapide
+                            }
+                            lastClickTime = currentTime
+
                             if (viewModel.validateUrl()) {
                                 // Fonction pour lancer la vidéo
                                 val startVideo = {

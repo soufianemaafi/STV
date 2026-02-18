@@ -30,4 +30,10 @@
     <string name="quality_unknown">Inconnu</string>
     <string name="quality_auto_with_resolution">Auto (%1$dp)</string>
     <string name="quality_manual">Manuel</string>
+
+    <!-- AdBlock -->
+    <string name="ad_block_strict_title">Attention : Blocage détecté</string>
+    <string name="ad_block_strict_message">Nous avons détecté un bloqueur de publicité ou une erreur de connexion persistante.\n\nL\'accès au contenu nécessite l\'affichage de publicités qui financent cette application.\n\nVeuillez désactiver votre bloqueur (DNS, AdGuard, VPN) ou vérifier votre connexion.</string>
+    <string name="ad_block_retry_button">Réessayer</string>
+    <string name="ad_block_close_button">Fermer</string>
 </resources>
