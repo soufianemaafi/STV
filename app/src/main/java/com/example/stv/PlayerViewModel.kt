@@ -4,6 +4,7 @@ package com.example.stv
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -13,9 +14,11 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -25,6 +28,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var _exoPlayer: ExoPlayer? = null
     val exoPlayer: ExoPlayer?
         get() = _exoPlayer
+
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private val _currentPosition = MutableStateFlow(0L)
+    val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
+
+    private val _bufferedPosition = MutableStateFlow(0L)
+    val bufferedPosition: StateFlow<Long> = _bufferedPosition.asStateFlow()
+
+    private val _duration = MutableStateFlow(0L)
+    val duration: StateFlow<Long> = _duration.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -45,10 +60,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
                 Player.STATE_BUFFERING -> _isLoading.value = true
-                Player.STATE_READY -> _isLoading.value = false
-                Player.STATE_ENDED -> _isLoading.value = false
+                Player.STATE_READY -> {
+                    _isLoading.value = false
+                    _duration.value = _exoPlayer?.duration ?: 0L
+                }
+                Player.STATE_ENDED -> {
+                    _isLoading.value = false
+                    _isPlaying.value = false
+                }
                 Player.STATE_IDLE -> _isLoading.value = false
             }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _isPlaying.value = isPlaying
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -85,6 +110,48 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 setMediaItem(MediaItem.fromUri(Uri.parse(url)))
                 prepare()
             }
+
+        // Lancer une coroutine pour mettre à jour la position régulièrement
+        viewModelScope.launch {
+            while (true) {
+                val player = _exoPlayer
+                if (player != null && player.isPlaying) {
+                    _currentPosition.value = player.currentPosition
+                    _bufferedPosition.value = player.bufferedPosition
+                    _duration.value = player.duration.coerceAtLeast(0L)
+                } else if (player != null) {
+                    // Update buffer even when paused
+                    _bufferedPosition.value = player.bufferedPosition
+                }
+                delay(1000) // Mise à jour chaque seconde
+            }
+        }
+    }
+
+    fun togglePlayPause() {
+        val player = _exoPlayer ?: return
+        if (player.isPlaying) {
+            player.pause()
+        } else {
+            player.play()
+        }
+    }
+
+    fun seekTo(positionMs: Long) {
+        _exoPlayer?.seekTo(positionMs)
+        _currentPosition.value = positionMs
+    }
+
+    fun seekForward() {
+        _exoPlayer?.let { player ->
+            seekTo(player.currentPosition + 10000)
+        }
+    }
+
+    fun seekRewind() {
+        _exoPlayer?.let { player ->
+            seekTo(player.currentPosition - 10000)
+        }
     }
 
     fun selectTrack(trackInfo: VideoTrackInfo) {
@@ -113,9 +180,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun updateVideoTracks(tracks: Tracks) {
         val newTracks = mutableListOf<VideoTrackInfo>()
 
-        // Option Auto en premier
-        newTracks.add(VideoTrackInfo("Auto", null, null))
-
         for (group in tracks.groups) {
             if (group.type == C.TRACK_TYPE_VIDEO) {
                 for (i in 0 until group.length) {
@@ -123,12 +187,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         val trackFormat = group.getTrackFormat(i)
                         val height = trackFormat.height
                         val bitrate = trackFormat.bitrate
-                        val name = if (height != -1) "${height}p" else "Inconnu"
+                        val name = if (height != -1) {
+                            if (bitrate != -1) {
+                                val bitrateMbps = bitrate / 1000000f
+                                String.format("%dp (%.1f Mbps)", height, bitrateMbps)
+                            } else {
+                                "${height}p"
+                            }
+                        } else {
+                            "Inconnu"
+                        }
                         newTracks.add(VideoTrackInfo(name, group.mediaTrackGroup, i, height, bitrate))
                     }
                 }
             }
         }
+
+        // Tri : D'abord par hauteur décroissante (meilleure qualité en haut), puis par bitrate décroissant
+        newTracks.sortWith(compareByDescending<VideoTrackInfo> { it.height }.thenByDescending { it.bitrate })
+
+        // Option Auto en premier (toujours au début de la liste)
+        newTracks.add(0, VideoTrackInfo("Auto", null, null))
+
         _videoTracks.value = newTracks
     }
 
@@ -168,4 +248,3 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         releasePlayer()
     }
 }
-
