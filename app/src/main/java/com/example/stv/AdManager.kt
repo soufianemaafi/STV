@@ -20,7 +20,11 @@ class AdManager(private val context: Context) {
     // On initialise le compteur avec la valeur sauvegardée (0 par défaut)
     private var failedLoadAttempts: Int
         get() = prefs.getInt("failed_attempts", 0)
-        set(value) = prefs.edit().putInt("failed_attempts", value).apply()
+        set(value) {
+            val editor = prefs.edit()
+            editor.putInt("failed_attempts", value)
+            editor.apply()
+        }
 
     private val MAX_FAILED_ATTEMPTS = 3 // Seuil de tolérance
     private val TAG = "AdManager"

@@ -1,6 +1,10 @@
 package com.example.stv
 
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -65,6 +69,24 @@ class MainActivity : ComponentActivity() {
             STVTheme {
                 MainScreen(adManager = adManager)
             }
+        }
+    }
+
+    // Fonction utilitaire pour vérifier la connexion internet
+    fun isNetworkAvailable(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = connectivityManager.activeNetwork ?: return false
+            val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
+            return when {
+                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
+                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
+                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
+                else -> false
+            }
+        } else {
+            val networkInfo = connectivityManager.activeNetworkInfo
+            return networkInfo != null && networkInfo.isConnected
         }
     }
 }
@@ -169,6 +191,21 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
                                 return@Button // Ignore le clic si trop rapide
                             }
                             lastClickTime = currentTime
+
+                            // Vérification de la connexion internet
+                            val isConnected = if (context is MainActivity) {
+                                context.isNetworkAvailable()
+                            } else {
+                                // Fallback basique si le contexte n'est pas l'activité (rare)
+                                true
+                            }
+
+                            if (!isConnected) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(context.getString(R.string.no_internet_connection))
+                                }
+                                return@Button
+                            }
 
                             if (viewModel.validateUrl()) {
                                 // Fonction pour lancer la vidéo

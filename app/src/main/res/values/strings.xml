@@ -36,4 +36,5 @@
     <string name="ad_block_strict_message">Nous avons détecté un bloqueur de publicité ou une erreur de connexion persistante.\n\nL\'accès au contenu nécessite l\'affichage de publicités qui financent cette application.\n\nVeuillez désactiver votre bloqueur (DNS, AdGuard, VPN) ou vérifier votre connexion.</string>
     <string name="ad_block_retry_button">Réessayer</string>
     <string name="ad_block_close_button">Fermer</string>
+    <string name="no_internet_connection">Pas de connexion internet. Veuillez vérifier votre réseau.</string>
 </resources>
