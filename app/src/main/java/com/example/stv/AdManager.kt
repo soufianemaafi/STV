@@ -11,12 +11,14 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 
-class AdManager(private val context: Context) {
+class AdManager(context: Context) {
 
     private var interstitialAd: InterstitialAd? = null
+    // Utiliser applicationContext pour éviter les fuites de mémoire
+    private val appContext = context.applicationContext
 
-    // Persistance : On récupère les préférences
-    private val prefs = context.getSharedPreferences("ad_prefs", Context.MODE_PRIVATE)
+    // Persistance : On récupère les préférences avec le contexte de l'application
+    private val prefs = appContext.getSharedPreferences("ad_prefs", Context.MODE_PRIVATE)
     // On initialise le compteur avec la valeur sauvegardée (0 par défaut)
     private var failedLoadAttempts: Int
         get() = prefs.getInt("failed_attempts", 0)
@@ -35,8 +37,9 @@ class AdManager(private val context: Context) {
     fun loadInterstitialAd() {
         val adRequest = AdRequest.Builder().build()
 
+        // Utiliser appContext pour le chargement
         InterstitialAd.load(
-            context,
+            appContext,
             AD_UNIT_ID,
             adRequest,
             object : InterstitialAdLoadCallback() {

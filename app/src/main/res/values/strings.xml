@@ -37,4 +37,10 @@
     <string name="ad_block_retry_button">Réessayer</string>
     <string name="ad_block_close_button">Fermer</string>
     <string name="no_internet_connection">Pas de connexion internet. Veuillez vérifier votre réseau.</string>
+
+    <!-- Erreurs Player Conviviales -->
+    <string name="error_network">Problème de connexion internet. Vérifiez votre réseau.</string>
+    <string name="error_content_not_found">Ce contenu n\'est pas disponible pour le moment.</string>
+    <string name="error_decoder">Format vidéo non supporté par votre appareil.</string>
+    <string name="error_unknown">Une erreur est survenue : %1$s</string>
 </resources>

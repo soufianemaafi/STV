@@ -77,7 +77,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         override fun onPlayerError(error: PlaybackException) {
             _isLoading.value = false
-            _errorMessage.value = getApplication<Application>().getString(R.string.playback_error_prefix, error.message)
+            _errorMessage.value = getUserFriendlyErrorMessage(error)
         }
 
         override fun onTracksChanged(tracks: Tracks) {
@@ -87,6 +87,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             updateCurrentTrackName()
+        }
+    }
+
+    private fun getUserFriendlyErrorMessage(error: PlaybackException): String {
+        val messageResId = when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> R.string.error_network
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> R.string.error_content_not_found
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> R.string.error_decoder
+            else -> R.string.error_unknown
+        }
+
+        // Si c'est une erreur inconnue, on affiche quand même le message technique pour le debug si besoin
+        return if (messageResId == R.string.error_unknown) {
+             getApplication<Application>().getString(messageResId, error.message)
+        } else {
+             getApplication<Application>().getString(messageResId)
         }
     }
 
@@ -232,9 +250,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val parameters = player.trackSelectionParameters
 
         if (parameters.overrides.isEmpty()) {
+            val width = player.videoFormat?.width ?: 0
             val height = player.videoFormat?.height ?: 0
             if (height > 0) {
-                _currentTrackName.value = getApplication<Application>().getString(R.string.quality_auto_with_resolution, height)
+               // Affiche "Auto (1920x1080)" pour être plus précis
+               try {
+                   _currentTrackName.value = getApplication<Application>().getString(
+                       R.string.quality_auto_with_resolution,
+                       height
+                   )
+               } catch (e: Exception) {
+                   // Fallback si la ressource n'existe pas encore ou erreur
+                   _currentTrackName.value = "Auto (${height}p)"
+               }
             } else {
                 _currentTrackName.value = getApplication<Application>().getString(R.string.quality_auto)
             }

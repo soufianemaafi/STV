@@ -224,192 +224,41 @@ fun VideoPlayer(
 
             // Overlay avec les contrôles personnalisés (Visible seulement si !isInPipMode)
             if (!isInPipMode) {
-                AnimatedVisibility(
-                    visible = areControlsVisible,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Box(modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                    ) {
-                        // Bouton Retour en haut à gauche
-                        IconButton(
-                            onClick = onBackClick,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(16.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Retour",
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
+                PlayerControls(
+                    isVisible = areControlsVisible,
+                    isPlaying = isPlaying,
+                    currentPosition = currentPosition,
+                    bufferedPosition = bufferedPosition,
+                    duration = duration,
+                    resizeMode = resizeMode,
+                    onBackClick = onBackClick,
+                    onRewindClick = {
+                        viewModel.seekRewind()
+                        areControlsVisible = true
+                    },
+                    onPlayPauseClick = {
+                        viewModel.togglePlayPause()
+                        areControlsVisible = true
+                    },
+                    onForwardClick = {
+                        viewModel.seekForward()
+                        areControlsVisible = true
+                    },
+                    onResizeClick = {
+                         resizeMode = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        } else {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
                         }
-
-                        // Contrôles centrés (non, on veut en bas selon la demande)
-                        // Correction: L'utilisateur a demandé Play/Pause aligné en bas.
-
-                        // Zone du bas (Contrôles complets)
-                        Column(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp) // Réduit le padding du bas pour descendre la barre
-                                .fillMaxWidth()
-                        ) {
-                            // Boutons principaux alignés en bas
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center, // Changé de SpaceEvenly à Center pour rapprocher les éléments
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Contrôles centralisés pour les rapprocher
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(24.dp), // Espace fixe et égal entre les boutons
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Rewind -10s
-                                    IconButton(onClick = {
-                                        viewModel.seekRewind()
-                                        areControlsVisible = true // Reset timer
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Replay10,
-                                            contentDescription = "Rewind 10s",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-
-                                    // Play/Pause
-                                    IconButton(onClick = {
-                                        viewModel.togglePlayPause()
-                                        areControlsVisible = true // Reset timer
-                                    }) {
-                                        Icon(
-                                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                            contentDescription = if (isPlaying) "Pause" else "Play",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(40.dp) // Légèrement plus grand mais pas trop
-                                        )
-                                    }
-
-                                    // Forward +10s
-                                    IconButton(onClick = {
-                                        viewModel.seekForward()
-                                        areControlsVisible = true // Reset timer
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Forward10,
-                                            contentDescription = "Forward 10s",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-
-                                    // Cast (Placeholder)
-                                    IconButton(onClick = { /* TODO: Implémenter Cast */ }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Cast,
-                                            contentDescription = "Cast",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-
-                                    // Aspect Ratio (Redimensionnement)
-                                    IconButton(onClick = {
-                                        resizeMode = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
-                                            AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                        } else {
-                                            AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                        }
-                                        areControlsVisible = true
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.AspectRatio,
-                                            contentDescription = "Format", // stringResource removed to avoid error if not present, simple string is fine
-                                            tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-
-                                    // Picture in Picture (PiP)
-                                    IconButton(onClick = {
-                                        onPipClick()
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.PictureInPicture,
-                                            contentDescription = "PiP",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-
-                                    // Settings (Qualité) - Déplacé à la fin
-                                    IconButton(onClick = {
-                                        showQualityDialog = true
-                                        areControlsVisible = true
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = stringResource(R.string.quality_content_description),
-                                            tint = Color.White,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp)) // Réduit l'espace entre les boutons et la barre
-
-                            // Barre de progression et temps
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = formatDuration(currentPosition),
-                                    color = Color.White,
-                                    fontSize = 12.sp
-                                )
-
-                                Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                                    // Barre de buffer (arrière-plan)
-                                    LinearProgressIndicator(
-                                        progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp), // Hauteur proche de la track du slider
-                                        color = Color.White.copy(alpha = 0.5f), // Couleur du buffer (blanc semi-transparent)
-                                        trackColor = Color.White.copy(alpha = 0.2f), // Couleur du fond inactif
-                                    )
-
-                                    // Slider de lecture (avant-plan)
-                                    Slider(
-                                        value = currentPosition.toFloat(),
-                                        onValueChange = { viewModel.seekTo(it.toLong()) },
-                                        valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color.Red, // Curseur rouge
-                                            activeTrackColor = Color.Red, // Barre prog rouge
-                                            inactiveTrackColor = Color.Transparent // Fond transparent pour voir le buffer derrière
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-
-                                Text(
-                                    text = formatDuration(duration),
-                                    color = Color.White,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
-                }
+                        areControlsVisible = true
+                    },
+                    onPipClick = onPipClick,
+                    onSettingsClick = {
+                        showQualityDialog = true
+                        areControlsVisible = true
+                    },
+                    onSeek = { viewModel.seekTo(it) }
+                )
             }
 
             if (showQualityDialog) {
@@ -434,6 +283,187 @@ fun VideoPlayer(
     }
 }
 
+@Composable
+fun PlayerControls(
+    isVisible: Boolean,
+    isPlaying: Boolean,
+    currentPosition: Long,
+    bufferedPosition: Long,
+    duration: Long,
+    resizeMode: Int,
+    onBackClick: () -> Unit,
+    onRewindClick: () -> Unit,
+    onPlayPauseClick: () -> Unit,
+    onForwardClick: () -> Unit,
+    onResizeClick: () -> Unit,
+    onPipClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onSeek: (Long) -> Unit
+) {
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.4f))
+        ) {
+            // Bouton Retour en haut à gauche
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Retour",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            // Zone du bas (Contrôles complets)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp) // Réduit le padding du bas pour descendre la barre
+                    .fillMaxWidth()
+            ) {
+                // Boutons principaux alignés en bas
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center, // Changé de SpaceEvenly à Center pour rapprocher les éléments
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Contrôles centralisés pour les rapprocher
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(24.dp), // Espace fixe et égal entre les boutons
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Rewind -10s
+                        IconButton(onClick = onRewindClick) {
+                            Icon(
+                                imageVector = Icons.Filled.Replay10,
+                                contentDescription = "Rewind 10s",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        // Play/Pause
+                        IconButton(onClick = onPlayPauseClick) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(40.dp) // Légèrement plus grand mais pas trop
+                            )
+                        }
+
+                        // Forward +10s
+                        IconButton(onClick = onForwardClick) {
+                            Icon(
+                                imageVector = Icons.Filled.Forward10,
+                                contentDescription = "Forward 10s",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        // Cast (Placeholder)
+                        IconButton(onClick = { /* TODO: Implémenter Cast */ }) {
+                            Icon(
+                                imageVector = Icons.Filled.Cast,
+                                contentDescription = "Cast",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Aspect Ratio (Redimensionnement)
+                        IconButton(onClick = onResizeClick) {
+                            Icon(
+                                imageVector = Icons.Filled.AspectRatio,
+                                contentDescription = "Format",
+                                tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Picture in Picture (PiP)
+                        IconButton(onClick = onPipClick) {
+                            Icon(
+                                imageVector = Icons.Filled.PictureInPicture,
+                                contentDescription = "PiP",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Settings (Qualité) - Déplacé à la fin
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = stringResource(R.string.quality_content_description),
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp)) // Réduit l'espace entre les boutons et la barre
+
+                // Barre de progression et temps
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formatDuration(currentPosition),
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+
+                    Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                        // Barre de buffer (arrière-plan)
+                        LinearProgressIndicator(
+                            progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp), // Hauteur proche de la track du slider
+                            color = Color.White.copy(alpha = 0.5f), // Couleur du buffer (blanc semi-transparent)
+                            trackColor = Color.White.copy(alpha = 0.2f), // Couleur du fond inactif
+                        )
+
+                        // Slider de lecture (avant-plan)
+                        Slider(
+                            value = currentPosition.toFloat(),
+                            onValueChange = { onSeek(it.toLong()) },
+                            valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.Red, // Curseur rouge
+                                activeTrackColor = Color.Red, // Barre prog rouge
+                                inactiveTrackColor = Color.Transparent // Fond transparent pour voir le buffer derrière
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    Text(
+                        text = formatDuration(duration),
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
 // Utilitaire de formatage temps
 fun formatDuration(durationMs: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(durationMs)
@@ -445,8 +475,6 @@ fun formatDuration(durationMs: Long): String {
         String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
 }
-
-// ResizeSelectionDialog removed
 
 @Composable
 fun QualitySelectionDialog(
@@ -500,3 +528,4 @@ fun ErrorScreen(message: String) {
         Text(text = message, color = Color.White)
     }
 }
+
