@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -16,12 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,13 +36,24 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.example.stv.ui.theme.STVTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 @UnstableApi
 class PlayerActivity : ComponentActivity() {
 
     private var isInPipMode by mutableStateOf(false)
+    // Instanciation du ViewModel au niveau de l'activité pour gérer le cycle de vie
+    private val viewModel: PlayerViewModel by viewModels()
+
+    override fun onNewIntent(intent: android.content.Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val newVideoUrl = intent?.getStringExtra("VIDEO_URL")
+        if (newVideoUrl != null) {
+            viewModel.initializePlayer(newVideoUrl)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,7 +69,22 @@ class PlayerActivity : ComponentActivity() {
                     color = Color.Black
                 ) {
                     if (videoUrl != null) {
-                        VideoPlayer(videoUrl, isInPipMode)
+                        // On passe le viewModel existant au Composable
+                        VideoPlayer(
+                            url = videoUrl,
+                            isInPipMode = isInPipMode,
+                            viewModel = viewModel,
+                            onPipClick = {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    enterPictureInPictureMode(
+                                        android.app.PictureInPictureParams.Builder().build()
+                                    )
+                                }
+                            },
+                            onBackClick = {
+                                finish()
+                            }
+                        )
                     } else {
                         ErrorScreen(stringResource(R.string.url_not_provided))
                     }
@@ -81,6 +108,35 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
+            viewModel.play()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        hideSystemUI()
+        if ((android.os.Build.VERSION.SDK_INT < 24 || !isInPipMode)) {
+            viewModel.play()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (android.os.Build.VERSION.SDK_INT < 24) {
+             viewModel.pause()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
+             viewModel.pause()
+        }
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -91,7 +147,13 @@ class PlayerActivity : ComponentActivity() {
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoPlayer(url: String, isInPipMode: Boolean, viewModel: PlayerViewModel = viewModel()) {
+fun VideoPlayer(
+    url: String,
+    isInPipMode: Boolean,
+    viewModel: PlayerViewModel = viewModel(),
+    onPipClick: () -> Unit,
+    onBackClick: () -> Unit
+) {
 
     // ExoPlayer state from ViewModel
     val isLoading by viewModel.isLoading.collectAsState()
@@ -105,7 +167,8 @@ fun VideoPlayer(url: String, isInPipMode: Boolean, viewModel: PlayerViewModel = 
 
     // UI state
     var showQualityDialog by remember { mutableStateOf(false) }
-    var resizeMode by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
+    // Le player demarre en format fill comme par defaut
+    var resizeMode by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
     var areControlsVisible by remember { mutableStateOf(true) }
 
     LaunchedEffect(areControlsVisible, isPlaying) {
@@ -171,6 +234,21 @@ fun VideoPlayer(url: String, isInPipMode: Boolean, viewModel: PlayerViewModel = 
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.4f))
                     ) {
+                        // Bouton Retour en haut à gauche
+                        IconButton(
+                            onClick = onBackClick,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Retour",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+
                         // Contrôles centrés (non, on veut en bas selon la demande)
                         // Correction: L'utilisateur a demandé Play/Pause aligné en bas.
 
@@ -252,7 +330,7 @@ fun VideoPlayer(url: String, isInPipMode: Boolean, viewModel: PlayerViewModel = 
                                     }) {
                                         Icon(
                                             imageVector = Icons.Default.AspectRatio,
-                                            contentDescription = stringResource(R.string.format_content_description),
+                                            contentDescription = "Format", // stringResource removed to avoid error if not present, simple string is fine
                                             tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
                                             modifier = Modifier.size(24.dp)
                                         )
@@ -260,9 +338,7 @@ fun VideoPlayer(url: String, isInPipMode: Boolean, viewModel: PlayerViewModel = 
 
                                     // Picture in Picture (PiP)
                                     IconButton(onClick = {
-                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                            // Trigger PiP logic via Activity call ideally
-                                        }
+                                        onPipClick()
                                     }) {
                                         Icon(
                                             imageVector = Icons.Default.PictureInPicture,
@@ -364,9 +440,9 @@ fun formatDuration(durationMs: Long): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(durationMs) % 60
     val seconds = TimeUnit.MILLISECONDS.toSeconds(durationMs) % 60
     return if (hours > 0) {
-        String.format("%02d:%02d:%02d", hours, minutes, seconds)
+        String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
     } else {
-        String.format("%02d:%02d", minutes, seconds)
+        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
 }
 

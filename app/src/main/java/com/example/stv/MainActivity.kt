@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
@@ -51,11 +53,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.stv.ui.theme.STVTheme
 import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.width
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
     private lateinit var adManager: AdManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Installer le SplashScreen avant super.onCreate()
+        installSplashScreen()
         super.onCreate(savedInstanceState)
 
         // Initialiser AdMob
@@ -135,7 +141,21 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.app_name)) },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_logo_stv),
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
+                    },
                     navigationIcon = {
                         IconButton(onClick = {
                             scope.launch {

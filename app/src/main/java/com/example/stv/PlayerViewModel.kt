@@ -14,6 +14,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,8 +23,6 @@ import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val context = application.applicationContext
 
     private var _exoPlayer: ExoPlayer? = null
     val exoPlayer: ExoPlayer?
@@ -50,7 +49,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _videoTracks = MutableStateFlow<List<VideoTrackInfo>>(emptyList())
     val videoTracks: StateFlow<List<VideoTrackInfo>> = _videoTracks.asStateFlow()
 
-    private val _currentTrackName = MutableStateFlow(context.getString(R.string.quality_auto))
+    private val _currentTrackName = MutableStateFlow(getApplication<Application>().getString(R.string.quality_auto))
     val currentTrackName: StateFlow<String> = _currentTrackName.asStateFlow()
 
     private var trackSelector: DefaultTrackSelector? = null
@@ -78,7 +77,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         override fun onPlayerError(error: PlaybackException) {
             _isLoading.value = false
-            _errorMessage.value = "Erreur de lecture: ${error.message}"
+            _errorMessage.value = getApplication<Application>().getString(R.string.playback_error_prefix, error.message)
         }
 
         override fun onTracksChanged(tracks: Tracks) {
@@ -99,15 +98,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _isLoading.value = true
         _errorMessage.value = null
 
+        val context = getApplication<Application>()
         trackSelector = DefaultTrackSelector(context)
+
+        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
 
         _exoPlayer = ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector!!)
+            .setAudioAttributes(audioAttributes, true) // Activer gestion focus audio
+            .setHandleAudioBecomingNoisy(true) // Pause sur déconnexion écouteurs
             .build()
             .apply {
                 addListener(playerListener)
                 playWhenReady = true
-                setMediaItem(MediaItem.fromUri(Uri.parse(url)))
+                setMediaItem(MediaItem.fromUri(url))
                 prepare()
             }
 
@@ -135,6 +142,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             player.play()
         }
+    }
+
+    fun play() {
+        _exoPlayer?.play()
+    }
+
+    fun pause() {
+        _exoPlayer?.pause()
     }
 
     fun seekTo(positionMs: Long) {
@@ -190,12 +205,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         val name = if (height != -1) {
                             if (bitrate != -1) {
                                 val bitrateMbps = bitrate / 1000000f
-                                String.format("%dp (%.1f Mbps)", height, bitrateMbps)
+                                String.format(Locale.getDefault(), "%dp (%.1f Mbps)", height, bitrateMbps)
                             } else {
                                 "${height}p"
                             }
                         } else {
-                            "Inconnu"
+                            getApplication<Application>().getString(R.string.quality_unknown)
                         }
                         newTracks.add(VideoTrackInfo(name, group.mediaTrackGroup, i, height, bitrate))
                     }
@@ -217,9 +232,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val parameters = player.trackSelectionParameters
 
         if (parameters.overrides.isEmpty()) {
-            // val width = player.videoFormat?.width ?: 0 // width inutilisé
             val height = player.videoFormat?.height ?: 0
-            _currentTrackName.value = if (height > 0) "Auto (${height}p)" else "Auto"
+            if (height > 0) {
+                _currentTrackName.value = getApplication<Application>().getString(R.string.quality_auto_with_resolution, height)
+            } else {
+                _currentTrackName.value = getApplication<Application>().getString(R.string.quality_auto)
+            }
         } else {
              // Si on est en manuel, le nom est déjà mis à jour lors de la sélection,
              // mais on peut vérifier si l'override correspond toujours
@@ -228,7 +246,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                  val matching = _videoTracks.value.find {
                      it.group == override.mediaTrackGroup && override.trackIndices.contains(it.trackIndex)
                  }
-                 _currentTrackName.value = matching?.name ?: "Manuel"
+                 _currentTrackName.value = matching?.name ?: getApplication<Application>().getString(R.string.quality_manual)
              }
         }
     }
