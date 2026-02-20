@@ -23,9 +23,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -88,17 +90,23 @@ class PlayerActivity : ComponentActivity() {
                     if (videoUrl != null) {
                         // State to control when to ACTUALLY start the player logic
                         var shouldPlayVideo by remember { mutableStateOf(skipAds) }
+                        var showFallbackBanner by remember { mutableStateOf(false) }
 
                         // Logic to show Ad first if not skipped
                         LaunchedEffect(Unit) {
                             if (!isAdShown) {
                                 // Wait for ad to load or timeout
                                 delay(1500)
-                                adManager.showInterstitial(this@PlayerActivity) {
-                                    // Callback when Ad is closed or failed
-                                    isAdShown = true
-                                    shouldPlayVideo = true
-                                }
+                                adManager.showInterstitial(
+                                    activity = this@PlayerActivity,
+                                    onAdDismissed = {
+                                        isAdShown = true
+                                        shouldPlayVideo = true
+                                    },
+                                    onFallbackAd = {
+                                        showFallbackBanner = true
+                                    }
+                                )
                             } else {
                                 shouldPlayVideo = true
                             }
@@ -125,6 +133,11 @@ class PlayerActivity : ComponentActivity() {
                                     finishAndRemoveTask()
                                 }
                             )
+                        } else if (showFallbackBanner) {
+                             FallbackBanner(onFinish = {
+                                isAdShown = true
+                                shouldPlayVideo = true
+                            })
                         } else {
                             // Loading screen while Ad logic is processing
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -170,7 +183,11 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        viewModel.pause()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N && isInPictureInPictureMode) {
+            // Continue playing in PIP mode
+        } else {
+            viewModel.pause()
+        }
     }
 
     override fun onStop() {
@@ -564,5 +581,48 @@ fun ErrorScreen(message: String) {
         modifier = Modifier.fillMaxSize().background(Color.Black)
     ) {
         Text(text = message, color = Color.White)
+    }
+}
+
+@Composable
+fun FallbackBanner(onFinish: () -> Unit) {
+    var timeLeft by remember { mutableLongStateOf(5L) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        while (timeLeft > 0) {
+            delay(1000)
+            timeLeft--
+        }
+        onFinish()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // AdView container for MREC (Medium Rectangle)
+            AndroidView(
+                modifier = Modifier.wrapContentSize(),
+                factory = { ctx ->
+                    com.google.android.gms.ads.AdView(ctx).apply {
+                        setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
+                        // Use AdMob Test ID for Banner/MREC
+                        adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                        loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "La vidéo commence dans $timeLeft secondes...",
+                color = Color.White
+            )
+        }
     }
 }

@@ -60,7 +60,7 @@ class AdManager(context: Context) {
         )
     }
 
-    fun showInterstitial(activity: Activity, onAdDismissed: () -> Unit) {
+    fun showInterstitial(activity: Activity, onAdDismissed: () -> Unit, onFallbackAd: () -> Unit) {
         if (interstitialAd != null) {
             interstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
                 override fun onAdDismissedFullScreenContent() {
@@ -90,9 +90,9 @@ class AdManager(context: Context) {
                 // Blocage strict : On ne lance PAS la vidéo, on force le retry
                 showStrictBlockerDialog(activity)
             } else {
-                // Tolérance : On laisse passer la vidéo, mais on tente de recharger pour la prochaine fois
+                // Tolérance : Au lieu de lancer la vidéo directement, on propose le fallback (Bannière)
                 loadInterstitialAd()
-                onAdDismissed()
+                onFallbackAd()
             }
         }
     }

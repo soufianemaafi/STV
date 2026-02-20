@@ -229,13 +229,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
 
                             if (viewModel.validateUrl()) {
                                 // Fonction pour lancer la vidéo
-                                val startVideo = {
+                                fun startVideo(adsShown: Boolean) {
                                     try {
-                        val intent = Intent(context, PlayerActivity::class.java).apply {
-                            putExtra("VIDEO_URL", streamUrl)
-                            putExtra("SKIP_ADS", true) // Skip ads in PlayerActivity since MainActivity showed one
-                        }
-                        context.startActivity(intent)
+                                        val intent = Intent(context, PlayerActivity::class.java).apply {
+                                            putExtra("VIDEO_URL", streamUrl)
+                                            putExtra("SKIP_ADS", adsShown)
+                                        }
+                                        context.startActivity(intent)
                                     } catch (e: Exception) {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.launch_error_prefix, e.message))
@@ -245,13 +245,20 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
 
                                 if (adManager != null && context is android.app.Activity) {
                                     // Tenter d'afficher la pub interstitielle
-                                    adManager.showInterstitial(context) {
-                                        // Ce code s'exécute après la fermeture de la pub ou si elle échoue
-                                        startVideo()
-                                    }
+                                    adManager.showInterstitial(
+                                        activity = context,
+                                        onAdDismissed = {
+                                            // Pub vue ou fermée -> on dit au Player de ne pas en remettre
+                                            startVideo(true)
+                                        },
+                                        onFallbackAd = {
+                                            // Pas de pub prête ici -> on dit au Player de gérer sa pub
+                                            startVideo(false)
+                                        }
+                                    )
                                 } else {
                                     // Fallback si pas de gestionnaire de pub
-                                    startVideo()
+                                    startVideo(false)
                                 }
                             }
                         },
