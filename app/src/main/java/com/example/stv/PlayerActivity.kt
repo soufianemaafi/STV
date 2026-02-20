@@ -46,10 +46,14 @@ class PlayerActivity : ComponentActivity() {
     // Instanciation du ViewModel au niveau de l'activité pour gérer le cycle de vie
     private val viewModel: PlayerViewModel by viewModels()
 
+    private lateinit var adManager: AdManager
+    private var isAdShown = false
+
     override fun onNewIntent(intent: android.content.Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
         val newVideoUrl = intent?.getStringExtra("VIDEO_URL")
+        // If it's a new intent with URL, we might want to check for ads again if strategy requires
         if (newVideoUrl != null) {
             viewModel.initializePlayer(newVideoUrl)
         }
@@ -58,9 +62,22 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialize AdManager member variable
+        adManager = AdManager(this)
+
         hideSystemUI()
 
         val videoUrl = intent.getStringExtra("VIDEO_URL")
+        // Check if the caller wants to skip ads (e.g. STV MainActivity already showed one)
+        val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
+
+        // If we skip ads, we consider it "shown"
+        if (skipAds) {
+            isAdShown = true
+        } else {
+             // Only load ad if we need to show it
+             adManager.loadInterstitialAd()
+        }
 
         setContent {
             STVTheme {
@@ -69,22 +86,52 @@ class PlayerActivity : ComponentActivity() {
                     color = Color.Black
                 ) {
                     if (videoUrl != null) {
-                        // On passe le viewModel existant au Composable
-                        VideoPlayer(
-                            url = videoUrl,
-                            isInPipMode = isInPipMode,
-                            viewModel = viewModel,
-                            onPipClick = {
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                    enterPictureInPictureMode(
-                                        android.app.PictureInPictureParams.Builder().build()
-                                    )
+                        // State to control when to ACTUALLY start the player logic
+                        var shouldPlayVideo by remember { mutableStateOf(skipAds) }
+
+                        // Logic to show Ad first if not skipped
+                        LaunchedEffect(Unit) {
+                            if (!isAdShown) {
+                                // Wait for ad to load or timeout
+                                delay(1500)
+                                adManager.showInterstitial(this@PlayerActivity) {
+                                    // Callback when Ad is closed or failed
+                                    isAdShown = true
+                                    shouldPlayVideo = true
                                 }
-                            },
-                            onBackClick = {
-                                finish()
+                            } else {
+                                shouldPlayVideo = true
                             }
-                        )
+                        }
+
+                        if (shouldPlayVideo) {
+                            // Initialize player ONLY when allowed
+                            LaunchedEffect(videoUrl) {
+                                viewModel.initializePlayer(videoUrl)
+                            }
+
+                            // On passe le viewModel existant au Composable
+                            VideoPlayer(
+                                isInPipMode = isInPipMode,
+                                viewModel = viewModel,
+                                onPipClick = {
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                        enterPictureInPictureMode(
+                                            android.app.PictureInPictureParams.Builder().build()
+                                        )
+                                    }
+                                },
+                                onBackClick = {
+                                    finishAndRemoveTask()
+                                }
+                            )
+                        } else {
+                            // Loading screen while Ad logic is processing
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Color.Red)
+                                // Optional text: "Loading Advertisement..."
+                            }
+                        }
                     } else {
                         ErrorScreen(stringResource(R.string.url_not_provided))
                     }
@@ -110,31 +157,25 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (android.os.Build.VERSION.SDK_INT >= 24) {
-            viewModel.play()
-        }
+        viewModel.play()
     }
 
     override fun onResume() {
         super.onResume()
         hideSystemUI()
-        if ((android.os.Build.VERSION.SDK_INT < 24 || !isInPipMode)) {
+        if (!isInPipMode) {
             viewModel.play()
         }
     }
 
     override fun onPause() {
         super.onPause()
-        if (android.os.Build.VERSION.SDK_INT < 24) {
-             viewModel.pause()
-        }
+        viewModel.pause()
     }
 
     override fun onStop() {
         super.onStop()
-        if (android.os.Build.VERSION.SDK_INT >= 24) {
-             viewModel.pause()
-        }
+        viewModel.pause()
     }
 
     override fun onUserLeaveHint() {
@@ -148,7 +189,6 @@ class PlayerActivity : ComponentActivity() {
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayer(
-    url: String,
     isInPipMode: Boolean,
     viewModel: PlayerViewModel = viewModel(),
     onPipClick: () -> Unit,
@@ -178,9 +218,6 @@ fun VideoPlayer(
         }
     }
 
-    LaunchedEffect(url) {
-        viewModel.initializePlayer(url)
-    }
 
     Box(modifier = Modifier
         .fillMaxSize()
@@ -283,6 +320,7 @@ fun VideoPlayer(
     }
 }
 
+@OptIn(UnstableApi::class)
 @Composable
 fun PlayerControls(
     isVisible: Boolean,
@@ -528,4 +566,3 @@ fun ErrorScreen(message: String) {
         Text(text = message, color = Color.White)
     }
 }
-

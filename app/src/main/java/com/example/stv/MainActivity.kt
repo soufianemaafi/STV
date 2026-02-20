@@ -231,10 +231,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
                                 // Fonction pour lancer la vidéo
                                 val startVideo = {
                                     try {
-                                        val intent = Intent(context, PlayerActivity::class.java).apply {
-                                            putExtra("VIDEO_URL", streamUrl)
-                                        }
-                                        context.startActivity(intent)
+                        val intent = Intent(context, PlayerActivity::class.java).apply {
+                            putExtra("VIDEO_URL", streamUrl)
+                            putExtra("SKIP_ADS", true) // Skip ads in PlayerActivity since MainActivity showed one
+                        }
+                        context.startActivity(intent)
                                     } catch (e: Exception) {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.launch_error_prefix, e.message))

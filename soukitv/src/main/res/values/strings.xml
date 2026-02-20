@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">SoukiTV</string>
+    <string name="error_network">Network error.</string>
+    <string name="error_content_not_found">Content not found.</string>
+    <string name="error_decoder">Decoder initialization failed.</string>
+    <string name="error_unknown">Unknown error.</string>
+    <string name="quality_auto">Auto</string>
+    <string name="url_not_provided">URL not provided</string>
+    <string name="quality_content_description">Quality Settings</string>
+    <string name="quality_dialog_title">Select Quality</string>
+    <string name="close_button">Close</string>
+    <string name="quality_auto_with_resolution">Auto (%1$dp)</string>
+    <string name="quality_manual">Manual</string>
+</resources>
