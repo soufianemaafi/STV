@@ -28,7 +28,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -37,6 +36,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.example.stv.ui.theme.STVTheme
+import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.delay
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -64,6 +64,9 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialiser AdMob si nécessaire (important si l'activité est lancée directement)
+        MobileAds.initialize(this) {}
+
         // Initialize AdManager member variable
         adManager = AdManager(this)
 
@@ -78,7 +81,7 @@ class PlayerActivity : ComponentActivity() {
             isAdShown = true
         } else {
              // Only load ad if we need to show it
-             adManager.loadInterstitialAd()
+             // adManager.loadInterstitialAd() // Removed: we will use loadAndShowInterstitial in LaunchedEffect
         }
 
         setContent {
@@ -95,24 +98,57 @@ class PlayerActivity : ComponentActivity() {
                         // Logic to show Ad first if not skipped
                         LaunchedEffect(Unit) {
                             if (!isAdShown) {
-                                // Wait for ad to load or timeout
-                                delay(1500)
-                                adManager.showInterstitial(
-                                    activity = this@PlayerActivity,
-                                    onAdDismissed = {
-                                        isAdShown = true
-                                        shouldPlayVideo = true
-                                    },
-                                    onFallbackAd = {
+                                // On utilise loadAndShowInterstitial qui gère lui-même le succès/échec
+                                // On réduit le timeout à 3.5 secondes pour être plus réactif sur les mauvaises connexions
+                                try {
+                                    kotlinx.coroutines.withTimeout(6000) {
+                                         // On doit wrapper l'appel callback dans une coroutine suspendue pour attendre la réponse
+                                         kotlinx.coroutines.suspendCancellableCoroutine<Unit> { continuation ->
+                                             adManager.loadAndShowInterstitial(
+                                                activity = this@PlayerActivity,
+                                                onAdShowed = {
+                                                    // La pub s'affiche ! On arrête le chrono (resume) immédiatement.
+                                                    // On ne change pas encore les états (isAdShown), on laisse onAdDismissed le faire plus tard
+                                                    if (continuation.isActive) continuation.resume(Unit) {}
+                                                },
+                                                onAdDismissed = {
+                                                    // Si le timeout avait déjà resume (via onAdShowed), ceci s'exécutera hors du bloc timeout
+                                                    // C'est ici qu'on valide la fin de la pub
+                                                    if (continuation.isActive) continuation.resume(Unit) {} // Sécurité si onAdShowed n'avait pas fire
+                                                    isAdShown = true
+                                                    shouldPlayVideo = true
+                                                },
+                                                onFallbackAd = {
+                                                    if (continuation.isActive) continuation.resume(Unit) {}
+                                                    showFallbackBanner = true
+                                                },
+                                                onAdBlockDetected = {
+                                                    // AdBlock détecté : on arrête le chrono immédiatement pour éviter le timeout
+                                                    // Le dialogue est déjà affiché par AdManager.showStrictBlockerDialog
+                                                    // Mais ici on valide que le processus d'attente est "terminé" (le dialogue prend le relais)
+                                                    if (continuation.isActive) continuation.resume(Unit) {}
+                                                    // On NE DOIT PAS mettre shouldPlayVideo à true ici !
+                                                    // On laisse l'utilisateur gérer le dialogue (Réessayer / Fermer)
+                                                }
+                                             )
+                                         }
+                                    }
+                                } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                                    // Si timeout, on vérifie d'abord si la pub n'a pas déjà été marquée comme vue/affichée
+                                    // entre temps pour éviter le double affichage.
+                                    if (!isAdShown && !shouldPlayVideo) {
                                         showFallbackBanner = true
                                     }
-                                )
+                                }
                             } else {
                                 shouldPlayVideo = true
                             }
                         }
 
                         if (shouldPlayVideo) {
+                            // Si la vidéo doit jouer, on s'assure que le fallback est caché
+                            showFallbackBanner = false
+
                             // Initialize player ONLY when allowed
                             LaunchedEffect(videoUrl) {
                                 viewModel.initializePlayer(videoUrl)
@@ -133,10 +169,11 @@ class PlayerActivity : ComponentActivity() {
                                     finishAndRemoveTask()
                                 }
                             )
-                        } else if (showFallbackBanner) {
+                        } else if (showFallbackBanner && !shouldPlayVideo) { // Double sécurité ici
                              FallbackBanner(onFinish = {
                                 isAdShown = true
                                 shouldPlayVideo = true
+                                showFallbackBanner = false // On cache explicitement le fallback à la fin
                             })
                         } else {
                             // Loading screen while Ad logic is processing
@@ -586,6 +623,7 @@ fun ErrorScreen(message: String) {
 
 @Composable
 fun FallbackBanner(onFinish: () -> Unit) {
+    // On affiche la bannière légère pendant 5 secondes pour laisser le temps à l'impression pub de se faire
     var timeLeft by remember { mutableLongStateOf(5L) }
     val context = LocalContext.current
 
@@ -604,24 +642,42 @@ fun FallbackBanner(onFinish: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // AdView container for MREC (Medium Rectangle)
+            Text(
+                text = "Préparation du flux...",
+                color = Color.Gray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            // AdView container for MREC (Medium Rectangle) - Beaucoup plus léger qu'un interstitiel
             AndroidView(
                 modifier = Modifier.wrapContentSize(),
                 factory = { ctx ->
                     com.google.android.gms.ads.AdView(ctx).apply {
                         setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
-                        // Use AdMob Test ID for Banner/MREC
+                        // Use AdMob Test ID for Banner/MREC to ensure it loads
                         adUnitId = "ca-app-pub-3940256099942544/6300978111"
                         loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
                     }
                 }
             )
 
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Indicateur clair pour l'utilisateur
+            CircularProgressIndicator(
+                progress = { (5 - timeLeft) / 5f }, // Barre de progression circulaire
+                color = Color.Red,
+                modifier = Modifier.size(48.dp)
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "La vidéo commence dans $timeLeft secondes...",
-                color = Color.White
+                text = "Lancement du flux dans $timeLeft s",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
         }
     }

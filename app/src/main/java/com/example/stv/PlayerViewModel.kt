@@ -99,14 +99,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> R.string.error_decoder
             else -> R.string.error_unknown
         }
-
-        // Si c'est une erreur inconnue, on affiche quand même le message technique pour le debug si besoin
-        return if (messageResId == R.string.error_unknown) {
-             getApplication<Application>().getString(messageResId, error.message)
-        } else {
-             getApplication<Application>().getString(messageResId)
-        }
+        return getApplication<Application>().getString(messageResId)
     }
+
+
+    // Method removed temporarily to fix conflict
+
 
     fun initializePlayer(url: String) {
         if (_exoPlayer != null && currentUrl == url) return
@@ -289,8 +287,4 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         currentUrl = null
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        releasePlayer()
-    }
 }

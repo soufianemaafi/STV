@@ -34,6 +34,46 @@ class AdManager(context: Context) {
     // Test Ad Unit ID for Interstitial
     private val AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
 
+    fun loadAndShowInterstitial(
+        activity: Activity,
+        onAdDismissed: () -> Unit,
+        onFallbackAd: () -> Unit,
+        onAdShowed: () -> Unit, // Nouveau callback
+        onAdBlockDetected: (() -> Unit)? = null // Nouveau callback optionnel pour gérer le blocage dans PlayerActivity
+    ) {
+        val adRequest = AdRequest.Builder().build()
+
+        InterstitialAd.load(
+            appContext,
+            AD_UNIT_ID,
+            adRequest,
+            object : InterstitialAdLoadCallback() {
+                override fun onAdFailedToLoad(adError: LoadAdError) {
+                    Log.d(TAG, adError.toString())
+                    interstitialAd = null
+                    failedLoadAttempts++
+                    // Si le chargement échoue, on passe inmédiatement au fallback ou à la suite
+                    if (failedLoadAttempts >= MAX_FAILED_ATTEMPTS) {
+                         // Trop d'échecs : détection AdBlocker -> On affiche le dialogue strict
+                         showStrictBlockerDialog(activity)
+                         // On notifie l'activité que le blocage est actif (pour arrêter le timer)
+                         onAdBlockDetected?.invoke()
+                    } else {
+                         onFallbackAd()
+                    }
+                }
+
+                override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                    Log.d(TAG, "Ad was loaded.")
+                    this@AdManager.interstitialAd = interstitialAd
+                    failedLoadAttempts = 0
+                    // La pub est chargée, on l'affiche directement
+                    showInterstitial(activity, onAdDismissed, onFallbackAd, onAdShowed)
+                }
+            }
+        )
+    }
+
     fun loadInterstitialAd() {
         val adRequest = AdRequest.Builder().build()
 
@@ -60,7 +100,12 @@ class AdManager(context: Context) {
         )
     }
 
-    fun showInterstitial(activity: Activity, onAdDismissed: () -> Unit, onFallbackAd: () -> Unit) {
+    fun showInterstitial(
+        activity: Activity,
+        onAdDismissed: () -> Unit,
+        onFallbackAd: () -> Unit,
+        onAdShowed: (() -> Unit)? = null // Optionnel pour compatibilité
+    ) {
         if (interstitialAd != null) {
             interstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
                 override fun onAdDismissedFullScreenContent() {
@@ -79,6 +124,7 @@ class AdManager(context: Context) {
                 override fun onAdShowedFullScreenContent() {
                     Log.d(TAG, "Ad showed fullscreen content.")
                     interstitialAd = null
+                    onAdShowed?.invoke() // On notifie que l'affichage a commencé
                 }
             }
             interstitialAd?.show(activity)
