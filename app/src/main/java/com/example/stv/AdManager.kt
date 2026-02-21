@@ -52,12 +52,30 @@ class AdManager(context: Context) {
                     Log.d(TAG, adError.toString())
                     interstitialAd = null
                     failedLoadAttempts++
+
+                    // NOUVELLE LOGIQUE "SOFT FAILOVER"
+                    // Si c'est une erreur "No Fill" (3), ce n'est pas un blocage, c'est juste pas de pub dispo.
+                    if (adError.code == AdRequest.ERROR_CODE_NO_FILL) {
+                         Log.d(TAG, "No fill received, falling back to banner or content directly.")
+                         // On ne compte pas ça comme un échec bloquant
+                         failedLoadAttempts = 0
+                         // On passe directement au fallback (bannière)
+                         onFallbackAd()
+                         return
+                    }
+
                     // Si le chargement échoue, on passe inmédiatement au fallback ou à la suite
                     if (failedLoadAttempts >= MAX_FAILED_ATTEMPTS) {
                          // Trop d'échecs : détection AdBlocker -> On affiche le dialogue strict
-                         showStrictBlockerDialog(activity)
-                         // On notifie l'activité que le blocage est actif (pour arrêter le timer)
-                         onAdBlockDetected?.invoke()
+                         // MAIS POUR LA STRATEGIE DOUCE: On vérifie si c'est vraiment réseau
+                         if (adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
+                             // Erreur réseau persistante : on tente le fallback bannière, peut-être qu'elle chargera
+                             onFallbackAd()
+                         } else {
+                             showStrictBlockerDialog(activity)
+                             // On notifie l'activité que le blocage est actif (pour arrêter le timer)
+                             onAdBlockDetected?.invoke()
+                         }
                     } else {
                          onFallbackAd()
                     }
@@ -86,7 +104,6 @@ class AdManager(context: Context) {
                 override fun onAdFailedToLoad(adError: LoadAdError) {
                     Log.d(TAG, adError.toString())
                     interstitialAd = null
-                    // Incrémente et sauvegarde automatiquement grâce au setter
                     failedLoadAttempts++
                 }
 
@@ -144,20 +161,26 @@ class AdManager(context: Context) {
     }
 
     private fun showStrictBlockerDialog(activity: Activity) {
+        // Nouvelle Logique : Si on est en mode "Douceur", on affiche simplement une info et on laisse passer
+        // Mais pour l'instant, on garde le blocage mais avec une option de sortie discrète ou juste un Toast
+
+        // Pour la demande "Soft Failover", on va transformer ce dialogue bloquant en un simple avertissement non bloquant
+        // ou mieux : on tente de charger la vidéo quand même après le clic sur "Réessayer".
+
         AlertDialog.Builder(activity)
             .setTitle(activity.getString(R.string.ad_block_strict_title))
             .setMessage(activity.getString(R.string.ad_block_strict_message))
             .setPositiveButton(activity.getString(R.string.ad_block_retry_button)) { dialog, _ ->
-                // Bouton Réessayer : on tente de charger une pub et on ferme le dialog.
-                // L'utilisateur devra recliquer sur "Lire le stream" une fois la pub chargée.
                 dialog.dismiss()
                 loadInterstitialAd()
             }
             .setNegativeButton(activity.getString(R.string.ad_block_close_button)) { dialog, _ ->
-                // Bouton Fermer : on ferme juste le dialog, pas d'accès au contenu
                 dialog.dismiss()
+                // Modifications pour Soft Failover: on pourrait fermer l'activité ici,
+                // mais si on veut être très gentil, on ne fait rien (l'écran reste noir ou revient en arrière)
+                activity.finish()
             }
-            .setCancelable(false) // Obliger l'utilisateur à faire un choix
+            .setCancelable(false)
             .show()
     }
 }

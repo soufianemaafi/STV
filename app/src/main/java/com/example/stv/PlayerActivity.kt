@@ -144,6 +144,8 @@ class PlayerActivity : ComponentActivity() {
                                                     }
                                                 },
                                                 onAdBlockDetected = {
+                                                    // Soft Failover: Même si on détecte un bloqueur, on n'arrête pas tout brutalement
+                                                    // On laisse le dialogue faire son travail (éduquer), mais on ne force pas l'arrêt ici.
                                                     if (continuation.isActive) continuation.resume(Unit) {}
                                                 }
                                              )
