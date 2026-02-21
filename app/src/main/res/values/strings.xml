@@ -43,4 +43,9 @@
     <string name="error_content_not_found">Ce contenu n\'est pas disponible pour le moment.</string>
     <string name="error_decoder">Format vidéo non supporté par votre appareil.</string>
     <string name="error_unknown">Une erreur est survenue : %1$s</string>
+
+    <!-- Privacy Policy -->
+    <string name="privacy_policy">Politique de Confidentialité</string>
+    <!-- REMPLACEZ CE LIEN par votre propre URL hébergée (Google Drive, GitHub Pages, Site Web) -->
+    <string name="privacy_policy_url">https://sites.google.com/view/stv-player-privacy</string>
 </resources>

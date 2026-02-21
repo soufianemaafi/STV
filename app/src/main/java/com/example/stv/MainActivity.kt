@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DrawerValue
@@ -47,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -133,6 +135,24 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
                     label = { Text(stringResource(R.string.settings)) },
                     selected = false,
                     onClick = { /* TODO */ }
+                )
+
+                // Privacy Policy Item (Requis par Google Play)
+                val privacyUrl = stringResource(R.string.privacy_policy_url)
+                val uriHandler = LocalUriHandler.current
+
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.privacy_policy)) },
+                    icon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                    selected = false,
+                    onClick = {
+                        try {
+                            uriHandler.openUri(privacyUrl)
+                        } catch (e: Exception) {
+                            // Fallback si aucun navigateur n'est trouvé (rare)
+                        }
+                        scope.launch { drawerState.close() }
+                    }
                 )
             }
         },

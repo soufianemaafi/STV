@@ -57,7 +57,24 @@ class PlayerActivity : ComponentActivity() {
         val newVideoUrl = intent?.getStringExtra("VIDEO_URL")
         // If it's a new intent with URL, we might want to check for ads again if strategy requires
         if (newVideoUrl != null) {
-            viewModel.initializePlayer(newVideoUrl)
+            // Réinitialiser l'état des publicités pour forcer un nouvel affichage
+            isAdShown = false
+            // On déclenche le chargement de la vidéo via le ViewModel MAIS on doit d'abord gérer la pub
+            // Le LaunchedEffect(Unit) dans setContent ne sera PAS ré-exécuté car l'activité n'est pas recréée.
+            // Il faut donc gérer cela manuellement ou forcer la recomposition.
+
+            // Pour simplifier, on peut juste recréer l'activité si nécessaire,
+            // mais avec singleTask c'est mieux de gérer l'état.
+            // Cependant, comme la logique Ads est dans un Composable avec LaunchedEffect(Unit),
+            // le plus simple pour forcer le redémarrage de toute la logique est de finir et redémarrer
+            // ou de modifier l'état observé par LaunchedEffect.
+
+            // On va utiliser un état mutable 'currentVideoUrl' dans le composable pour déclencher la logique.
+            // Mais ici on n'a pas accès direct aux états du composable.
+
+            // Solution robuste : recréer l'activité pour repartir propre
+            finish()
+            startActivity(intent)
         }
     }
 
@@ -94,6 +111,8 @@ class PlayerActivity : ComponentActivity() {
                         // State to control when to ACTUALLY start the player logic
                         var shouldPlayVideo by remember { mutableStateOf(skipAds) }
                         var showFallbackBanner by remember { mutableStateOf(false) }
+                        // Flag pour empêcher l'affichage tardif de l'interstitiel si le timeout a déjà déclenché le fallback
+                        val isTimeoutRef = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
                         // Logic to show Ad first if not skipped
                         LaunchedEffect(Unit) {
@@ -108,36 +127,38 @@ class PlayerActivity : ComponentActivity() {
                                                 activity = this@PlayerActivity,
                                                 onAdShowed = {
                                                     // La pub s'affiche ! On arrête le chrono (resume) immédiatement.
-                                                    // On ne change pas encore les états (isAdShown), on laisse onAdDismissed le faire plus tard
-                                                    if (continuation.isActive) continuation.resume(Unit) {}
+                                                    if (!isTimeoutRef.get()) {
+                                                        if (continuation.isActive) continuation.resume(Unit) {}
+                                                    }
                                                 },
                                                 onAdDismissed = {
                                                     // Si le timeout avait déjà resume (via onAdShowed), ceci s'exécutera hors du bloc timeout
-                                                    // C'est ici qu'on valide la fin de la pub
-                                                    if (continuation.isActive) continuation.resume(Unit) {} // Sécurité si onAdShowed n'avait pas fire
+                                                    if (continuation.isActive) continuation.resume(Unit) {}
                                                     isAdShown = true
                                                     shouldPlayVideo = true
                                                 },
                                                 onFallbackAd = {
-                                                    if (continuation.isActive) continuation.resume(Unit) {}
-                                                    showFallbackBanner = true
+                                                    if (!isTimeoutRef.get()) {
+                                                        if (continuation.isActive) continuation.resume(Unit) {}
+                                                        showFallbackBanner = true
+                                                    }
                                                 },
                                                 onAdBlockDetected = {
-                                                    // AdBlock détecté : on arrête le chrono immédiatement pour éviter le timeout
-                                                    // Le dialogue est déjà affiché par AdManager.showStrictBlockerDialog
-                                                    // Mais ici on valide que le processus d'attente est "terminé" (le dialogue prend le relais)
                                                     if (continuation.isActive) continuation.resume(Unit) {}
-                                                    // On NE DOIT PAS mettre shouldPlayVideo à true ici !
-                                                    // On laisse l'utilisateur gérer le dialogue (Réessayer / Fermer)
                                                 }
                                              )
                                          }
                                     }
                                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                                    // Timeout expiré !
+                                    isTimeoutRef.set(true)
+
                                     // Si timeout, on vérifie d'abord si la pub n'a pas déjà été marquée comme vue/affichée
                                     // entre temps pour éviter le double affichage.
+                                    // IMPORTANT: Si isAdShown est true, c'est que la pub a été fermée, donc tout va bien.
                                     if (!isAdShown && !shouldPlayVideo) {
-                                        showFallbackBanner = true
+                                         // On bascule sur le fallback car l'interstitiel est trop lent
+                                         showFallbackBanner = true
                                     }
                                 }
                             } else {

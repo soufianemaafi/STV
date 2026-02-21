@@ -14,6 +14,8 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.upstream.DefaultAllocator
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -117,6 +119,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val context = getApplication<Application>()
         trackSelector = DefaultTrackSelector(context)
 
+        // Optimisation du Buffer pour un démarrage rapide (1.5s) et une stabilité accrue (Profil "Robuste")
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                15_000, // Min Buffer (15s) : Seuil critique avant rechargement agressif
+                50_000, // Max Buffer (50s) : Capacité maximale pour absorber les coupures
+                1_500,  // bufferForPlaybackMs : Démarrage rapide (1.5s) - Effet Zapping
+                3_000   // bufferForPlaybackAfterRebufferMs : Reprise rapide après coupure (3s)
+            )
+            .build()
+
         val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
@@ -124,6 +136,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         _exoPlayer = ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector!!)
+            .setLoadControl(loadControl) // Application de l'optimisation
             .setAudioAttributes(audioAttributes, true) // Activer gestion focus audio
             .setHandleAudioBecomingNoisy(true) // Pause sur déconnexion écouteurs
             .build()
@@ -285,6 +298,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _exoPlayer = null
         trackSelector = null
         currentUrl = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        releasePlayer()
     }
 
 }

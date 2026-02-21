@@ -23,13 +23,16 @@ android {
 
     signingConfigs {
         create("release") {
-            // Note: You should generate a keystore for this app if you plan to release it.
-            // For now, removing the reference to the other app's keystore or using debug signing.
+            storeFile = file("../app/release.keystore")
+            storePassword = "android"
+            keyAlias = "key0"
+            keyPassword = "android"
         }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
