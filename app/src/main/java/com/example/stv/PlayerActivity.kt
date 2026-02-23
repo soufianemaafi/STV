@@ -2,6 +2,7 @@ package com.example.stv
 
 import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -35,70 +36,55 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.example.stv.ads.AdsController
+import com.example.stv.ads.AdsController.AdResult
+import com.example.stv.player.PlayerController
+import com.example.stv.ui.PlayerUiState
 import com.example.stv.ui.theme.STVTheme
 import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.delay
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import com.example.stv.security.PermissionHelper
 
 @UnstableApi
 class PlayerActivity : ComponentActivity() {
 
+    private val TAG = "PlayerActivity"
     private var isInPipMode by mutableStateOf(false)
-    // Instanciation du ViewModel au niveau de l'activité pour gérer le cycle de vie
     private val viewModel: PlayerViewModel by viewModels()
-
     private lateinit var adManager: AdManager
-    private var isAdShown = false
-
-    override fun onNewIntent(intent: android.content.Intent?) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        val newVideoUrl = intent?.getStringExtra("VIDEO_URL")
-        // If it's a new intent with URL, we might want to check for ads again if strategy requires
-        if (newVideoUrl != null) {
-            // Réinitialiser l'état des publicités pour forcer un nouvel affichage
-            isAdShown = false
-            // On déclenche le chargement de la vidéo via le ViewModel MAIS on doit d'abord gérer la pub
-            // Le LaunchedEffect(Unit) dans setContent ne sera PAS ré-exécuté car l'activité n'est pas recréée.
-            // Il faut donc gérer cela manuellement ou forcer la recomposition.
-
-            // Pour simplifier, on peut juste recréer l'activité si nécessaire,
-            // mais avec singleTask c'est mieux de gérer l'état.
-            // Cependant, comme la logique Ads est dans un Composable avec LaunchedEffect(Unit),
-            // le plus simple pour forcer le redémarrage de toute la logique est de finir et redémarrer
-            // ou de modifier l'état observé par LaunchedEffect.
-
-            // On va utiliser un état mutable 'currentVideoUrl' dans le composable pour déclencher la logique.
-            // Mais ici on n'a pas accès direct aux états du composable.
-
-            // Solution robuste : recréer l'activité pour repartir propre
-            finish()
-            startActivity(intent)
-        }
-    }
+    private lateinit var adsController: AdsController
+    private lateinit var playerController: PlayerController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialiser AdMob si nécessaire (important si l'activité est lancée directement)
-        MobileAds.initialize(this) {}
+        // ✅ SÉCURITÉ : Vérifier que l'app appelante est autorisée
+        val permissionHelper = PermissionHelper(this)
+        val callerPackage = callingPackage
+        val requiredPermission = "com.example.stv.PERMISSION_LAUNCH_PLAYER"
 
-        // Initialize AdManager member variable
+        if (callerPackage != null && !permissionHelper.isCallerAuthorized(callerPackage, requiredPermission)) {
+            Log.e(TAG, "Unauthorized caller: $callerPackage. Finishing activity.")
+            finish()
+            return
+        }
+
+        MobileAds.initialize(this) {}
         adManager = AdManager(this)
+        adsController = AdsController(adManager)
+        playerController = PlayerController()
 
         hideSystemUI()
 
         val videoUrl = intent.getStringExtra("VIDEO_URL")
-        // Check if the caller wants to skip ads (e.g. STV MainActivity already showed one)
         val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
 
-        // If we skip ads, we consider it "shown"
-        if (skipAds) {
-            isAdShown = true
-        } else {
-             // Only load ad if we need to show it
-             // adManager.loadInterstitialAd() // Removed: we will use loadAndShowInterstitial in LaunchedEffect
+        // Validation initiale de l'URL
+        val urlError = playerController.validateStreamUrl(videoUrl)
+        if (urlError != null) {
+            Log.w(TAG, "Invalid URL: $urlError")
         }
 
         setContent {
@@ -107,77 +93,76 @@ class PlayerActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Black
                 ) {
-                    if (videoUrl != null) {
-                        // State to control when to ACTUALLY start the player logic
-                        var shouldPlayVideo by remember { mutableStateOf(skipAds) }
-                        var showFallbackBanner by remember { mutableStateOf(false) }
-                        // Flag pour empêcher l'affichage tardif de l'interstitiel si le timeout a déjà déclenché le fallback
-                        val isTimeoutRef = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+                    // ✅ Récupérer les ressources en contexte Composable d'abord
+                    val errorUrlNotProvided = stringResource(R.string.url_not_provided)
 
-                        // Logic to show Ad first if not skipped
-                        LaunchedEffect(Unit) {
-                            if (!isAdShown) {
-                                // On utilise loadAndShowInterstitial qui gère lui-même le succès/échec
-                                // On réduit le timeout à 3.5 secondes pour être plus réactif sur les mauvaises connexions
-                                try {
-                                    kotlinx.coroutines.withTimeout(6000) {
-                                         // On doit wrapper l'appel callback dans une coroutine suspendue pour attendre la réponse
-                                         kotlinx.coroutines.suspendCancellableCoroutine<Unit> { continuation ->
-                                             adManager.loadAndShowInterstitial(
-                                                activity = this@PlayerActivity,
-                                                onAdShowed = {
-                                                    // La pub s'affiche ! On arrête le chrono (resume) immédiatement.
-                                                    if (!isTimeoutRef.get()) {
-                                                        if (continuation.isActive) continuation.resume(Unit) {}
-                                                    }
-                                                },
-                                                onAdDismissed = {
-                                                    // Si le timeout avait déjà resume (via onAdShowed), ceci s'exécutera hors du bloc timeout
-                                                    if (continuation.isActive) continuation.resume(Unit) {}
-                                                    isAdShown = true
-                                                    shouldPlayVideo = true
-                                                },
-                                                onFallbackAd = {
-                                                    if (!isTimeoutRef.get()) {
-                                                        if (continuation.isActive) continuation.resume(Unit) {}
-                                                        showFallbackBanner = true
-                                                    }
-                                                },
-                                                onAdBlockDetected = {
-                                                    // Soft Failover: Même si on détecte un bloqueur, on n'arrête pas tout brutalement
-                                                    // On laisse le dialogue faire son travail (éduquer), mais on ne force pas l'arrêt ici.
-                                                    if (continuation.isActive) continuation.resume(Unit) {}
-                                                }
-                                             )
-                                         }
-                                    }
-                                } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                                    // Timeout expiré !
-                                    isTimeoutRef.set(true)
-
-                                    // Si timeout, on vérifie d'abord si la pub n'a pas déjà été marquée comme vue/affichée
-                                    // entre temps pour éviter le double affichage.
-                                    // IMPORTANT: Si isAdShown est true, c'est que la pub a été fermée, donc tout va bien.
-                                    if (!isAdShown && !shouldPlayVideo) {
-                                         // On bascule sur le fallback car l'interstitiel est trop lent
-                                         showFallbackBanner = true
-                                    }
-                                }
+                    // State machine unique pour gérer les différentes phases
+                    var uiState by remember {
+                        mutableStateOf<PlayerUiState>(
+                            if (urlError != null) {
+                                PlayerUiState.Error(urlError)
+                            } else if (videoUrl == null) {
+                                PlayerUiState.Error(errorUrlNotProvided)
+                            } else if (skipAds) {
+                                PlayerUiState.Ready(videoUrl)
                             } else {
-                                shouldPlayVideo = true
+                                PlayerUiState.LoadingAds
+                            }
+                        )
+                    }
+
+                    // Orchestration des ads si besoin
+                    LaunchedEffect(uiState) {
+                        if (uiState == PlayerUiState.LoadingAds && videoUrl != null) {
+                            val result = adsController.showAdIfNeeded(
+                                activity = this@PlayerActivity,
+                                timeoutMs = 6000
+                            )
+
+                            uiState = when (result) {
+                                AdResult.AdShowed,
+                                AdResult.AdDismissed -> {
+                                    PlayerUiState.Ready(videoUrl)
+                                }
+                                AdResult.FallbackBanner,
+                                AdResult.Timeout -> {
+                                    PlayerUiState.Fallback(adBlockDetected = false)
+                                }
+                                AdResult.AdBlockDetected -> {
+                                    PlayerUiState.Fallback(adBlockDetected = true)
+                                }
                             }
                         }
+                    }
 
-                        if (shouldPlayVideo) {
-                            // Si la vidéo doit jouer, on s'assure que le fallback est caché
-                            showFallbackBanner = false
+                    // Rendu basé sur l'état unique
+                    when (uiState) {
+                        is PlayerUiState.Error -> {
+                            ErrorScreen((uiState as PlayerUiState.Error).message)
+                        }
+                        is PlayerUiState.LoadingAds -> {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Color.Red)
+                            }
+                        }
+                        is PlayerUiState.Fallback -> {
+                            FallbackBanner(
+                                adBlockDetected = (uiState as PlayerUiState.Fallback).adBlockDetected,
+                                onFinish = {
+                                    if (videoUrl != null) {
+                                        uiState = PlayerUiState.Ready(videoUrl)
+                                    }
+                                }
+                            )
+                        }
+                        is PlayerUiState.Ready -> {
+                            val url = (uiState as PlayerUiState.Ready).videoUrl
 
-                            // Initialize player ONLY when allowed
-                            LaunchedEffect(videoUrl) {
-                                viewModel.initializePlayer(videoUrl)
+                            // Initialize player
+                            LaunchedEffect(url) {
+                                viewModel.initializePlayer(url)
                             }
 
-                            // On passe le viewModel existant au Composable
                             VideoPlayer(
                                 isInPipMode = isInPipMode,
                                 viewModel = viewModel,
@@ -192,21 +177,7 @@ class PlayerActivity : ComponentActivity() {
                                     finishAndRemoveTask()
                                 }
                             )
-                        } else if (showFallbackBanner && !shouldPlayVideo) { // Double sécurité ici
-                             FallbackBanner(onFinish = {
-                                isAdShown = true
-                                shouldPlayVideo = true
-                                showFallbackBanner = false // On cache explicitement le fallback à la fin
-                            })
-                        } else {
-                            // Loading screen while Ad logic is processing
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = Color.Red)
-                                // Optional text: "Loading Advertisement..."
-                            }
                         }
-                    } else {
-                        ErrorScreen(stringResource(R.string.url_not_provided))
                     }
                 }
             }
@@ -645,8 +616,8 @@ fun ErrorScreen(message: String) {
 }
 
 @Composable
-fun FallbackBanner(onFinish: () -> Unit) {
-    // On affiche la bannière légère pendant 5 secondes pour laisser le temps à l'impression pub de se faire
+fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
+    // Affiche la bannière légère pendant 5 secondes pour laisser le temps à la pub bannière de se charger
     var timeLeft by remember { mutableLongStateOf(5L) }
     val context = LocalContext.current
 
@@ -666,20 +637,19 @@ fun FallbackBanner(onFinish: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Préparation du flux...",
+                text = if (adBlockDetected) "Détection de bloqueur actif" else "Préparation du flux...",
                 color = Color.Gray,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            // AdView container for MREC (Medium Rectangle) - Beaucoup plus léger qu'un interstitiel
+            // AdView container for MREC (Medium Rectangle)
             AndroidView(
                 modifier = Modifier.wrapContentSize(),
                 factory = { ctx ->
                     com.google.android.gms.ads.AdView(ctx).apply {
                         setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
-                        // Use AdMob Test ID for Banner/MREC to ensure it loads
-                        adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                        adUnitId = BuildConfig.ADMOB_BANNER_ID  // ✅ Flavor-specific
                         loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
                     }
                 }
@@ -687,9 +657,9 @@ fun FallbackBanner(onFinish: () -> Unit) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Indicateur clair pour l'utilisateur
+            // Indicateur de progression
             CircularProgressIndicator(
-                progress = { (5 - timeLeft) / 5f }, // Barre de progression circulaire
+                progress = { (5 - timeLeft) / 5f },
                 color = Color.Red,
                 modifier = Modifier.size(48.dp)
             )

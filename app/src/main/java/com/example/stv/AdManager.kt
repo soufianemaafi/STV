@@ -31,8 +31,9 @@ class AdManager(context: Context) {
     private val MAX_FAILED_ATTEMPTS = 3 // Seuil de tolérance
     private val TAG = "AdManager"
 
-    // Test Ad Unit ID for Interstitial
-    private val AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
+    // ✅ IDs AdMob provenant du BuildConfig (flavor-specific)
+    private val AD_UNIT_ID = BuildConfig.ADMOB_INTERSTITIAL_ID
+    private val BANNER_AD_UNIT_ID = BuildConfig.ADMOB_BANNER_ID
 
     fun loadAndShowInterstitial(
         activity: Activity,

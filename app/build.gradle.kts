@@ -8,6 +8,9 @@ android {
     namespace = "com.example.stv"
     compileSdk = 35
 
+    // ✅ Ajouter les flavors AVANT defaultConfig
+    flavorDimensions.add("environment")
+
     defaultConfig {
         applicationId = "com.example.stv"
         minSdk = 24
@@ -18,6 +21,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+
+        // ✅ IDs AdMob par défaut (debug)
+        buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+        buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
+    }
+
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            // IDs de test AdMob pour le développement
+            buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+            buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
+        }
+
+        create("prod") {
+            dimension = "environment"
+            // ✅ Utiliser les IDs test pour le moment (release test sur device)
+            // À remplacer par vos IDs production une fois prêts pour publication
+            buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+            buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
         }
     }
 
@@ -45,11 +70,17 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
-    kotlinOptions {
-        jvmTarget = "1.8"
+
+    // ✅ Remplacer kotlinOptions (dépréciée) par compilerOptions
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        }
     }
+
     buildFeatures {
         compose = true
+        buildConfig = true  // ✅ Activer BuildConfig fields personnalisés
     }
     packaging {
         resources {

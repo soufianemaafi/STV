@@ -2,8 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permission custom signature-level pour protéger l'accès au PlayerActivity -->
+    <permission
+        android:name="com.example.stv.PERMISSION_LAUNCH_PLAYER"
+        android:protectionLevel="signature"
+        android:label="Permission to launch STV Player" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="com.example.stv.PERMISSION_LAUNCH_PLAYER" />
 
     <application
         android:allowBackup="true"
@@ -40,6 +47,7 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:exported="true"
+            android:permission="com.example.stv.PERMISSION_LAUNCH_PLAYER"
             android:label="@string/app_name"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"

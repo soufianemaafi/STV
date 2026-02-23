@@ -165,18 +165,36 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
                     items(categories) { category ->
                         CategorySection(category = category, onChannelClick = { channel ->
-                            val packageName = "com.example.stv"
-                            val isInstalled = try {
-                                context.packageManager.getPackageInfo(packageName, 0)
-                                true
-                            } catch (e: Exception) {
-                                false
+                            // ✅ Supporter à la fois le flavor dev (com.example.stv.dev) et prod (com.example.stv)
+                            val stvPackageNames = listOf(
+                                "com.example.stv",      // Production
+                                "com.example.stv.dev",  // Debug/Dev flavor
+                                "com.example.stv.prod"  // Prod flavor
+                            )
+
+                            val isInstalled = stvPackageNames.any { packageName ->
+                                try {
+                                    context.packageManager.getPackageInfo(packageName, 0)
+                                    true
+                                } catch (e: Exception) {
+                                    false
+                                }
                             }
 
                             if (isInstalled) {
                                 try {
+                                    // Trouver le package réellement installé
+                                    val actualPackageName = stvPackageNames.firstOrNull { packageName ->
+                                        try {
+                                            context.packageManager.getPackageInfo(packageName, 0)
+                                            true
+                                        } catch (e: Exception) {
+                                            false
+                                        }
+                                    } ?: "com.example.stv"
+
                                     val intent = Intent()
-                                    intent.setClassName("com.example.stv", "com.example.stv.PlayerActivity")
+                                    intent.setClassName(actualPackageName, "com.example.stv.PlayerActivity")
                                     intent.putExtra("VIDEO_URL", channel.streamUrl)
                                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     context.startActivity(intent)
