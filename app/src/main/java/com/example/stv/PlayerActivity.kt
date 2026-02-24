@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -116,20 +118,34 @@ class PlayerActivity : ComponentActivity() {
                         if (uiState == PlayerUiState.LoadingAds && videoUrl != null) {
                             val result = adsController.showAdIfNeeded(
                                 activity = this@PlayerActivity,
+                                onAdShowed = {
+                                    // ✅ Pub commence à s'afficher → passer en ShowingAd
+                                    uiState = PlayerUiState.ShowingAd(videoUrl)
+                                },
+                                onAdDismissed = {
+                                    // ✅ Pub fermée → passer en Ready (démarrage du player)
+                                    uiState = PlayerUiState.Ready(videoUrl)
+                                },
                                 timeoutMs = 6000
                             )
 
-                            uiState = when (result) {
-                                AdResult.AdShowed,
-                                AdResult.AdDismissed -> {
-                                    PlayerUiState.Ready(videoUrl)
-                                }
-                                AdResult.FallbackBanner,
-                                AdResult.Timeout -> {
-                                    PlayerUiState.Fallback(adBlockDetected = false)
-                                }
-                                AdResult.AdBlockDetected -> {
-                                    PlayerUiState.Fallback(adBlockDetected = true)
+                            // Gérer le résultat initial si pas de pub affichée
+                            if (result != AdResult.AdShowed) {
+                                uiState = when (result) {
+                                    AdResult.AdDismissed -> {
+                                        // Pub fermée immédiatement (rare)
+                                        PlayerUiState.Ready(videoUrl)
+                                    }
+                                    AdResult.FallbackBanner,
+                                    AdResult.Timeout -> {
+                                        // Fallback temporaire (bannière 5s puis player)
+                                        PlayerUiState.Fallback(adBlockDetected = false)
+                                    }
+                                    AdResult.AdBlockDetected -> {
+                                        // ✅ BLOQUÉ : Adblock détecté → PAS d'accès au contenu
+                                        PlayerUiState.Blocked
+                                    }
+                                    else -> PlayerUiState.Fallback(adBlockDetected = false)
                                 }
                             }
                         }
@@ -145,6 +161,61 @@ class PlayerActivity : ComponentActivity() {
                                 CircularProgressIndicator(color = Color.Red)
                             }
                         }
+                        is PlayerUiState.ShowingAd -> {
+                            // ✅ Pub en cours d'affichage
+                            // Le player NE DÉMARRE PAS (pas de son en arrière-plan)
+                            // Affichage d'un écran noir en attendant la fermeture de la pub
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(Color.Black),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                // Optionnel : loader discret
+                                CircularProgressIndicator(
+                                    color = Color.Red.copy(alpha = 0.3f),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                            // La transition vers Ready se fera via le callback onAdDismissed
+                        }
+                        is PlayerUiState.Blocked -> {
+                            // ✅ BLOQUÉ : Adblock détecté
+                            // Le player NE DÉMARRE JAMAIS
+                            // Affiche un message et reste bloqué (le dialogue système se charge de fermer l'app)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Block,
+                                        contentDescription = "Bloqué",
+                                        tint = Color.Red,
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    Text(
+                                        text = "Accès bloqué",
+                                        color = Color.White,
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "Un bloqueur de publicité a été détecté.\nVeuillez le désactiver pour continuer.",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                            // Pas de transition vers Ready : l'utilisateur reste bloqué
+                            // Le dialogue système (AdManager) se charge de fermer l'app
+                        }
                         is PlayerUiState.Fallback -> {
                             FallbackBanner(
                                 adBlockDetected = (uiState as PlayerUiState.Fallback).adBlockDetected,
@@ -158,7 +229,7 @@ class PlayerActivity : ComponentActivity() {
                         is PlayerUiState.Ready -> {
                             val url = (uiState as PlayerUiState.Ready).videoUrl
 
-                            // Initialize player
+                            // ✅ Initialize player SEULEMENT ici (après fermeture de la pub)
                             LaunchedEffect(url) {
                                 viewModel.initializePlayer(url)
                             }
@@ -459,8 +530,8 @@ fun PlayerControls(
                             )
                         }
 
-                        // Cast (Placeholder)
-                        IconButton(onClick = { /* TODO: Implémenter Cast */ }) {
+                        // Cast (À implémenter)
+                        IconButton(onClick = { }) {
                             Icon(
                                 imageVector = Icons.Filled.Cast,
                                 contentDescription = "Cast",
@@ -638,7 +709,7 @@ fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = if (adBlockDetected) "Détection de bloqueur actif" else "Préparation du flux...",
-                color = Color.Gray,
+                color = Color.White,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 24.dp)
             )

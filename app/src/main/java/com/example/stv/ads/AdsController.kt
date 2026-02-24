@@ -17,11 +17,15 @@ class AdsController(private val adManager: AdManager) {
     /**
      * Tente de charger et afficher une publicité interstitielle.
      * @param activity Activité pour afficher la pub.
+     * @param onAdShowed Callback appelé quand la pub commence à s'afficher.
+     * @param onAdDismissed Callback appelé quand la pub est fermée.
      * @param timeoutMs Délai d'attente max (6000ms par défaut).
-     * @return True si la pub a été affichée, False si fallback/timeout.
+     * @return Résultat du chargement initial.
      */
     suspend fun showAdIfNeeded(
         activity: Activity,
+        onAdShowed: () -> Unit = {},
+        onAdDismissed: () -> Unit = {},
         timeoutMs: Long = 6000
     ): AdResult {
         return try {
@@ -31,10 +35,12 @@ class AdsController(private val adManager: AdManager) {
                         activity = activity,
                         onAdShowed = {
                             Log.d(TAG, "Ad showed successfully")
+                            onAdShowed() // ✅ Callback externe
                             if (continuation.isActive) continuation.resume(AdResult.AdShowed)
                         },
                         onAdDismissed = {
                             Log.d(TAG, "Ad dismissed")
+                            onAdDismissed() // ✅ Callback externe
                             if (continuation.isActive) continuation.resume(AdResult.AdDismissed)
                         },
                         onFallbackAd = {

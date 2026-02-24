@@ -162,23 +162,15 @@ class AdManager(context: Context) {
     }
 
     private fun showStrictBlockerDialog(activity: Activity) {
-        // Nouvelle Logique : Si on est en mode "Douceur", on affiche simplement une info et on laisse passer
-        // Mais pour l'instant, on garde le blocage mais avec une option de sortie discrète ou juste un Toast
-
-        // Pour la demande "Soft Failover", on va transformer ce dialogue bloquant en un simple avertissement non bloquant
-        // ou mieux : on tente de charger la vidéo quand même après le clic sur "Réessayer".
+        // Dialogue de détection d'adblock
+        // Affiche seulement un bouton "Fermer" qui ferme l'activité
+        // Pas de bouton "Réessayer" pour éviter de contourner la détection
 
         AlertDialog.Builder(activity)
             .setTitle(activity.getString(R.string.ad_block_strict_title))
             .setMessage(activity.getString(R.string.ad_block_strict_message))
-            .setPositiveButton(activity.getString(R.string.ad_block_retry_button)) { dialog, _ ->
+            .setPositiveButton(activity.getString(R.string.ad_block_close_button)) { dialog, _ ->
                 dialog.dismiss()
-                loadInterstitialAd()
-            }
-            .setNegativeButton(activity.getString(R.string.ad_block_close_button)) { dialog, _ ->
-                dialog.dismiss()
-                // Modifications pour Soft Failover: on pourrait fermer l'activité ici,
-                // mais si on veut être très gentil, on ne fait rien (l'écran reste noir ou revient en arrière)
                 activity.finish()
             }
             .setCancelable(false)

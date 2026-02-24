@@ -8,8 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,10 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,11 +38,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -50,13 +51,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.stv.ui.theme.STVTheme
 import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.width
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
     private lateinit var adManager: AdManager
@@ -99,16 +99,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = null) {
+fun MainScreen(adManager: AdManager? = null) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
-    val streamUrl by viewModel.streamUrl.collectAsState()
-    val isError by viewModel.isError.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -124,36 +120,53 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.history)) },
                     selected = false,
-                    onClick = { /* TODO */ }
+                    onClick = { }
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.favorites)) },
                     selected = false,
-                    onClick = { /* TODO */ }
+                    onClick = { }
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.settings)) },
                     selected = false,
-                    onClick = { /* TODO */ }
+                    onClick = { }
                 )
 
                 // Privacy Policy Item (Requis par Google Play)
                 val privacyUrl = stringResource(R.string.privacy_policy_url)
+                val termsUrl = stringResource(R.string.terms_of_service_url)
                 val uriHandler = LocalUriHandler.current
 
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.privacy_policy)) },
-                    icon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                    icon = { Icon(Icons.Filled.Info, contentDescription = "Politique de Confidentialité") },
                     selected = false,
                     onClick = {
                         try {
                             uriHandler.openUri(privacyUrl)
                         } catch (e: Exception) {
-                            // Fallback si aucun navigateur n'est trouvé (rare)
+                            // Fallback si aucun navigateur n'est trouvé
                         }
                         scope.launch { drawerState.close() }
                     }
                 )
+
+                // Terms of Service Item
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.terms_of_service)) },
+                    icon = { Icon(Icons.Filled.Description, contentDescription = "Conditions d'Utilisation") },
+                    selected = false,
+                    onClick = {
+                        try {
+                            uriHandler.openUri(termsUrl)
+                        } catch (e: Exception) {
+                            // Fallback si aucun navigateur n'est trouvé
+                        }
+                        scope.launch { drawerState.close() }
+                    }
+                )
+
             }
         },
     ) {
@@ -165,7 +178,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_logo_stv),
-                                contentDescription = null,
+                                contentDescription = "STV Logo",
                                 modifier = Modifier.size(32.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -198,93 +211,38 @@ fun MainScreen(viewModel: MainViewModel = viewModel(), adManager: AdManager? = n
                     .padding(contentPadding),
                 color = MaterialTheme.colorScheme.background
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    TextField(
-                        value = streamUrl,
-                        onValueChange = {
-                            viewModel.updateUrl(it)
-                        },
-                        label = { Text(stringResource(R.string.stream_url_label)) },
-                        isError = isError,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    if (isError) {
-                        Text(
-                            text = stringResource(R.string.url_empty_error),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Bouton principal en bas
                     Button(
                         onClick = {
-                            val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastClickTime < debounceTime) {
-                                return@Button // Ignore le clic si trop rapide
-                            }
-                            lastClickTime = currentTime
-
-                            // Vérification de la connexion internet
-                            val isConnected = if (context is MainActivity) {
-                                context.isNetworkAvailable()
-                            } else {
-                                // Fallback basique si le contexte n'est pas l'activité (rare)
-                                true
-                            }
-
-                            if (!isConnected) {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(context.getString(R.string.no_internet_connection))
-                                }
-                                return@Button
-                            }
-
-                            if (viewModel.validateUrl()) {
-                                // Fonction pour lancer la vidéo
-                                fun startVideo(adsShown: Boolean) {
-                                    try {
-                                        val intent = Intent(context, PlayerActivity::class.java).apply {
-                                            putExtra("VIDEO_URL", streamUrl)
-                                            putExtra("SKIP_ADS", adsShown)
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(context.getString(R.string.launch_error_prefix, e.message))
-                                        }
-                                    }
-                                }
-
-                                if (adManager != null && context is android.app.Activity) {
-                                    // Tenter d'afficher la pub interstitielle
-                                    adManager.showInterstitial(
-                                        activity = context,
-                                        onAdDismissed = {
-                                            // Pub vue ou fermée -> on dit au Player de ne pas en remettre
-                                            startVideo(true)
-                                        },
-                                        onFallbackAd = {
-                                            // Pas de pub prête ici -> on dit au Player de gérer sa pub
-                                            startVideo(false)
-                                        }
-                                    )
-                                } else {
-                                    // Fallback si pas de gestionnaire de pub
-                                    startVideo(false)
-                                }
+                            val now = System.currentTimeMillis()
+                            if (now - lastClickTime > debounceTime) {
+                                lastClickTime = now
+                                val intent = Intent(context, VideoListActivity::class.java)
+                                context.startActivity(intent)
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(24.dp)
+                            .fillMaxWidth()
+                            .height(60.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
                     ) {
-                        Text(stringResource(R.string.play_stream_button))
+                        Icon(
+                            imageVector = Icons.Filled.VideoLibrary,
+                            contentDescription = "Videos",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = stringResource(R.string.videos_button_label),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
                     }
                 }
             }
