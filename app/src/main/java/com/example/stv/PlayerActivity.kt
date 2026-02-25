@@ -68,7 +68,7 @@ class PlayerActivity : ComponentActivity() {
         val requiredPermission = "com.example.stv.PERMISSION_LAUNCH_PLAYER"
 
         if (callerPackage != null && !permissionHelper.isCallerAuthorized(callerPackage, requiredPermission)) {
-            Log.e(TAG, "Unauthorized caller: $callerPackage. Finishing activity.")
+            Log.e(TAG, "Unauthorized caller. Finishing activity.")
             finish()
             return
         }
@@ -86,7 +86,10 @@ class PlayerActivity : ComponentActivity() {
         // Validation initiale de l'URL
         val urlError = playerController.validateStreamUrl(videoUrl)
         if (urlError != null) {
-            Log.w(TAG, "Invalid URL: $urlError")
+            Log.w(TAG, "Invalid URL provided")
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "Invalid URL: $urlError")
+            }
         }
 
         setContent {
