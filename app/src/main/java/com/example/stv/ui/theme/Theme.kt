@@ -6,58 +6,69 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+// ============ DARK THEME - NETFLIX STYLE ============
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = RedPrimary,                    // #E50914 - Rouge Netflix
+    onPrimary = WhitePrimary,                // Blanc sur rouge
+    primaryContainer = RedDark,              // #B2070E - Conteneurs rouges
+    onPrimaryContainer = WhitePrimary,       // Blanc sur conteneur rouge
+
+    secondary = AccentCyan,                  // #00D9FF - Cyan accent
+    onSecondary = BlackDark,                 // Noir sur cyan
+    secondaryContainer = Color(0xFF005F73), // Conteneur cyan foncé
+    onSecondaryContainer = WhitePrimary,     // Blanc sur conteneur cyan
+
+    tertiary = AccentYellow,                 // #FFB81E - Jaune
+    onTertiary = BlackDark,                  // Noir sur jaune
+
+    error = RedLight,                        // #FF3D3D - Erreurs
+    onError = WhitePrimary,                  // Blanc sur erreur
+
+    background = BlackDark,                  // #0D0D0D - Fond très noir
+    onBackground = WhitePrimary,             // Blanc sur fond
+
+    surface = BlackCard,                     // #1A1A1A - Surface cards
+    onSurface = WhitePrimary,                // Blanc sur surface
+    surfaceVariant = GrayMuted,              // #808080 - Variante surface
+    onSurfaceVariant = GrayLight,            // Gris clair sur surface
+
+    outline = GrayLight,                     // #B3B3B3 - Bordures
+    outlineVariant = GrayMuted               // #808080 - Bordures alt
 )
 
+// ============ LIGHT THEME (Fallback) ============
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = RedPrimary,
+    secondary = AccentCyan,
+    tertiary = AccentYellow
 )
 
 @Composable
 fun STVTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,  // Désactiver les couleurs dynamiques pour cohérence
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            window.statusBarColor = RedPrimary.toArgb()  // Status bar rouge Netflix
+            WindowCompat.getInsetsController(window, view)?.isAppearanceLightStatusBars = false
         }
     }
 

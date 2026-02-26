@@ -49,7 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -115,7 +114,10 @@ fun MainScreen(adManager: AdManager? = null) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
+            ModalDrawerSheet(
+                modifier = Modifier.width(280.dp),
+                drawerContainerColor = MaterialTheme.colorScheme.surface
+            ) {
                 Spacer(Modifier.height(12.dp))
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.history)) },
@@ -133,36 +135,26 @@ fun MainScreen(adManager: AdManager? = null) {
                     onClick = { }
                 )
 
-                // Privacy Policy Item (Requis par Google Play)
-                val privacyUrl = stringResource(R.string.privacy_policy_url)
-                val termsUrl = stringResource(R.string.terms_of_service_url)
-                val uriHandler = LocalUriHandler.current
-
+                // Privacy Policy Item (Interne - requis par Google Play)
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.privacy_policy)) },
                     icon = { Icon(Icons.Filled.Info, contentDescription = "Politique de Confidentialité") },
                     selected = false,
                     onClick = {
-                        try {
-                            uriHandler.openUri(privacyUrl)
-                        } catch (e: Exception) {
-                            // Fallback si aucun navigateur n'est trouvé
-                        }
+                        val intent = Intent(context, PrivacyPolicyActivity::class.java)
+                        context.startActivity(intent)
                         scope.launch { drawerState.close() }
                     }
                 )
 
-                // Terms of Service Item
+                // Terms of Service Item (Interne)
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.terms_of_service)) },
                     icon = { Icon(Icons.Filled.Description, contentDescription = "Conditions d'Utilisation") },
                     selected = false,
                     onClick = {
-                        try {
-                            uriHandler.openUri(termsUrl)
-                        } catch (e: Exception) {
-                            // Fallback si aucun navigateur n'est trouvé
-                        }
+                        val intent = Intent(context, TermsOfServiceActivity::class.java)
+                        context.startActivity(intent)
                         scope.launch { drawerState.close() }
                     }
                 )
@@ -179,13 +171,15 @@ fun MainScreen(adManager: AdManager? = null) {
                             Icon(
                                 painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_logo_stv),
                                 contentDescription = "STV Logo",
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                modifier = Modifier.size(28.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.titleLarge
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -195,12 +189,16 @@ fun MainScreen(adManager: AdManager? = null) {
                                 drawerState.open()
                             }
                         }) {
-                            Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.menu_content_description))
+                            Icon(
+                                Icons.Filled.Menu,
+                                contentDescription = stringResource(R.string.menu_content_description),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.primary,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
                     )
                 )
             }
@@ -227,6 +225,7 @@ fun MainScreen(adManager: AdManager? = null) {
                             .padding(24.dp)
                             .fillMaxWidth()
                             .height(60.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         )

@@ -96,6 +96,16 @@
             android:exported="false"
             android:label="@string/add_video_title"
             android:theme="@style/Theme.STV" />
+        <activity
+            android:name=".PrivacyPolicyActivity"
+            android:exported="false"
+            android:label="Politique de Confidentialité"
+            android:theme="@style/Theme.STV" />
+        <activity
+            android:name=".TermsOfServiceActivity"
+            android:exported="false"
+            android:label="Conditions d'Utilisation"
+            android:theme="@style/Theme.STV" />
     </application>
 
 </manifest>

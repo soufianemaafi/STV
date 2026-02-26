@@ -31,6 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.stv.ui.theme.STVTheme
 import kotlinx.coroutines.launch
@@ -81,10 +82,17 @@ private fun AddVideoScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(text = stringResource(R.string.add_video_title)) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.add_video_title),
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -128,6 +136,7 @@ private fun AddVideoScreen(
                         }
                     }
                 },
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(text = stringResource(R.string.add_video_save))
@@ -135,6 +144,7 @@ private fun AddVideoScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onCancel,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(text = stringResource(R.string.add_video_cancel))
