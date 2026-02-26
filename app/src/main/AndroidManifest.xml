@@ -45,9 +45,45 @@
             android:excludeFromRecents="true"
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.STV">
+
+            <!-- Intent Filter 1 : Action personnalisée pour SoukiTV et vos apps catalogue -->
             <intent-filter>
                 <action android:name="com.example.stv.action.PLAY_STREAM" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!-- Intent Filter 2 : Deep Link public (stv://play?url=...) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="stv"
+                    android:host="play" />
+            </intent-filter>
+
+            <!-- Intent Filter 3 : Fichiers vidéo (comme VLC, MX Player) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="application/vnd.apple.mpegurl" />
+                <data android:mimeType="application/x-mpegurl" />
+            </intent-filter>
+
+            <!-- Intent Filter 4 : Tous types de vidéo -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="video/*" />
             </intent-filter>
         </activity>
         <activity

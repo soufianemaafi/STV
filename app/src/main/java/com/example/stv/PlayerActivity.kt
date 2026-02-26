@@ -1,5 +1,6 @@
 package com.example.stv
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -69,7 +70,7 @@ class PlayerActivity : ComponentActivity() {
 
         hideSystemUI()
 
-        val videoUrl = intent.getStringExtra("VIDEO_URL")
+        val videoUrl = resolveVideoUrl(intent)
         val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
 
         // Validation initiale de l'URL
@@ -244,6 +245,26 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Relancer l'activity pour prendre en compte le nouveau flux.
+        setIntent(intent)
+        recreate()
+    }
+
+    private fun resolveVideoUrl(intent: Intent?): String? {
+        val extraUrl = intent?.getStringExtra("VIDEO_URL")
+        if (!extraUrl.isNullOrBlank()) {
+            return extraUrl
+        }
+        val data = intent?.data ?: return null
+        return if (data.scheme == "stv" && data.host == "play") {
+            data.getQueryParameter("url")
+        } else {
+            data.toString()
         }
     }
 
