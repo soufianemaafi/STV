@@ -47,7 +47,6 @@ import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.delay
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import com.example.stv.security.PermissionHelper
 
 @UnstableApi
 class PlayerActivity : ComponentActivity() {
@@ -62,16 +61,6 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ SÉCURITÉ : Vérifier que l'app appelante est autorisée
-        val permissionHelper = PermissionHelper(this)
-        val callerPackage = callingPackage
-        val requiredPermission = "com.example.stv.PERMISSION_LAUNCH_PLAYER"
-
-        if (callerPackage != null && !permissionHelper.isCallerAuthorized(callerPackage, requiredPermission)) {
-            Log.e(TAG, "Unauthorized caller. Finishing activity.")
-            finish()
-            return
-        }
 
         MobileAds.initialize(this) {}
         adManager = AdManager(this)

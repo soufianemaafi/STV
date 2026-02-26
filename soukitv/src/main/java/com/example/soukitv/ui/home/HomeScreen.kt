@@ -176,31 +176,32 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                                 try {
                                     context.packageManager.getPackageInfo(packageName, 0)
                                     true
-                                } catch (e: Exception) {
-                                    false
-                                }
+                            } catch (e: Exception) {
+                                false
                             }
+                        }
 
-                            if (isInstalled) {
-                                try {
-                                    // Trouver le package réellement installé
-                                    val actualPackageName = stvPackageNames.firstOrNull { packageName ->
-                                        try {
-                                            context.packageManager.getPackageInfo(packageName, 0)
-                                            true
-                                        } catch (e: Exception) {
-                                            false
-                                        }
-                                    } ?: "com.example.stv"
+                        if (isInstalled) {
+                            try {
+                                // Trouver le package réellement installé
+                                val actualPackageName = stvPackageNames.firstOrNull { packageName ->
+                                    try {
+                                        context.packageManager.getPackageInfo(packageName, 0)
+                                        true
+                                    } catch (e: Exception) {
+                                        false
+                                    }
+                                } ?: "com.example.stv"
 
-                                    val intent = Intent()
-                                    intent.setClassName(actualPackageName, "com.example.stv.PlayerActivity")
-                                    intent.putExtra("VIDEO_URL", channel.streamUrl)
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Error launching STV Player: ${e.message}", Toast.LENGTH_LONG).show()
+                                val intent = Intent("com.example.stv.action.PLAY_STREAM").apply {
+                                    setPackage(actualPackageName)
+                                    putExtra("VIDEO_URL", channel.streamUrl)
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Error launching STV Player: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                         } else {
                             showInstallDialog = true
                         }

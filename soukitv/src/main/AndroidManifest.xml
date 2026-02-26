@@ -5,13 +5,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Permission requise pour vérifier si STV Player est installé -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
-    <!-- Permission requise pour lancer PlayerActivity de STV Player -->
-    <uses-permission android:name="com.example.stv.PERMISSION_LAUNCH_PLAYER" />
 
     <queries>
         <package android:name="com.example.stv" />
+        <package android:name="com.example.stv.dev" />
+        <package android:name="com.example.stv.prod" />
     </queries>
 
     <application
