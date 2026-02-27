@@ -29,6 +29,10 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
         saveVideos(updated)
     }
 
+    fun refreshVideos() {
+        _videos.value = loadVideos()
+    }
+
     fun isDefaultVideo(item: VideoItem): Boolean {
         return item.url == DEFAULT_VIDEO_URL
     }

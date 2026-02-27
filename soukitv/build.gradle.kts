@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+import java.util.Properties
+import java.io.File
+
 android {
     namespace = "com.example.soukitv"
     compileSdk = 35
@@ -21,12 +24,26 @@ android {
         }
     }
 
+    // Load signing config from local keystore.properties (same as STV)
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    val keystoreProperties = Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(keystorePropertiesFile.inputStream())
+    }
+
     signingConfigs {
         create("release") {
-            storeFile = file("../app/release.keystore")
-            storePassword = "android"
-            keyAlias = "key0"
-            keyPassword = "android"
+            val storeFilePath = keystoreProperties.getProperty("storeFile", "release.keystore")
+            val storePass = keystoreProperties.getProperty("storePassword", "android")
+            val keyAliasName = keystoreProperties.getProperty("keyAlias", "key0")
+            val keyPass = keystoreProperties.getProperty("keyPassword", "android")
+
+            if (storeFilePath.isNotBlank()) {
+                storeFile = File(rootProject.rootDir, storeFilePath)
+            }
+            storePassword = storePass
+            keyAlias = keyAliasName
+            keyPassword = keyPass
         }
     }
 

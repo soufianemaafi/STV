@@ -62,6 +62,58 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // ✅ SÉCURITÉ : Vérifier l'appelant avant de continuer
+        val permissionHelper = com.example.stv.security.PermissionHelper(this)
+        val callerPackage = callingActivity?.packageName
+
+        if (!permissionHelper.isCallerAuthorizedForPlayer(callerPackage)) {
+            Log.w(TAG, "Unauthorized caller: $callerPackage. Blocking access.")
+            // Afficher un message d'erreur et fermer l'activité
+            setContent {
+                STVTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color.Black
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Block,
+                                    contentDescription = "Accès refusé",
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text(
+                                    text = "Accès refusé",
+                                    color = Color.White,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Cette application n'est pas autorisée à lancer STV Player.",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Button(onClick = { finish() }) {
+                                    Text("Fermer")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return
+        }
 
         MobileAds.initialize(this) {}
         adManager = AdManager(this)

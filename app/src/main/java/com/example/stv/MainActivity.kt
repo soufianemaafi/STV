@@ -66,11 +66,15 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var adManager: AdManager
-
+    private var keepSplashScreen = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Installer le SplashScreen avant super.onCreate()
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
+
+        // Garder le splash screen visible pendant au moins 1 seconde
+        splashScreen.setKeepOnScreenCondition { keepSplashScreen }
+
         super.onCreate(savedInstanceState)
 
         // Initialiser AdMob
@@ -85,6 +89,11 @@ class MainActivity : ComponentActivity() {
                 MainScreen(adManager = adManager)
             }
         }
+
+        // Retirer le splash screen après 500ms (animation standard)
+        window.decorView.postDelayed({
+            keepSplashScreen = false
+        }, 500)
     }
 
     // Fonction utilitaire pour vérifier la connexion internet

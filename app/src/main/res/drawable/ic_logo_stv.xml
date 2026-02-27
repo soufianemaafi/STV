@@ -1,18 +1,18 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:width="192dp"
+    android:height="192dp"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
 
-    <!-- Cercle extérieur rouge Netflix -->
+    <!-- Cercle extérieur rouge (centré, taille réduite pour être proportionnel) -->
     <path
         android:fillColor="#E50914"
-        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10s10,-4.48 10,-10S17.52,2 12,2z"/>
+        android:pathData="M96,60C72.8,60 54,78.8 54,102s18.8,42 42,42s42,-18.8 42,-42S119.2,60 96,60z"/>
 
     <!-- Triangle play blanc au centre -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M10,8.5v7l5.5,-3.5L10,8.5z"/>
+        android:pathData="M86,88v28l24,-14L86,88z"/>
 </vector>
 
 

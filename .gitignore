@@ -20,3 +20,5 @@ misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
 *.jks
+*.keystore
+keystore.properties

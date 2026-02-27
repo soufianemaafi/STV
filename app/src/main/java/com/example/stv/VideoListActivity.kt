@@ -22,11 +22,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.media3.common.util.UnstableApi
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -91,6 +91,12 @@ class VideoListActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Recharger la liste depuis SharedPreferences au cas où elle a été modifiée
+        viewModel.refreshVideos()
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -128,7 +134,7 @@ fun VideoListScreen(
                         (context as? ComponentActivity)?.finish()
                     }) {
                         Icon(
-                            imageVector = Icons.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Retour"
                         )
                     }

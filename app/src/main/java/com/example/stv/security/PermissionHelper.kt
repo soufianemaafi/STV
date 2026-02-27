@@ -15,6 +15,35 @@ class PermissionHelper(private val context: Context) {
     private val TAG = "PermissionHelper"
 
     /**
+     * Vérifie si l'app appelante est autorisée à lancer le player.
+     * Autorise : apps signées avec la même clé + intents système.
+     * @param callerPackage Le package name de l'app appelante (null si intent système)
+     * @return True si autorisée, False sinon
+     */
+    fun isCallerAuthorizedForPlayer(callerPackage: String?): Boolean {
+        // Si pas d'appelant (intent système/deep link), autoriser
+        if (callerPackage.isNullOrEmpty()) {
+            Log.d(TAG, "System intent or deep link, allowing access")
+            return true
+        }
+
+        // Si l'appelant est le système Android (ex: navigateur, file manager)
+        if (callerPackage == "android" || callerPackage.startsWith("com.android.")) {
+            Log.d(TAG, "Android system caller, allowing access")
+            return true
+        }
+
+        // Si l'appelant est nous-même (STV Player)
+        if (callerPackage == context.packageName) {
+            Log.d(TAG, "Self-call, allowing access")
+            return true
+        }
+
+        // Vérifier la signature (apps catalogue signées avec la même clé)
+        return verifySignature(callerPackage)
+    }
+
+    /**
      * Vérifie si l'app appelante a la permission requise et une signature valide.
      * @param callerPackage Le package name de l'app appelante
      * @param requiredPermission La permission requise (ex. "com.example.stv.PERMISSION_LAUNCH_PLAYER")
@@ -85,9 +114,9 @@ class PermissionHelper(private val context: Context) {
 
             // Vérifier que la signature correspond à celle de STV Player
             val ourSignature = getOurAppSignature()
-            val callerSignature = signatures[0]
+            val callerSignature = signatures[0].toByteArray()
 
-            val isValid = ourSignature == callerSignature.toByteArray()
+            val isValid = ourSignature.contentEquals(callerSignature)
             if (isValid) {
                 Log.d(TAG, "Signature verification passed for $pkgName")
             } else {
@@ -138,10 +167,5 @@ class PermissionHelper(private val context: Context) {
             ByteArray(0)
         }
     }
-
-    /**
-     * Extension pour convertir Signature en ByteArray.
-     */
-    private fun Signature.toByteArray(): ByteArray = this.toByteArray()
 }
 
