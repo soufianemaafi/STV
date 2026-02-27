@@ -8,7 +8,9 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,8 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -27,6 +33,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +66,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var adManager: AdManager
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Installer le SplashScreen avant super.onCreate()
@@ -104,6 +112,8 @@ fun MainScreen(adManager: AdManager? = null) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val topBarColor = MaterialTheme.colorScheme.surface
+    val drawerColor = MaterialTheme.colorScheme.surface
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -116,29 +126,48 @@ fun MainScreen(adManager: AdManager? = null) {
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier.width(280.dp),
-                drawerContainerColor = MaterialTheme.colorScheme.surface
+                drawerContainerColor = drawerColor
             ) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "STV Player",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    color = MaterialTheme.colorScheme.outline,
+                    thickness = 1.dp
+                )
+
                 NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.history)) },
+                    label = { Text(stringResource(R.string.history), color = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
-                    onClick = { }
+                    onClick = { scope.launch { drawerState.close() } }
                 )
                 NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.favorites)) },
+                    label = { Text(stringResource(R.string.favorites), color = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
-                    onClick = { }
+                    onClick = { scope.launch { drawerState.close() } }
                 )
                 NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.settings)) },
+                    label = { Text(stringResource(R.string.settings), color = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
-                    onClick = { }
+                    onClick = { scope.launch { drawerState.close() } }
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline,
+                    thickness = 1.dp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Privacy Policy Item (Interne - requis par Google Play)
                 NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.privacy_policy)) },
-                    icon = { Icon(Icons.Filled.Info, contentDescription = "Politique de Confidentialité") },
+                    label = { Text(stringResource(R.string.privacy_policy), color = MaterialTheme.colorScheme.onSurface) },
+                    icon = { Icon(Icons.Filled.Info, contentDescription = "Politique de Confidentialité", tint = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
                     onClick = {
                         val intent = Intent(context, PrivacyPolicyActivity::class.java)
@@ -149,13 +178,30 @@ fun MainScreen(adManager: AdManager? = null) {
 
                 // Terms of Service Item (Interne)
                 NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.terms_of_service)) },
-                    icon = { Icon(Icons.Filled.Description, contentDescription = "Conditions d'Utilisation") },
+                    label = { Text(stringResource(R.string.terms_of_service), color = MaterialTheme.colorScheme.onSurface) },
+                    icon = { Icon(Icons.Filled.Description, contentDescription = "Conditions d'Utilisation", tint = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
                     onClick = {
                         val intent = Intent(context, TermsOfServiceActivity::class.java)
                         context.startActivity(intent)
                         scope.launch { drawerState.close() }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline,
+                    thickness = 1.dp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Quitter
+                NavigationDrawerItem(
+                    label = { Text("Quitter", color = MaterialTheme.colorScheme.onSurface) },
+                    icon = { Icon(Icons.Filled.ExitToApp, contentDescription = "Quitter", tint = MaterialTheme.colorScheme.onSurface) },
+                    selected = false,
+                    onClick = {
+                        (context as? ComponentActivity)?.finishAffinity()
                     }
                 )
 
@@ -167,21 +213,13 @@ fun MainScreen(adManager: AdManager? = null) {
             topBar = {
                 CenterAlignedTopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_logo_stv),
-                                contentDescription = "STV Logo",
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        Text(
+                            text = "STV",
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     },
                     navigationIcon = {
                         IconButton(onClick = {
@@ -197,8 +235,9 @@ fun MainScreen(adManager: AdManager? = null) {
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
+                        containerColor = topBarColor,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        scrolledContainerColor = topBarColor.copy(alpha = 0.95f)
                     )
                 )
             }
@@ -210,41 +249,115 @@ fun MainScreen(adManager: AdManager? = null) {
                 color = MaterialTheme.colorScheme.background
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Bouton principal en bas
-                    Button(
-                        onClick = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        HeroSection()
+
+                        Spacer(modifier = Modifier.height(48.dp))
+
+                        // Bouton + transparent au centre
+                        Button(
+                            onClick = {
+                                val now = System.currentTimeMillis()
+                                if (now - lastClickTime > debounceTime) {
+                                    lastClickTime = now
+                                    val intent = Intent(context, AddVideoActivity::class.java)
+                                    context.startActivity(intent)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(80.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = "Ajouter un flux",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(120.dp))
+                    }
+
+                    QuickActionsSection(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(20.dp),
+                        onVideosClick = {
                             val now = System.currentTimeMillis()
                             if (now - lastClickTime > debounceTime) {
                                 lastClickTime = now
                                 val intent = Intent(context, VideoListActivity::class.java)
                                 context.startActivity(intent)
                             }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(24.dp)
-                            .fillMaxWidth()
-                            .height(60.dp),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.VideoLibrary,
-                            contentDescription = "Videos",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = stringResource(R.string.videos_button_label),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
+                        }
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HeroSection() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Bienvenue dans STV",
+            style = MaterialTheme.typography.headlineLarge.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Regardez vos vidéos préférées en streaming",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun QuickActionsSection(
+    modifier: Modifier = Modifier,
+    onVideosClick: () -> Unit
+) {
+    Button(
+        onClick = onVideosClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.VideoLibrary,
+            contentDescription = "Videos",
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = stringResource(R.string.videos_button_label),
+            color = MaterialTheme.colorScheme.onPrimary,
+            style = MaterialTheme.typography.labelLarge
+        )
     }
 }

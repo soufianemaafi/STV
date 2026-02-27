@@ -22,6 +22,17 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
         saveVideos(updated)
     }
 
+    fun removeVideo(item: VideoItem) {
+        if (isDefaultVideo(item)) return
+        val updated = _videos.value.filterNot { it.title == item.title && it.url == item.url }
+        _videos.value = updated
+        saveVideos(updated)
+    }
+
+    fun isDefaultVideo(item: VideoItem): Boolean {
+        return item.url == DEFAULT_VIDEO_URL
+    }
+
     private fun loadVideos(): List<VideoItem> {
         val stored = prefs.getString(PREFS_KEY, null) ?: return defaultVideos()
         return try {
@@ -53,7 +64,7 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
         return listOf(
             VideoItem(
                 title = "Big Buck Bunny",
-                url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+                url = DEFAULT_VIDEO_URL
             )
         )
     }
@@ -61,6 +72,6 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
     companion object {
         private const val PREFS_NAME = "stv_videos"
         private const val PREFS_KEY = "videos_json"
+        private const val DEFAULT_VIDEO_URL = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
     }
 }
-

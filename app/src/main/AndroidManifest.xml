@@ -90,6 +90,7 @@
             android:name=".VideoListActivity"
             android:exported="false"
             android:label="@string/videos_screen_title"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.STV" />
         <activity
             android:name=".AddVideoActivity"

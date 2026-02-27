@@ -7,21 +7,35 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.media3.common.util.UnstableApi
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,13 +43,18 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.stv.ui.theme.STVTheme
 
+@UnstableApi
 class VideoListActivity : ComponentActivity() {
 
     private val viewModel: VideoListViewModel by viewModels()
@@ -82,6 +101,15 @@ fun VideoListScreen(
     onVideoClick: (VideoItem) -> Unit
 ) {
     val videos by viewModel.videos.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Filtrer les vidéos en fonction de la recherche
+    val filteredVideos = videos.filter { video ->
+        video.title.contains(searchQuery, ignoreCase = true) ||
+        video.url.contains(searchQuery, ignoreCase = true)
+    }
+
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -94,6 +122,17 @@ fun VideoListScreen(
                         )
                     )
                 },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        // Fermer VideoListActivity - revenir à MainActivity
+                        (context as? ComponentActivity)?.finish()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Retour"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -101,26 +140,73 @@ fun VideoListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
+            FloatingActionButton(
+                onClick = onAddClick,
+                containerColor = MaterialTheme.colorScheme.primary,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+            ) {
                 Icon(
                     imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.add_video_title)
+                    contentDescription = stringResource(R.string.add_video_title),
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
     ) { padding ->
         Surface(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (videos.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = stringResource(R.string.no_videos_placeholder))
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    items(videos) { item ->
-                        VideoRow(item = item, onClick = { onVideoClick(item) })
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Barre de recherche
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                )
+
+                if (filteredVideos.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.VideoLibrary,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .padding(bottom = 16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (searchQuery.isEmpty())
+                                    stringResource(R.string.no_videos_placeholder)
+                                else
+                                    "Aucun résultat pour \"$searchQuery\"",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredVideos, key = { it.url }) { item ->
+                            val canDelete = !viewModel.isDefaultVideo(item)
+                            VideoCard(
+                                item = item,
+                                canDelete = canDelete,
+                                onDelete = { viewModel.removeVideo(item) },
+                                onClick = { onVideoClick(item) }
+                            )
+                        }
                     }
                 }
             }
@@ -129,22 +215,101 @@ fun VideoListScreen(
 }
 
 @Composable
-private fun VideoRow(item: VideoItem, onClick: () -> Unit) {
-    Column(
+private fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        placeholder = { Text("Rechercher une vidéo...") },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Recherche",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Effacer",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        singleLine = true,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+    )
+}
+
+@Composable
+private fun VideoCard(
+    item: VideoItem,
+    canDelete: Boolean,
+    onDelete: () -> Unit,
+    onClick: () -> Unit
+) {
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clickable { onClick() },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 2.dp,
+        shadowElevation = 6.dp
     ) {
-        Text(
-            text = item.title,
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            text = item.url,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.VideoLibrary,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .padding(4.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = item.url,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (canDelete) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = "Supprimer",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
     }
 }
