@@ -32,10 +32,10 @@ fun TermsOfServiceScreen(onBackClick: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Conditions d'Utilisation") },
+                title = { Text("Terms of Service") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -58,7 +58,7 @@ fun TermsOfServiceScreen(onBackClick: () -> Unit) {
                     .padding(16.dp)
             ) {
                 Text(
-                    "Conditions d'Utilisation de STV",
+                    "STV Terms of Service",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -67,143 +67,143 @@ fun TermsOfServiceScreen(onBackClick: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    "Dernière mise à jour : ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}",
+                    "Last updated: ${java.text.SimpleDateFormat("MM/dd/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                SectionTitle("1. Acceptation des Conditions")
+                SectionTitle("1. Acceptance of Terms")
                 SectionText(
-                    "En utilisant STV, vous acceptez ces conditions d'utilisation. " +
-                    "Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser l'application."
+                    "By using STV, you accept these terms of use. " +
+                    "If you do not accept these terms, please do not use the application."
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("2. Description du Service")
+                SectionTitle("2. Service Description")
                 SectionText(
-                    "STV est un lecteur vidéo permettant de lire des flux streaming " +
-                    "provenant de diverses sources. L'application agit uniquement comme " +
-                    "un lecteur et ne fournit pas de contenu vidéo."
+                    "STV is a video player for playing streaming feeds " +
+                    "from various sources. The application only acts as " +
+                    "a player and does not provide video content."
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("3. Utilisation Autorisée")
+                SectionTitle("3. Authorized Use")
                 SectionText(
-                    "Vous vous engagez à :\n" +
-                    "• Utiliser l'application légalement\n" +
-                    "• Ne pas contourner les mesures de sécurité\n" +
-                    "• Respecter les droits d'auteur du contenu visionné\n" +
-                    "• Ne pas utiliser l'app pour des activités illégales"
+                    "You agree to:\n" +
+                    "• Use the application legally\n" +
+                    "• Not bypass security measures\n" +
+                    "• Respect the copyright of viewed content\n" +
+                    "• Not use the app for illegal activities"
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("4. Contenu Tiers et Clause Anti-Piratage")
+                SectionTitle("4. Third-Party Content and Anti-Piracy Clause")
                 SectionText(
-                    "**4.1 Responsabilité :**\n" +
-                    "STV lit du contenu externe. Nous ne sommes PAS responsables de :\n" +
-                    "• Disponibilité du contenu\n" +
-                    "• Légalité du contenu\n" +
-                    "• Qualité du contenu\n\n" +
-                    "**4.2 Votre responsabilité :**\n" +
-                    "VOUS êtes responsable du contenu que vous choisissez de visionner.\n\n" +
-                    "**4.3 Anti-Piratage :**\n" +
-                    "STV est un outil neutre. Utilisation pour contenu illégal :\n" +
-                    "• Vous violez ces conditions\n" +
-                    "• Vous êtes passible de poursuites\n" +
-                    "• Nous coopérerons avec autorités\n" +
-                    "• Nous ne facilitons PAS le piratage"
+                    "**4.1 Responsibility:**\n" +
+                    "STV plays external content. We are NOT responsible for:\n" +
+                    "• Content availability\n" +
+                    "• Content legality\n" +
+                    "• Content quality\n\n" +
+                    "**4.2 Your responsibility:**\n" +
+                    "YOU are responsible for the content you choose to view.\n\n" +
+                    "**4.3 Anti-Piracy:**\n" +
+                    "STV is a neutral tool. Use for illegal content:\n" +
+                    "• You violate these terms\n" +
+                    "• You may face legal action\n" +
+                    "• We will cooperate with authorities\n" +
+                    "• We do NOT facilitate piracy"
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("5. Publicité et Monétisation")
+                SectionTitle("5. Advertising and Monetization")
                 SectionText(
-                    "**5.1 Financement :**\n" +
-                    "L'app est gratuite, financée par publicités Google AdMob.\n\n" +
-                    "**En utilisant l'app, vous acceptez :**\n" +
-                    "• De voir des pubs interstitielles\n" +
-                    "• De voir des pubs bannière\n" +
-                    "• Que ces pubs peuvent être personnalisées\n\n" +
-                    "**5.2 Blocage publicités :**\n" +
-                    "Tentatives de bloquer les pubs peuvent entraîner :\n" +
-                    "• Limitation de l'accès\n" +
-                    "• Avertissement\n" +
-                    "• Suspension du service"
+                    "**5.1 Funding:**\n" +
+                    "The app is free, funded by Google AdMob ads.\n\n" +
+                    "**By using the app, you accept:**\n" +
+                    "• Seeing interstitial ads\n" +
+                    "• Seeing banner ads\n" +
+                    "• That these ads may be personalized\n\n" +
+                    "**5.2 Ad blocking:**\n" +
+                    "Attempts to block ads may result in:\n" +
+                    "• Access limitation\n" +
+                    "• Warning\n" +
+                    "• Service suspension"
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("6. Propriété Intellectuelle")
+                SectionTitle("6. Intellectual Property")
                 SectionText(
-                    "STV Player, son code, design et logo sont protégés par droits d'auteur.\n\n" +
-                    "© 2026. Tous droits réservés.\n\n" +
-                    "Toute copie, modification ou distribution est interdite sans autorisation écrite."
+                    "STV Player, its code, design and logo are protected by copyright.\n\n" +
+                    "© 2026. All rights reserved.\n\n" +
+                    "Any copying, modification or distribution is prohibited without written permission."
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("7. Limitation de Responsabilité")
+                SectionTitle("7. Limitation of Liability")
                 SectionText(
-                    "**7.1 \"EN L'ÉTAT\" :**\n" +
-                    "L'application est fournie \"EN L'ÉTAT\".\n\n" +
-                    "**Nous ne garantissons PAS :**\n" +
-                    "• Disponibilité continue\n" +
-                    "• Absence d'erreurs\n" +
-                    "• Compatibilité complète\n\n" +
-                    "**7.2 Exclusion dommages :**\n" +
-                    "Nous ne sommes PAS responsables des dommages :\n" +
-                    "• Directs\n" +
-                    "• Indirects\n" +
-                    "• Punitifs\n\n" +
-                    "**Montant max : 0 €** (service gratuit)"
+                    "**7.1 \"AS IS\":**\n" +
+                    "The application is provided \"AS IS\".\n\n" +
+                    "**We do NOT guarantee:**\n" +
+                    "• Continuous availability\n" +
+                    "• Absence of errors\n" +
+                    "• Full compatibility\n\n" +
+                    "**7.2 Exclusion of damages:**\n" +
+                    "We are NOT responsible for damages:\n" +
+                    "• Direct\n" +
+                    "• Indirect\n" +
+                    "• Punitive\n\n" +
+                    "**Max amount: €0** (free service)"
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("8. Indemnisation")
+                SectionTitle("8. Indemnification")
                 SectionText(
-                    "Vous acceptez d'indemniser le développeur contre toute réclamation :\n\n" +
-                    "• Résultant de votre utilisation\n" +
-                    "• Violation de conditions par vous\n" +
-                    "• Violation de droits tiers\n\n" +
-                    "Cela inclut frais juridiques."
+                    "You agree to indemnify the developer against any claims:\n\n" +
+                    "• Resulting from your use\n" +
+                    "• Your breach of these terms\n" +
+                    "• Violation of third-party rights\n\n" +
+                    "This includes legal fees."
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("9. Suspension et Résiliation")
+                SectionTitle("9. Suspension and Termination")
                 SectionText(
-                    "Nous pouvons suspendre votre accès si :\n\n" +
-                    "• Violation de ces conditions\n" +
-                    "• Utilisation abusive de l'app\n" +
-                    "• Obligation légale\n\n" +
-                    "Vous pouvez cesser l'utilisation à tout moment en désinstallant l'app."
+                    "We may suspend your access if:\n\n" +
+                    "• Breach of these terms\n" +
+                    "• Abusive use of the app\n" +
+                    "• Legal obligation\n\n" +
+                    "You may cease use at any time by uninstalling the app."
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("10. Modifications des Conditions")
+                SectionTitle("10. Modifications to Terms")
                 SectionText(
-                    "Nous pouvons modifier ces conditions à tout moment.\n\n" +
-                    "Changements majeurs seront notifiés dans l'app.\n\n" +
-                    "Continuer à utiliser = acceptation des modifications."
+                    "We may modify these terms at any time.\n\n" +
+                    "Major changes will be notified in the app.\n\n" +
+                    "Continuing to use = acceptance of modifications."
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("11. Loi Applicable et Contact")
+                SectionTitle("11. Applicable Law and Contact")
                 SectionText(
-                    "**Loi applicable :**\n" +
-                    "Ces conditions sont régies par votre juridiction.\n\n" +
-                    "**Contact :**\n" +
-                    "Email : support@example.com\n\n" +
-                    "**Effective depuis :**\n" +
-                    "27 février 2026"
+                    "**Applicable Law:**\n" +
+                    "These terms are governed by your jurisdiction.\n\n" +
+                    "**Contact:**\n" +
+                    "Email: support@example.com\n\n" +
+                    "**Effective since:**\n" +
+                    "February 27, 2026"
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))

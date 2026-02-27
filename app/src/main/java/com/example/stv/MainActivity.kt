@@ -50,6 +50,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Installer le SplashScreen avant super.onCreate()
         val splashScreen = installSplashScreen()
+
 
         // Garder le splash screen visible pendant au moins 1 seconde
         splashScreen.setKeepOnScreenCondition { keepSplashScreen }
@@ -176,7 +178,7 @@ fun MainScreen(adManager: AdManager? = null) {
                 // Privacy Policy Item (Interne - requis par Google Play)
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.privacy_policy), color = MaterialTheme.colorScheme.onSurface) },
-                    icon = { Icon(Icons.Filled.Info, contentDescription = "Politique de Confidentialité", tint = MaterialTheme.colorScheme.onSurface) },
+                    icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.privacy_policy_cd), tint = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
                     onClick = {
                         val intent = Intent(context, PrivacyPolicyActivity::class.java)
@@ -188,7 +190,7 @@ fun MainScreen(adManager: AdManager? = null) {
                 // Terms of Service Item (Interne)
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.terms_of_service), color = MaterialTheme.colorScheme.onSurface) },
-                    icon = { Icon(Icons.Filled.Description, contentDescription = "Conditions d'Utilisation", tint = MaterialTheme.colorScheme.onSurface) },
+                    icon = { Icon(Icons.Filled.Description, contentDescription = "Terms of Service", tint = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
                     onClick = {
                         val intent = Intent(context, TermsOfServiceActivity::class.java)
@@ -206,8 +208,8 @@ fun MainScreen(adManager: AdManager? = null) {
 
                 // Quitter
                 NavigationDrawerItem(
-                    label = { Text("Quitter", color = MaterialTheme.colorScheme.onSurface) },
-                    icon = { Icon(Icons.Filled.ExitToApp, contentDescription = "Quitter", tint = MaterialTheme.colorScheme.onSurface) },
+                    label = { Text(stringResource(R.string.menu_quit), color = MaterialTheme.colorScheme.onSurface) },
+                    icon = { Icon(Icons.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = MaterialTheme.colorScheme.onSurface) },
                     selected = false,
                     onClick = {
                         (context as? ComponentActivity)?.finishAffinity()
@@ -290,7 +292,7 @@ fun MainScreen(adManager: AdManager? = null) {
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
-                                contentDescription = "Ajouter un flux",
+                                contentDescription = "Add stream",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(40.dp)
                             )
@@ -325,7 +327,7 @@ private fun HeroSection() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Bienvenue dans STV",
+            text = stringResource(R.string.welcome_message),
             style = MaterialTheme.typography.headlineLarge.copy(
                 fontWeight = FontWeight.Bold
             ),
@@ -333,7 +335,7 @@ private fun HeroSection() {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Regardez vos vidéos préférées en streaming",
+            text = stringResource(R.string.tagline_message),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -370,3 +372,4 @@ private fun QuickActionsSection(
         )
     }
 }
+

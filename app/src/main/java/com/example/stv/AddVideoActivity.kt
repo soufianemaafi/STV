@@ -57,6 +57,7 @@ class AddVideoActivity : ComponentActivity() {
 
     private val viewModel: VideoListViewModel by viewModels()
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -101,17 +102,17 @@ private fun AddVideoScreen(
     // Validation en temps réel
     fun validateTitle(value: String) {
         titleError = when {
-            value.isBlank() -> "Le titre ne peut pas être vide"
-            value.length < 2 -> "Le titre doit contenir au moins 2 caractères"
-            value.length > 100 -> "Le titre ne peut pas dépasser 100 caractères"
+            value.isBlank() -> "Title cannot be empty"
+            value.length < 2 -> "Title must contain at least 2 characters"
+            value.length > 100 -> "Title cannot exceed 100 characters"
             else -> ""
         }
     }
 
     fun validateUrl(value: String) {
         urlError = when {
-            value.isBlank() -> "L'URL ne peut pas être vide"
-            !Patterns.WEB_URL.matcher(value.trim()).matches() -> "L'URL n'est pas valide"
+            value.isBlank() -> "URL cannot be empty"
+            !Patterns.WEB_URL.matcher(value.trim()).matches() -> "URL is not valid"
             else -> ""
         }
     }
@@ -135,7 +136,7 @@ private fun AddVideoScreen(
                     }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Retour"
+                            contentDescription = "Back"
                         )
                     }
                 },
@@ -145,7 +146,7 @@ private fun AddVideoScreen(
                 )
             )
         }
-    ) { padding ->
+        ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -157,14 +158,14 @@ private fun AddVideoScreen(
         ) {
             // Header
             Text(
-                text = "Ajouter une nouvelle vidéo",
+                text = stringResource(R.string.add_video_header_title),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Remplissez les champs ci-dessous pour ajouter une vidéo",
+                text = stringResource(R.string.add_video_header_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -179,7 +180,7 @@ private fun AddVideoScreen(
                     validateTitle(newValue)
                 },
                 label = { Text(stringResource(R.string.add_video_label_title)) },
-                placeholder = { Text("Ex: Sky News Arabia") },
+                placeholder = { Text("Ex: BBC News") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = titleError.isNotEmpty(),
@@ -245,13 +246,13 @@ private fun AddVideoScreen(
             if (title.isNotEmpty()) {
                 ValidationIndicator(
                     isValid = titleError.isEmpty(),
-                    label = "Titre valide"
+                    label = stringResource(R.string.add_video_title_valid)
                 )
             }
             if (url.isNotEmpty()) {
                 ValidationIndicator(
                     isValid = urlError.isEmpty(),
-                    label = "URL valide"
+                    label = stringResource(R.string.add_video_url_valid)
                 )
             }
 
@@ -333,7 +334,7 @@ private fun ValidationIndicator(
             contentDescription = null,
             modifier = Modifier.size(20.dp),
             tint = if (isValid)
-                MaterialTheme.colorScheme.primary
+                androidx.compose.ui.graphics.Color(0xFF4CAF50) // Vert standard (Material Green 500)
             else
                 MaterialTheme.colorScheme.error
         )
@@ -342,7 +343,7 @@ private fun ValidationIndicator(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = if (isValid)
-                MaterialTheme.colorScheme.primary
+                androidx.compose.ui.graphics.Color(0xFF4CAF50) // Vert standard (Material Green 500)
             else
                 MaterialTheme.colorScheme.error
         )

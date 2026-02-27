@@ -72,6 +72,7 @@ class VideoListActivity : ComponentActivity() {
         }
     }
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -135,7 +136,7 @@ fun VideoListScreen(
                     }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Retour"
+                            contentDescription = "Back"
                         )
                     }
                 },
@@ -192,7 +193,7 @@ fun VideoListScreen(
                                 text = if (searchQuery.isEmpty())
                                     stringResource(R.string.no_videos_placeholder)
                                 else
-                                    "Aucun résultat pour \"$searchQuery\"",
+                                    "No results for \"$searchQuery\"",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -232,11 +233,11 @@ private fun SearchBar(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp),
-        placeholder = { Text("Rechercher une vidéo...") },
+        placeholder = { Text("Search a video...") },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Recherche",
+                contentDescription = "Search",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
@@ -245,7 +246,7 @@ private fun SearchBar(
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Effacer",
+                        contentDescription = "Clear",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -310,7 +311,7 @@ private fun VideoCard(
                     IconButton(onClick = onDelete) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = "Supprimer",
+                            contentDescription = "Delete",
                             tint = MaterialTheme.colorScheme.error
                         )
                     }

@@ -2,63 +2,95 @@
     <string name="app_name">STV</string>
 
     <!-- MainActivity -->
-    <string name="history">Historique</string>
-    <string name="favorites">Favoris</string>
-    <string name="settings">Paramètres</string>
+    <string name="history">History</string>
+    <string name="favorites">Favorites</string>
+    <string name="settings">Settings</string>
     <string name="menu_content_description">Menu</string>
-    <string name="stream_url_label">URL du stream</string>
-    <string name="url_empty_error">L\'URL ne peut pas être vide</string>
-    <string name="play_stream_button">Lire le stream</string>
-    <string name="launch_error_prefix">Erreur lors du lancement : %1$s</string>
+    <string name="stream_url_label">Stream URL</string>
+    <string name="url_empty_error">URL cannot be empty</string>
+    <string name="play_stream_button">Play stream</string>
+    <string name="launch_error_prefix">Launch error: %1$s</string>
 
     <!-- PlayerActivity -->
-    <string name="url_not_provided">URL non fournie</string>
+    <string name="url_not_provided">URL not provided</string>
     <string name="format_content_description">Format</string>
-    <string name="quality_content_description">Qualité</string>
-    <string name="resize_dialog_title">Format d\'affichage</string>
-    <string name="resize_mode_fit">Ajuster (Fit)</string>
-    <string name="resize_mode_fill">Remplir (Fill)</string>
+    <string name="quality_content_description">Quality</string>
+    <string name="resize_dialog_title">Display format</string>
+    <string name="resize_mode_fit">Fit</string>
+    <string name="resize_mode_fill">Fill</string>
     <string name="resize_mode_zoom">Zoom</string>
-    <string name="resize_mode_fixed_width">Largeur fixe</string>
-    <string name="resize_mode_fixed_height">Hauteur fixe</string>
-    <string name="close_button">Fermer</string>
-    <string name="quality_dialog_title">Qualité vidéo</string>
+    <string name="resize_mode_fixed_width">Fixed width</string>
+    <string name="resize_mode_fixed_height">Fixed height</string>
+    <string name="close_button">Close</string>
+    <string name="quality_dialog_title">Video quality</string>
 
     <!-- PlayerViewModel -->
-    <string name="playback_error_prefix">Erreur de lecture : %1$s</string>
+    <string name="playback_error_prefix">Playback error: %1$s</string>
     <string name="quality_auto">Auto</string>
-    <string name="quality_unknown">Inconnu</string>
+    <string name="quality_unknown">Unknown</string>
     <string name="quality_auto_with_resolution">Auto (%1$dp)</string>
-    <string name="quality_manual">Manuel</string>
+    <string name="quality_manual">Manual</string>
 
     <!-- AdBlock -->
-    <string name="ad_block_strict_title">Attention : Blocage détecté</string>
-    <string name="ad_block_strict_message">Nous avons détecté un bloqueur de publicité ou une erreur de connexion persistante.\n\nL\'accès au contenu nécessite l\'affichage de publicités qui financent cette application.\n\nVeuillez désactiver votre bloqueur (DNS, AdGuard, VPN) ou vérifier votre connexion.</string>
-    <string name="ad_block_retry_button">Réessayer</string>
-    <string name="ad_block_close_button">Fermer</string>
-    <string name="no_internet_connection">Pas de connexion internet. Veuillez vérifier votre réseau.</string>
+    <string name="ad_block_strict_title">Warning: Blocking detected</string>
+    <string name="ad_block_strict_message">We have detected an ad blocker or persistent connection error.\n\nAccess to content requires displaying ads that fund this application.\n\nPlease disable your blocker (DNS, AdGuard, VPN) or check your connection.</string>
+    <string name="ad_block_retry_button">Retry</string>
+    <string name="ad_block_close_button">Close</string>
+    <string name="no_internet_connection">No internet connection. Please check your network.</string>
 
-    <!-- Erreurs Player Conviviales -->
-    <string name="error_network">Problème de connexion internet. Vérifiez votre réseau.</string>
-    <string name="error_content_not_found">Ce contenu n\'est pas disponible pour le moment.</string>
-    <string name="error_decoder">Format vidéo non supporté par votre appareil.</string>
-    <string name="error_unknown">Une erreur est survenue : %1$s</string>
+    <!-- Player Errors -->
+    <string name="error_network">Internet connection problem. Check your network.</string>
+    <string name="error_content_not_found">This content is not available at the moment.</string>
+    <string name="error_decoder">Video format not supported by your device.</string>
+    <string name="error_unknown">An error occurred: %1$s</string>
+
+    <!-- Home screen -->
+    <string name="welcome_message">Welcome to STV</string>
+    <string name="tagline_message">Watch your favorite videos streaming</string>
+    <string name="menu_quit">Quit</string>
 
     <!-- Privacy Policy & Terms of Service -->
-    <string name="privacy_policy">Politique de Confidentialité</string>
-    <string name="terms_of_service">Conditions d\'Utilisation</string>
-    <!-- REMPLACEZ CES LIENS par vos propres URLs hébergées (Google Sites, GitHub Pages, Site Web) -->
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="terms_of_service">Terms of Service</string>
     <string name="privacy_policy_url">https://sites.google.com/view/stvplayerprivacy</string>
     <string name="terms_of_service_url">https://sites.google.com/view/stvplayerterms</string>
 
     <!-- Videos list & add form -->
     <string name="videos_button_label">Videos</string>
     <string name="videos_screen_title">Videos</string>
-    <string name="add_video_title">Ajouter un flux</string>
-    <string name="add_video_label_title">Titre</string>
+    <string name="add_video_title">Add Stream</string>
+    <string name="add_video_header_title">Add a new stream</string>
+    <string name="add_video_header_subtitle">Fill in the fields below to add a stream</string>
+    <string name="add_video_label_title">Title</string>
     <string name="add_video_label_url">URL</string>
     <string name="add_video_save">Save</string>
-    <string name="add_video_cancel">Annuler</string>
-    <string name="add_video_invalid">Veuillez saisir un titre et une URL valide.</string>
-    <string name="no_videos_placeholder">Aucun flux ajouté.</string>
+    <string name="add_video_cancel">Cancel</string>
+    <string name="add_video_invalid">Please enter a valid title and URL.</string>
+    <string name="add_video_title_valid">Title valid</string>
+    <string name="add_video_url_valid">URL valid</string>
+    <string name="no_videos_placeholder">No streams added.</string>
+
+    <!-- Placeholders & UI Text -->
+    <string name="search_placeholder">Search a video...</string>
+    <string name="title_placeholder">Ex: BBC News</string>
+    <string name="url_placeholder">https://example.com/stream.m3u8</string>
+    <string name="back_button">Back</string>
+    <string name="clear_button">Clear</string>
+    <string name="delete_button">Delete</string>
+    <string name="add_stream_button">Add stream</string>
+    <string name="videos_button">Videos</string>
+    <string name="privacy_policy_cd">Privacy Policy</string>
+    <string name="terms_of_service_cd">Terms of Service</string>
+
+    <!-- Player Controls -->
+    <string name="rewind_10s">Rewind 10s</string>
+    <string name="forward_10s">Forward 10s</string>
+    <string name="cast_button">Cast</string>
+    <string name="pip_button">PiP</string>
+    <string name="access_denied">Access denied</string>
+    <string name="access_blocked">Access blocked</string>
+    <string name="this_app_not_authorized">This application is not authorized to launch STV Player.</string>
+    <string name="ad_blocker_detected">An ad blocker has been detected.\nPlease disable it to continue.</string>
+    <string name="no_results_for">No results for</string>
 </resources>
+

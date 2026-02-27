@@ -105,7 +105,7 @@ class PlayerActivity : ComponentActivity() {
                                 )
                                 Spacer(modifier = Modifier.height(24.dp))
                                 Button(onClick = { finish() }) {
-                                    Text("Fermer")
+                                    Text(stringResource(R.string.close_button))
                                 }
                             }
                         }
@@ -238,7 +238,7 @@ class PlayerActivity : ComponentActivity() {
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Block,
-                                        contentDescription = "Bloqué",
+                                        contentDescription = stringResource(R.string.access_blocked),
                                         tint = Color.Red,
                                         modifier = Modifier.size(64.dp)
                                     )
@@ -541,7 +541,7 @@ fun PlayerControls(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Retour",
+                    contentDescription = "Back",
                     tint = Color.White,
                     modifier = Modifier.size(32.dp)
                 )
@@ -569,7 +569,7 @@ fun PlayerControls(
                         IconButton(onClick = onRewindClick) {
                             Icon(
                                 imageVector = Icons.Filled.Replay10,
-                                contentDescription = "Rewind 10s",
+                                contentDescription = stringResource(R.string.rewind_10s),
                                 tint = Color.White,
                                 modifier = Modifier.size(28.dp)
                             )
@@ -579,7 +579,7 @@ fun PlayerControls(
                         IconButton(onClick = onPlayPauseClick) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                contentDescription = if (isPlaying) stringResource(R.string.ad_block_close_button) else stringResource(R.string.play_stream_button),
                                 tint = Color.White,
                                 modifier = Modifier.size(40.dp) // Légèrement plus grand mais pas trop
                             )
@@ -589,7 +589,7 @@ fun PlayerControls(
                         IconButton(onClick = onForwardClick) {
                             Icon(
                                 imageVector = Icons.Filled.Forward10,
-                                contentDescription = "Forward 10s",
+                                contentDescription = stringResource(R.string.forward_10s),
                                 tint = Color.White,
                                 modifier = Modifier.size(28.dp)
                             )
@@ -599,7 +599,7 @@ fun PlayerControls(
                         IconButton(onClick = { }) {
                             Icon(
                                 imageVector = Icons.Filled.Cast,
-                                contentDescription = "Cast",
+                                contentDescription = stringResource(R.string.cast_button),
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
@@ -609,7 +609,7 @@ fun PlayerControls(
                         IconButton(onClick = onResizeClick) {
                             Icon(
                                 imageVector = Icons.Filled.AspectRatio,
-                                contentDescription = "Format",
+                                contentDescription = stringResource(R.string.format_content_description),
                                 tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
@@ -619,7 +619,7 @@ fun PlayerControls(
                         IconButton(onClick = onPipClick) {
                             Icon(
                                 imageVector = Icons.Filled.PictureInPicture,
-                                contentDescription = "PiP",
+                                contentDescription = stringResource(R.string.pip_button),
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
@@ -803,7 +803,7 @@ fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Lancement du flux dans $timeLeft s",
+                text = "Launching stream in $timeLeft s",
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold

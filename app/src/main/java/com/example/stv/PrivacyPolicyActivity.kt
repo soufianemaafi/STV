@@ -32,10 +32,10 @@ fun PrivacyPolicyScreen(onBackClick: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Politique de Confidentialité") },
+                title = { Text("Privacy Policy") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -58,7 +58,7 @@ fun PrivacyPolicyScreen(onBackClick: () -> Unit) {
                     .padding(16.dp)
             ) {
                 Text(
-                    "Politique de Confidentialité de STV",
+                    "STV Privacy Policy",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -67,7 +67,7 @@ fun PrivacyPolicyScreen(onBackClick: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    "Dernière mise à jour : ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}",
+                    "Last updated: ${java.text.SimpleDateFormat("MM/dd/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -76,17 +76,17 @@ fun PrivacyPolicyScreen(onBackClick: () -> Unit) {
 
                 SectionTitle("1. Introduction")
                 SectionText(
-                    "STV (\"nous\", \"notre\" ou \"l'application\") respecte votre vie privée. " +
-                    "Cette politique explique comment nous collectons, utilisons et protégeons vos informations."
+                    "STV (\"we\", \"our\" or \"the application\") respects your privacy. " +
+                    "This policy explains how we collect, use and protect your information."
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SectionTitle("2. Informations Collectées")
+                SectionTitle("2. Information Collected")
                 SectionText(
-                    "• Données d'utilisation : URLs de vidéos lues, historique de lecture\n" +
-                    "• Données techniques : type d'appareil, version Android, performances\n" +
-                    "• Publicités : identifiants publicitaires pour personnaliser les annonces"
+                    "• Usage data: URLs of videos played, playback history\n" +
+                    "• Technical data: device type, Android version, performance\n" +
+                    "• Advertising: advertising identifiers to personalize ads"
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
