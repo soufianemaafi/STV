@@ -8,6 +8,9 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,12 +59,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.stv.ui.theme.STVTheme
+import com.example.stv.ui.theme.BlackVeryDark
+import com.example.stv.ui.theme.BlackDrawer
+import com.example.stv.ui.theme.WhitePrimary
+import com.example.stv.ui.theme.GrayLight
+import com.example.stv.ui.theme.GrayMuted
 import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.launch
 
@@ -123,8 +132,6 @@ fun MainScreen(adManager: AdManager? = null) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val topBarColor = MaterialTheme.colorScheme.surface
-    val drawerColor = MaterialTheme.colorScheme.surface
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -136,84 +143,124 @@ fun MainScreen(adManager: AdManager? = null) {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                modifier = Modifier.width(280.dp),
-                drawerContainerColor = drawerColor
+                modifier = Modifier
+                    .width(280.dp)
+                    .windowInsetsPadding(WindowInsets.systemBars),
+                drawerContainerColor = BlackDrawer,
+                drawerShape = RectangleShape
             ) {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "STV Player",
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                // Logo/Titre du haut
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        "STV",
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = WhitePrimary
+                    )
+                }
+
                 HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.outlineVariant,
                     thickness = 1.dp
                 )
 
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.history), color = MaterialTheme.colorScheme.onSurface) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.favorites), color = MaterialTheme.colorScheme.onSurface) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() } }
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.settings), color = MaterialTheme.colorScheme.onSurface) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() } }
-                )
+                // Section 1 : Contenu principal
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.history), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Menu, contentDescription = null, tint = GrayLight) },
+                        selected = false,
+                        onClick = { scope.launch { drawerState.close() } },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                        )
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.favorites), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.VideoLibrary, contentDescription = null, tint = GrayLight) },
+                        selected = false,
+                        onClick = { scope.launch { drawerState.close() } },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                        )
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.settings), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Info, contentDescription = null, tint = GrayLight) },
+                        selected = false,
+                        onClick = { scope.launch { drawerState.close() } },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                        )
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline,
-                    thickness = 1.dp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Privacy Policy Item (Interne - requis par Google Play)
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.privacy_policy), color = MaterialTheme.colorScheme.onSurface) },
-                    icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.privacy_policy_cd), tint = MaterialTheme.colorScheme.onSurface) },
-                    selected = false,
-                    onClick = {
-                        val intent = Intent(context, PrivacyPolicyActivity::class.java)
-                        context.startActivity(intent)
-                        scope.launch { drawerState.close() }
-                    }
+                    color = GrayMuted,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
 
-                // Terms of Service Item (Interne)
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.terms_of_service), color = MaterialTheme.colorScheme.onSurface) },
-                    icon = { Icon(Icons.Filled.Description, contentDescription = "Terms of Service", tint = MaterialTheme.colorScheme.onSurface) },
-                    selected = false,
-                    onClick = {
-                        val intent = Intent(context, TermsOfServiceActivity::class.java)
-                        context.startActivity(intent)
-                        scope.launch { drawerState.close() }
-                    }
-                )
+                // Section 2 : Informations légales
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.privacy_policy), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.privacy_policy_cd), tint = GrayLight) },
+                        selected = false,
+                        onClick = {
+                            val intent = Intent(context, PrivacyPolicyActivity::class.java)
+                            context.startActivity(intent)
+                            scope.launch { drawerState.close() }
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                        )
+                    )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.terms_of_service), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Description, contentDescription = "Terms of Service", tint = GrayLight) },
+                        selected = false,
+                        onClick = {
+                            val intent = Intent(context, TermsOfServiceActivity::class.java)
+                            context.startActivity(intent)
+                            scope.launch { drawerState.close() }
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                        )
+                    )
+                }
+
                 HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline,
-                    thickness = 1.dp
+                    color = GrayMuted,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
 
-                // Quitter
+                // Section 3 : Quitter
                 NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.menu_quit), color = MaterialTheme.colorScheme.onSurface) },
-                    icon = { Icon(Icons.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = MaterialTheme.colorScheme.onSurface) },
+                    label = { Text(stringResource(R.string.menu_quit), color = WhitePrimary) },
+                    icon = { Icon(Icons.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = GrayLight) },
                     selected = false,
                     onClick = {
                         (context as? ComponentActivity)?.finishAffinity()
-                    }
+                    },
+                    colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                        unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                    )
                 )
 
             }
@@ -229,7 +276,7 @@ fun MainScreen(adManager: AdManager? = null) {
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontWeight = FontWeight.Bold
                             ),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                     },
                     navigationIcon = {
@@ -241,14 +288,14 @@ fun MainScreen(adManager: AdManager? = null) {
                             Icon(
                                 Icons.Filled.Menu,
                                 contentDescription = stringResource(R.string.menu_content_description),
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = topBarColor,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        scrolledContainerColor = topBarColor.copy(alpha = 0.95f)
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        scrolledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f)
                     )
                 )
             }

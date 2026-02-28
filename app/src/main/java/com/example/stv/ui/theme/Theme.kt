@@ -67,8 +67,17 @@ fun STVTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = RedPrimary.toArgb()  // Status bar rouge Netflix
+
+            // Barre de statut (en haut) - Rouge YouTube
+            window.statusBarColor = RedPrimary.toArgb()  // #C41E3A
             WindowCompat.getInsetsController(window, view)?.isAppearanceLightStatusBars = false
+
+            // Appliquer aussi au décor pour assurer la cohérence
+            window.decorView.systemUiVisibility = window.decorView.systemUiVisibility
+
+            // Barre de navigation (en bas) - Noir foncé (comme le fond)
+            window.navigationBarColor = BlackVeryDark.toArgb()  // #121212
+            WindowCompat.getInsetsController(window, view)?.isAppearanceLightNavigationBars = false
         }
     }
 

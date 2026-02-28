@@ -51,6 +51,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.stv.ui.theme.STVTheme
+import com.example.stv.ui.theme.GreenSuccess
 import kotlinx.coroutines.launch
 
 class AddVideoActivity : ComponentActivity() {
@@ -141,8 +142,8 @@ private fun AddVideoScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
@@ -306,7 +307,9 @@ private fun AddVideoScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                colors = ButtonDefaults.outlinedButtonColors()
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
             ) {
                 Text(text = stringResource(R.string.add_video_cancel))
             }
@@ -333,19 +336,13 @@ private fun ValidationIndicator(
                 androidx.compose.material.icons.Icons.Default.Cancel,
             contentDescription = null,
             modifier = Modifier.size(20.dp),
-            tint = if (isValid)
-                androidx.compose.ui.graphics.Color(0xFF4CAF50) // Vert standard (Material Green 500)
-            else
-                MaterialTheme.colorScheme.error
+            tint = if (isValid) GreenSuccess else MaterialTheme.colorScheme.error
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = if (isValid)
-                androidx.compose.ui.graphics.Color(0xFF4CAF50) // Vert standard (Material Green 500)
-            else
-                MaterialTheme.colorScheme.error
+            color = if (isValid) GreenSuccess else MaterialTheme.colorScheme.error
         )
     }
 }
