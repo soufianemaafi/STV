@@ -1,15 +1,15 @@
-plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
-}
-
 import java.util.Properties
 import java.io.File
 
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+
+
 android {
     namespace = "com.example.stv"
-    compileSdk = 35
+    compileSdk = 36
 
     // ✅ Ajouter les flavors AVANT defaultConfig
     flavorDimensions.add("environment")
@@ -17,7 +17,7 @@ android {
     defaultConfig {
         applicationId = "com.example.stv"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -84,15 +84,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
-
-    // ✅ Remplacer kotlinOptions (dépréciée) par compilerOptions
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
-        }
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     buildFeatures {
@@ -106,6 +99,13 @@ android {
     }
 }
 
+// ✅ Configuration Kotlin en dehors du bloc android
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -115,8 +115,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation("androidx.compose.material:material-icons-extended:1.6.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.dash)
@@ -125,8 +125,8 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.smoothstreaming)
     implementation(libs.androidx.media3.ui)
 
-    implementation("com.google.android.gms:play-services-ads:23.0.0")
-    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation(libs.play.services.ads)
+    implementation(libs.androidx.core.splashscreen)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
