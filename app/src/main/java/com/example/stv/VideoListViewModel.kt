@@ -2,12 +2,14 @@ package com.example.stv
 
 import android.app.Application
 import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
 
 class VideoListViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -44,10 +46,16 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
             val list = mutableListOf<VideoItem>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                list.add(VideoItem(obj.getString("title"), obj.getString("url")))
+                // ✅ Charger l'ID depuis SharedPreferences, ou générer un nouveau si absent
+                val id = if (obj.has("id")) obj.getString("id") else UUID.randomUUID().toString()
+                list.add(VideoItem(
+                    id = id,
+                    title = obj.getString("title"),
+                    url = obj.getString("url")
+                ))
             }
             if (list.isEmpty()) defaultVideos() else list
-        } catch (e: Exception) {
+        } catch (@Suppress("UNUSED_PARAMETER") e: Exception) {
             defaultVideos()
         }
     }
@@ -56,12 +64,15 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
         val array = JSONArray()
         videos.forEach { item ->
             val obj = JSONObject().apply {
+                put("id", item.id)  // ✅ Sauvegarder l'ID
                 put("title", item.title)
                 put("url", item.url)
             }
             array.put(obj)
         }
-        prefs.edit().putString(PREFS_KEY, array.toString()).apply()
+        prefs.edit {
+            putString(PREFS_KEY, array.toString())
+        }
     }
 
     private fun defaultVideos(): List<VideoItem> {

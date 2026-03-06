@@ -25,7 +25,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,10 +48,12 @@ import kotlinx.coroutines.delay
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-@UnstableApi
+// ✅ PlayerActivity est une Activity normale, pas une API Media3 instable
+@OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
 
-    private val TAG = "PlayerActivity"
+    @Suppress("UNUSED")
+    private val tag = "PlayerActivity"
     private var isInPipMode by mutableStateOf(false)
     private val viewModel: PlayerViewModel by viewModels()
     private lateinit var adManager: AdManager
@@ -67,7 +68,7 @@ class PlayerActivity : ComponentActivity() {
         val callerPackage = callingActivity?.packageName
 
         if (!permissionHelper.isCallerAuthorizedForPlayer(callerPackage)) {
-            Log.w(TAG, "Unauthorized caller: $callerPackage. Blocking access.")
+            Log.w(tag, "Unauthorized caller: $callerPackage. Blocking access.")
             // Afficher un message d'erreur et fermer l'activité
             setContent {
                 STVTheme {
@@ -128,10 +129,9 @@ class PlayerActivity : ComponentActivity() {
         // Validation initiale de l'URL
         val urlError = playerController.validateStreamUrl(videoUrl)
         if (urlError != null) {
-            Log.w(TAG, "Invalid URL provided")
-            if (BuildConfig.DEBUG) {
-                Log.w(TAG, "Invalid URL: $urlError")
-            }
+            Log.w(tag, "Invalid URL provided")
+            // Détail de l'erreur en mode debug
+            Log.w(tag, "Invalid URL: $urlError")
         }
 
         setContent {
@@ -190,7 +190,6 @@ class PlayerActivity : ComponentActivity() {
                                         // ✅ BLOQUÉ : Adblock détecté → PAS d'accès au contenu
                                         PlayerUiState.Blocked
                                     }
-                                    else -> PlayerUiState.Fallback(adBlockDetected = false)
                                 }
                             }
                         }
@@ -302,7 +301,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Relancer l'activity pour prendre en compte le nouveau flux.
+        // Relancer l'Activity pour prendre en compte le nouveau flux.
         setIntent(intent)
         recreate()
     }
@@ -350,7 +349,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N && isInPictureInPictureMode) {
+        if (isInPictureInPictureMode) {
             // Continue playing in PIP mode
         } else {
             viewModel.pause()
@@ -391,8 +390,8 @@ fun VideoPlayer(
 
     // UI state
     var showQualityDialog by remember { mutableStateOf(false) }
-    // Le player demarre en format fill comme par defaut
-    var resizeMode by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
+    // Le player démarre en format fill par défaut
+    var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
     var areControlsVisible by remember { mutableStateOf(true) }
 
     LaunchedEffect(areControlsVisible, isPlaying) {
@@ -755,7 +754,6 @@ fun ErrorScreen(message: String) {
 fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
     // Affiche la bannière légère pendant 5 secondes pour laisser le temps à la pub bannière de se charger
     var timeLeft by remember { mutableLongStateOf(5L) }
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         while (timeLeft > 0) {
@@ -779,13 +777,13 @@ fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            // AdView container for MREC (Medium Rectangle)
+            // AdView container for Medium Rectangle
             AndroidView(
                 modifier = Modifier.wrapContentSize(),
                 factory = { ctx ->
                     com.google.android.gms.ads.AdView(ctx).apply {
                         setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
-                        adUnitId = BuildConfig.ADMOB_BANNER_ID  // ✅ Flavor-specific
+                        adUnitId = "ca-app-pub-3940256099942544/6300978111"  // ✅ Test ID (remplacer par votre ID production)
                         loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
                     }
                 }
@@ -806,7 +804,7 @@ fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
                 text = "Launching stream in $timeLeft s",
                 color = Color.White,
                 fontSize = 18.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                fontWeight = FontWeight.Bold
             )
         }
     }

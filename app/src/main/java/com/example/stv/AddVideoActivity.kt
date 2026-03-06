@@ -66,7 +66,7 @@ class AddVideoActivity : ComponentActivity() {
                 AddVideoScreen(
                     onSave = { title, url ->
                         // Ajouter la vidéo au ViewModel
-                        viewModel.addVideo(VideoItem(title, url))
+                        viewModel.addVideo(VideoItem(title = title, url = url))
 
                         // Retour automatique à l'écran précédent (liste ou accueil)
                         finish()

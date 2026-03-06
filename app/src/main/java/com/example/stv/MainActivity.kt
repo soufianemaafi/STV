@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,15 +18,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -53,7 +51,6 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -66,7 +63,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.stv.ui.theme.STVTheme
-import com.example.stv.ui.theme.BlackVeryDark
 import com.example.stv.ui.theme.BlackDrawer
 import com.example.stv.ui.theme.WhitePrimary
 import com.example.stv.ui.theme.GrayLight
@@ -97,7 +93,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             STVTheme {
-                MainScreen(adManager = adManager)
+                MainScreen(_adManager = adManager)
             }
         }
 
@@ -108,27 +104,25 @@ class MainActivity : ComponentActivity() {
     }
 
     // Fonction utilitaire pour vérifier la connexion internet
+    // ✅ Modernisé : utilise NetworkCapabilities au lieu de l'API dépréciée activeNetworkInfo
+    @Suppress("UNUSED")  // À utiliser dans v1.1 pour vérifier connexion avant streaming
     fun isNetworkAvailable(): Boolean {
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val network = connectivityManager.activeNetwork ?: return false
-            val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
-            return when {
-                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
-                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
-                activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
-                else -> false
-            }
-        } else {
-            val networkInfo = connectivityManager.activeNetworkInfo
-            return networkInfo != null && networkInfo.isConnected
-        }
+
+        // Depuis minSdk=24, on utilise NetworkCapabilities directement
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+
+        // Vérifie que la connexion Internet est présente ET validée
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(adManager: AdManager? = null) {
+fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
+    // Reçu de MainActivity.onCreate() - À utiliser dans v1.1 pour afficher les pubs
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -253,7 +247,7 @@ fun MainScreen(adManager: AdManager? = null) {
                 // Section 3 : Quitter
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.menu_quit), color = WhitePrimary) },
-                    icon = { Icon(Icons.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = GrayLight) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = GrayLight) },
                     selected = false,
                     onClick = {
                         (context as? ComponentActivity)?.finishAffinity()
@@ -292,7 +286,7 @@ fun MainScreen(adManager: AdManager? = null) {
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         titleContentColor = MaterialTheme.colorScheme.onPrimary,
                         scrolledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f)

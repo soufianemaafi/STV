@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.media3.common.util.UnstableApi
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -54,7 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.stv.ui.theme.STVTheme
 
-@UnstableApi
+// ✅ VideoListActivity est une Activity normale, pas une API Media3 instable
 class VideoListActivity : ComponentActivity() {
 
     private val viewModel: VideoListViewModel by viewModels()
@@ -67,7 +66,7 @@ class VideoListActivity : ComponentActivity() {
             val title = data?.getStringExtra(AddVideoActivity.EXTRA_TITLE)
             val url = data?.getStringExtra(AddVideoActivity.EXTRA_URL)
             if (!title.isNullOrBlank() && !url.isNullOrBlank()) {
-                viewModel.addVideo(VideoItem(title, url))
+                viewModel.addVideo(VideoItem(title = title, url = url))
             }
         }
     }
@@ -140,7 +139,7 @@ fun VideoListScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
@@ -205,7 +204,7 @@ fun VideoListScreen(
                         contentPadding = PaddingValues(vertical = 8.dp, horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(filteredVideos, key = { it.url }) { item ->
+                        items(filteredVideos, key = { it.id }) { item ->
                             val canDelete = !viewModel.isDefaultVideo(item)
                             VideoCard(
                                 item = item,
