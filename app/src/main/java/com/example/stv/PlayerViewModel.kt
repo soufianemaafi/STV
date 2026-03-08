@@ -57,6 +57,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var trackSelector: DefaultTrackSelector? = null
     private var currentUrl: String? = null
+    // ✅ Job explicite pour annuler la coroutine de position à chaque réinitialisation
+    private var positionUpdateJob: kotlinx.coroutines.Job? = null
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -147,8 +149,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 prepare()
             }
 
-        // Lancer une coroutine pour mettre à jour la position régulièrement
-        viewModelScope.launch {
+        // ✅ Annuler l'ancienne coroutine de position (évite les doublons si réinitialisation)
+        positionUpdateJob?.cancel()
+        positionUpdateJob = viewModelScope.launch {
             while (true) {
                 val player = _exoPlayer
                 if (player != null && player.isPlaying) {
@@ -156,10 +159,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _bufferedPosition.value = player.bufferedPosition
                     _duration.value = player.duration.coerceAtLeast(0L)
                 } else if (player != null) {
-                    // Update buffer even when paused
                     _bufferedPosition.value = player.bufferedPosition
                 }
-                delay(1000) // Mise à jour chaque seconde
+                delay(1000)
             }
         }
     }
@@ -290,6 +292,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun releasePlayer() {
+        // ✅ Annuler la coroutine de position avant de libérer le player
+        positionUpdateJob?.cancel()
+        positionUpdateJob = null
         _exoPlayer?.let { player ->
             player.removeListener(playerListener)
             player.release()

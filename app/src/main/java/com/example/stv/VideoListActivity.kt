@@ -34,10 +34,12 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -192,13 +194,16 @@ fun VideoListScreen(
                                 text = if (searchQuery.isEmpty())
                                     stringResource(R.string.no_videos_placeholder)
                                 else
-                                    "No results for \"$searchQuery\"",
+                                    "${stringResource(R.string.no_results_for)} \"$searchQuery\"",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 } else {
+                    // ✅ State pour le dialogue de confirmation de suppression
+                    var videoToDelete by remember { mutableStateOf<VideoItem?>(null) }
+
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp, horizontal = 12.dp),
@@ -209,10 +214,35 @@ fun VideoListScreen(
                             VideoCard(
                                 item = item,
                                 canDelete = canDelete,
-                                onDelete = { viewModel.removeVideo(item) },
+                                onDelete = { videoToDelete = item },
                                 onClick = { onVideoClick(item) }
                             )
                         }
+                    }
+
+                    // ✅ Dialogue de confirmation avant suppression
+                    videoToDelete?.let { item ->
+                        AlertDialog(
+                            onDismissRequest = { videoToDelete = null },
+                            title = { Text(stringResource(R.string.delete_confirm_title)) },
+                            text = { Text(stringResource(R.string.delete_confirm_message, item.title)) },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    viewModel.removeVideo(item)
+                                    videoToDelete = null
+                                }) {
+                                    Text(
+                                        stringResource(R.string.delete_confirm_yes),
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { videoToDelete = null }) {
+                                    Text(stringResource(R.string.delete_confirm_no))
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -232,11 +262,11 @@ private fun SearchBar(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp),
-        placeholder = { Text("Search a video...") },
+        placeholder = { Text(stringResource(R.string.search_placeholder)) },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Search",
+                contentDescription = stringResource(R.string.search_placeholder),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
@@ -245,7 +275,7 @@ private fun SearchBar(
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Clear",
+                        contentDescription = stringResource(R.string.clear_button),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -310,7 +340,7 @@ private fun VideoCard(
                     IconButton(onClick = onDelete) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = "Delete",
+                            contentDescription = stringResource(R.string.delete_button),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }

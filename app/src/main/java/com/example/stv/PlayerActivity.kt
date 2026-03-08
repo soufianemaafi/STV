@@ -123,7 +123,7 @@ class PlayerActivity : ComponentActivity() {
 
         hideSystemUI()
 
-        val videoUrl = resolveVideoUrl(intent)
+        val videoUrl = playerController.resolveVideoUrl(intent)
         val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
 
         // Validation initiale de l'URL
@@ -306,18 +306,6 @@ class PlayerActivity : ComponentActivity() {
         recreate()
     }
 
-    private fun resolveVideoUrl(intent: Intent?): String? {
-        val extraUrl = intent?.getStringExtra("VIDEO_URL")
-        if (!extraUrl.isNullOrBlank()) {
-            return extraUrl
-        }
-        val data = intent?.data ?: return null
-        return if (data.scheme == "stv" && data.host == "play") {
-            data.getQueryParameter("url")
-        } else {
-            data.toString()
-        }
-    }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

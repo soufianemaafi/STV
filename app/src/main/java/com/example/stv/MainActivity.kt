@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -74,6 +76,21 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     private lateinit var adManager: AdManager
     private var keepSplashScreen = true
+    private val videoListViewModel: VideoListViewModel by viewModels()
+
+    // ✅ Récupère le résultat de AddVideoActivity et ajoute la vidéo
+    private val addVideoLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            val title = data?.getStringExtra(AddVideoActivity.EXTRA_TITLE)
+            val url = data?.getStringExtra(AddVideoActivity.EXTRA_URL)
+            if (!title.isNullOrBlank() && !url.isNullOrBlank()) {
+                videoListViewModel.addVideo(VideoItem(title = title, url = url))
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Installer le SplashScreen avant super.onCreate()
@@ -94,7 +111,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             STVTheme {
-                MainScreen(_adManager = adManager)
+                MainScreen(
+                    onAddVideoClick = {
+                        val intent = Intent(this, AddVideoActivity::class.java)
+                        addVideoLauncher.launch(intent)
+                    }
+                )
             }
         }
 
@@ -104,31 +126,33 @@ class MainActivity : ComponentActivity() {
         }, 500)
     }
 
-    // Fonction utilitaire pour vérifier la connexion internet
-    // ✅ Modernisé : utilise NetworkCapabilities au lieu de l'API dépréciée activeNetworkInfo
-    @Suppress("UNUSED")  // À utiliser dans v1.1 pour vérifier connexion avant streaming
-    fun isNetworkAvailable(): Boolean {
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
-        // Depuis minSdk=24, on utilise NetworkCapabilities directement
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-
-        // Vérifie que la connexion Internet est présente ET validée
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    companion object {
+        /**
+         * Vérifie si une connexion internet est disponible et validée.
+         * Utilise l'API moderne NetworkCapabilities (depuis minSdk=24).
+         */
+        fun isNetworkAvailable(context: Context): Boolean {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = connectivityManager.activeNetwork ?: return false
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+            return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                   capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
-    // Reçu de MainActivity.onCreate() - À utiliser dans v1.1 pour afficher les pubs
+fun MainScreen(onAddVideoClick: () -> Unit = {}) {
     val context = LocalContext.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    // ✅ Messages et URLs pré-chargés via stringResource (hors lambdas onClick)
+    val noInternetMessage = stringResource(R.string.no_internet_connection)
+    val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
+    val termsOfServiceUrl = stringResource(R.string.terms_of_service_url)
 
     // État pour gérer le debounce du clic
     var lastClickTime by remember { mutableLongStateOf(0L) }
@@ -216,8 +240,7 @@ fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
                         selected = false,
                         onClick = {
                             // ✅ Ouvrir la page web externe (conforme Play Store)
-                            val url = context.getString(R.string.privacy_policy_url)
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl))
                             context.startActivity(intent)
                             scope.launch { drawerState.close() }
                         },
@@ -232,8 +255,7 @@ fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
                         selected = false,
                         onClick = {
                             // ✅ Ouvrir la page web externe (conforme Play Store)
-                            val url = context.getString(R.string.terms_of_service_url)
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(termsOfServiceUrl))
                             context.startActivity(intent)
                             scope.launch { drawerState.close() }
                         },
@@ -324,8 +346,14 @@ fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
                                 val now = System.currentTimeMillis()
                                 if (now - lastClickTime > debounceTime) {
                                     lastClickTime = now
-                                    val intent = Intent(context, AddVideoActivity::class.java)
-                                    context.startActivity(intent)
+                                    // ✅ Vérification réseau avant navigation
+                                    if (MainActivity.isNetworkAvailable(context)) {
+                                        onAddVideoClick()
+                                    } else {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(noInternetMessage)
+                                        }
+                                    }
                                 }
                             },
                             modifier = Modifier
@@ -355,8 +383,15 @@ fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
                             val now = System.currentTimeMillis()
                             if (now - lastClickTime > debounceTime) {
                                 lastClickTime = now
-                                val intent = Intent(context, VideoListActivity::class.java)
-                                context.startActivity(intent)
+                                // ✅ Vérification réseau avant navigation
+                                if (MainActivity.isNetworkAvailable(context)) {
+                                    val intent = Intent(context, VideoListActivity::class.java)
+                                    context.startActivity(intent)
+                                } else {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(noInternetMessage)
+                                    }
+                                }
                             }
                         }
                     )

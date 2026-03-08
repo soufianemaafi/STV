@@ -86,6 +86,19 @@
 - [x] **Badge LIVE** : détection automatique flux live via `isCurrentMediaItemLive` + badge rouge "● LIVE" en haut à droite du player
 - [x] 2 nouvelles strings ajoutées (`live_badge`, `live_badge_cd`)
 - [x] Fichier `values-fr/strings.xml` créé — **49 clés traduites** en français, 7 clés héritées intentionnellement (URLs, noms techniques, LIVE)
+- [x] 7 clés marquées `translatable="false"` dans `values/strings.xml` pour supprimer les warnings lint
+- [x] Warning ellipse `"..."` → `"…"` corrigé dans `search_placeholder`
+- [x] `_adManager` paramètre inutilisé supprimé de `MainScreen()` — code mort éliminé
+- [x] `isNetworkAvailable()` refactorisée en `companion fun` et utilisée pour vérifier la connexion avant navigation (Snackbar si pas de réseau)
+- [x] `resolveVideoUrl()` déplacée de `PlayerActivity` vers `PlayerController` — meilleure séparation des responsabilités + testable unitairement
+- [x] Coroutine de position avec `positionUpdateJob` explicite — annulée dans `releasePlayer()` et avant chaque réinitialisation (évite les doublons)
+- [x] Confirmation avant suppression de vidéo via `AlertDialog` Compose avec titre de la vidéo — 4 nouvelles strings (`delete_confirm_*`)
+- [x] Texte "No results for..." en dur → `stringResource(R.string.no_results_for)` + placeholder SearchBar + contentDescription "Search"/"Clear"/"Delete" remplacés par `stringResource()`
+- [x] Messages de validation en dur dans `AddVideoActivity` → 5 nouvelles strings (`validation_title_empty`, `validation_title_too_short`, `validation_title_too_long`, `validation_url_empty`, `validation_url_invalid`) + traductions FR
+- [x] `AddVideoActivity` n'instancie plus son propre ViewModel → retourne `setResult(RESULT_OK, intent)` avec extras. `MainActivity` et `VideoListActivity` récupèrent le résultat via `registerForActivityResult`
+- [x] `BANNER_AD_UNIT_ID` inutilisée supprimée de `AdManager.kt`
+- [x] `showStrictBlockerDialog()` (AlertDialog classique) supprimé → AdManager notifie via callback `onAdBlockDetected` (Compose côté UI, conforme MVVM)
+- [x] Erreurs lint Compose corrigées dans `MainActivity` : `context.getString()` dans lambdas → pré-chargement via `stringResource()` (`privacyPolicyUrl`, `termsOfServiceUrl`)
 
 ---
 

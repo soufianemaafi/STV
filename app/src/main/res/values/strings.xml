@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">STV</string>
+    <string name="app_name" translatable="false">STV</string>
 
     <!-- MainActivity -->
     <string name="history">History</string>
@@ -28,7 +28,7 @@
     <string name="playback_error_prefix">Playback error: %1$s</string>
     <string name="quality_auto">Auto</string>
     <string name="quality_unknown">Unknown</string>
-    <string name="quality_auto_with_resolution">Auto (%1$dp)</string>
+    <string name="quality_auto_with_resolution" translatable="false">Auto (%1$dp)</string>
     <string name="quality_manual">Manual</string>
 
     <!-- AdBlock -->
@@ -52,8 +52,8 @@
     <!-- Privacy Policy & Terms of Service -->
     <string name="privacy_policy">Privacy Policy</string>
     <string name="terms_of_service">Terms of Service</string>
-    <string name="privacy_policy_url">https://sites.google.com/view/stvplayerprivacy</string>
-    <string name="terms_of_service_url">https://sites.google.com/view/stvplayerterms</string>
+    <string name="privacy_policy_url" translatable="false">https://sites.google.com/view/stvplayerprivacy</string>
+    <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/stvplayerterms</string>
 
     <!-- Videos list & add form -->
     <string name="videos_button_label">Videos</string>
@@ -68,15 +68,24 @@
     <string name="add_video_invalid">Please enter a valid title and URL.</string>
     <string name="add_video_title_valid">Title valid</string>
     <string name="add_video_url_valid">URL valid</string>
+    <string name="validation_title_empty">Title cannot be empty</string>
+    <string name="validation_title_too_short">Title must contain at least 2 characters</string>
+    <string name="validation_title_too_long">Title cannot exceed 100 characters</string>
+    <string name="validation_url_empty">URL cannot be empty</string>
+    <string name="validation_url_invalid">URL is not valid</string>
     <string name="no_videos_placeholder">No streams added.</string>
 
     <!-- Placeholders & UI Text -->
     <string name="search_placeholder">Search a video…</string>
-    <string name="title_placeholder">Ex: BBC News</string>
-    <string name="url_placeholder">https://example.com/stream.m3u8</string>
+    <string name="title_placeholder" translatable="false">Ex: BBC News</string>
+    <string name="url_placeholder" translatable="false">https://example.com/stream.m3u8</string>
     <string name="back_button">Back</string>
     <string name="clear_button">Clear</string>
     <string name="delete_button">Delete</string>
+    <string name="delete_confirm_title">Delete stream</string>
+    <string name="delete_confirm_message">Are you sure you want to delete \"%1$s\"?</string>
+    <string name="delete_confirm_yes">Delete</string>
+    <string name="delete_confirm_no">Cancel</string>
     <string name="add_stream_button">Add stream</string>
     <string name="videos_button">Videos</string>
     <string name="privacy_policy_cd">Privacy Policy</string>
@@ -87,7 +96,7 @@
     <string name="forward_10s">Forward 10s</string>
     <string name="cast_button">Cast</string>
     <string name="pip_button">PiP</string>
-    <string name="live_badge">LIVE</string>
+    <string name="live_badge" translatable="false">LIVE</string>
     <string name="live_badge_cd">Live stream</string>
     <string name="access_denied">Access denied</string>
     <string name="access_blocked">Access blocked</string>

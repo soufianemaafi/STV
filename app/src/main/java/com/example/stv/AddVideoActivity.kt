@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,22 +55,23 @@ import kotlinx.coroutines.launch
 
 class AddVideoActivity : ComponentActivity() {
 
-    private val viewModel: VideoListViewModel by viewModels()
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             STVTheme {
                 AddVideoScreen(
                     onSave = { title, url ->
-                        // Ajouter la vidéo au ViewModel
-                        viewModel.addVideo(VideoItem(title = title, url = url))
-
-                        // Retour automatique à l'écran précédent (liste ou accueil)
+                        // ✅ Retourner le résultat à l'Activity appelante (VideoListActivity)
+                        // au lieu d'ajouter au ViewModel local (qui n'est pas partagé)
+                        val resultIntent = Intent().apply {
+                            putExtra(EXTRA_TITLE, title)
+                            putExtra(EXTRA_URL, url)
+                        }
+                        setResult(RESULT_OK, resultIntent)
                         finish()
                     },
                     onCancel = {
+                        setResult(RESULT_CANCELED)
                         finish()
                     }
                 )
@@ -98,22 +98,29 @@ private fun AddVideoScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val invalidMessage = stringResource(R.string.add_video_invalid)
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
+
+    // ✅ Pré-chargement des messages de validation localisés
+    val msgTitleEmpty = stringResource(R.string.validation_title_empty)
+    val msgTitleShort = stringResource(R.string.validation_title_too_short)
+    val msgTitleLong = stringResource(R.string.validation_title_too_long)
+    val msgUrlEmpty = stringResource(R.string.validation_url_empty)
+    val msgUrlInvalid = stringResource(R.string.validation_url_invalid)
 
     // Validation en temps réel
     fun validateTitle(value: String) {
         titleError = when {
-            value.isBlank() -> "Title cannot be empty"
-            value.length < 2 -> "Title must contain at least 2 characters"
-            value.length > 100 -> "Title cannot exceed 100 characters"
+            value.isBlank() -> msgTitleEmpty
+            value.length < 2 -> msgTitleShort
+            value.length > 100 -> msgTitleLong
             else -> ""
         }
     }
 
     fun validateUrl(value: String) {
         urlError = when {
-            value.isBlank() -> "URL cannot be empty"
-            !Patterns.WEB_URL.matcher(value.trim()).matches() -> "URL is not valid"
+            value.isBlank() -> msgUrlEmpty
+            !Patterns.WEB_URL.matcher(value.trim()).matches() -> msgUrlInvalid
             else -> ""
         }
     }
@@ -137,7 +144,7 @@ private fun AddVideoScreen(
                     }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back_button)
                         )
                     }
                 },
@@ -181,7 +188,7 @@ private fun AddVideoScreen(
                     validateTitle(newValue)
                 },
                 label = { Text(stringResource(R.string.add_video_label_title)) },
-                placeholder = { Text("Ex: BBC News") },
+                placeholder = { Text(stringResource(R.string.title_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = titleError.isNotEmpty(),
@@ -215,7 +222,7 @@ private fun AddVideoScreen(
                     validateUrl(newValue)
                 },
                 label = { Text(stringResource(R.string.add_video_label_url)) },
-                placeholder = { Text("https://example.com/stream.m3u8") },
+                placeholder = { Text(stringResource(R.string.url_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = urlError.isNotEmpty(),

@@ -1,7 +1,6 @@
 package com.example.stv
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
 import android.util.Log
 import com.google.android.gms.ads.AdError
@@ -31,9 +30,8 @@ class AdManager(context: Context) {
     private val MAX_FAILED_ATTEMPTS = 3 // Seuil de tolérance
     private val TAG = "AdManager"
 
-    // ✅ IDs AdMob provenant du BuildConfig (flavor-specific)
+    // ✅ ID AdMob interstitiel provenant du BuildConfig (flavor-specific)
     private val AD_UNIT_ID = BuildConfig.ADMOB_INTERSTITIAL_ID
-    private val BANNER_AD_UNIT_ID = BuildConfig.ADMOB_BANNER_ID
 
     fun loadAndShowInterstitial(
         activity: Activity,
@@ -67,14 +65,12 @@ class AdManager(context: Context) {
 
                     // Si le chargement échoue, on passe inmédiatement au fallback ou à la suite
                     if (failedLoadAttempts >= MAX_FAILED_ATTEMPTS) {
-                         // Trop d'échecs : détection AdBlocker -> On affiche le dialogue strict
-                         // MAIS POUR LA STRATEGIE DOUCE: On vérifie si c'est vraiment réseau
+                         // Trop d'échecs : détection AdBlocker
                          if (adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
-                             // Erreur réseau persistante : on tente le fallback bannière, peut-être qu'elle chargera
+                             // Erreur réseau persistante : on tente le fallback bannière
                              onFallbackAd()
                          } else {
-                             showStrictBlockerDialog(activity)
-                             // On notifie l'activité que le blocage est actif (pour arrêter le timer)
+                             // ✅ Notifier l'Activity via callback (qui affichera un dialogue Compose)
                              onAdBlockDetected?.invoke()
                          }
                     } else {
@@ -122,7 +118,8 @@ class AdManager(context: Context) {
         activity: Activity,
         onAdDismissed: () -> Unit,
         onFallbackAd: () -> Unit,
-        onAdShowed: (() -> Unit)? = null // Optionnel pour compatibilité
+        onAdShowed: (() -> Unit)? = null,
+        onAdBlockDetected: (() -> Unit)? = null
     ) {
         if (interstitialAd != null) {
             interstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
@@ -142,7 +139,7 @@ class AdManager(context: Context) {
                 override fun onAdShowedFullScreenContent() {
                     Log.d(TAG, "Ad showed fullscreen content.")
                     interstitialAd = null
-                    onAdShowed?.invoke() // On notifie que l'affichage a commencé
+                    onAdShowed?.invoke()
                 }
             }
             interstitialAd?.show(activity)
@@ -151,29 +148,13 @@ class AdManager(context: Context) {
 
             // Vérification du seuil de tolérance
             if (failedLoadAttempts >= MAX_FAILED_ATTEMPTS) {
-                // Blocage strict : On ne lance PAS la vidéo, on force le retry
-                showStrictBlockerDialog(activity)
+                // ✅ Blocage strict : notifier via callback (dialogue Compose côté UI)
+                onAdBlockDetected?.invoke()
             } else {
-                // Tolérance : Au lieu de lancer la vidéo directement, on propose le fallback (Bannière)
+                // Tolérance : fallback bannière
                 loadInterstitialAd()
                 onFallbackAd()
             }
         }
-    }
-
-    private fun showStrictBlockerDialog(activity: Activity) {
-        // Dialogue de détection d'adblock
-        // Affiche seulement un bouton "Fermer" qui ferme l'activité
-        // Pas de bouton "Réessayer" pour éviter de contourner la détection
-
-        AlertDialog.Builder(activity)
-            .setTitle(activity.getString(R.string.ad_block_strict_title))
-            .setMessage(activity.getString(R.string.ad_block_strict_message))
-            .setPositiveButton(activity.getString(R.string.ad_block_close_button)) { dialog, _ ->
-                dialog.dismiss()
-                activity.finish()
-            }
-            .setCancelable(false)
-            .show()
     }
 }

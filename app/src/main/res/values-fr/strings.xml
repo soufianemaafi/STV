@@ -73,6 +73,11 @@
     <string name="add_video_invalid">Veuillez entrer un titre et une URL valides.</string>
     <string name="add_video_title_valid">Titre valide</string>
     <string name="add_video_url_valid">URL valide</string>
+    <string name="validation_title_empty">Le titre ne peut pas être vide</string>
+    <string name="validation_title_too_short">Le titre doit contenir au moins 2 caractères</string>
+    <string name="validation_title_too_long">Le titre ne peut pas dépasser 100 caractères</string>
+    <string name="validation_url_empty">L\'URL ne peut pas être vide</string>
+    <string name="validation_url_invalid">L\'URL n\'est pas valide</string>
     <string name="no_videos_placeholder">Aucun flux ajouté.</string>
 
     <!-- Placeholders & UI Text -->
@@ -80,6 +85,10 @@
     <string name="back_button">Retour</string>
     <string name="clear_button">Effacer</string>
     <string name="delete_button">Supprimer</string>
+    <string name="delete_confirm_title">Supprimer le flux</string>
+    <string name="delete_confirm_message">Êtes-vous sûr de vouloir supprimer \"%1$s\" ?</string>
+    <string name="delete_confirm_yes">Supprimer</string>
+    <string name="delete_confirm_no">Annuler</string>
     <string name="add_stream_button">Ajouter un flux</string>
     <string name="videos_button">Vidéos</string>
     <string name="privacy_policy_cd">Politique de confidentialité</string>

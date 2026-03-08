@@ -52,7 +52,8 @@ app/src/main/java/com/example/stv/
 ├── ads/
 │   └── AdsController.kt         (78 lignes)  — Orchestration ads avec coroutines
 ├── player/
-│   └── PlayerController.kt      (67 lignes)  — Validation URL de flux
+│   └── PlayerController.kt      (91 lignes)  — Validation URL + résolution URL depuis intents
+
 ├── security/
 │   └── PermissionHelper.kt      (172 lignes) — Vérification signatures appelants
 └── ui/
@@ -163,8 +164,8 @@ app/src/main/java/com/example/stv/
 
 **Points d'amélioration** ⚠️ :
 - Historique / Favoris / Paramètres non implémentés (placeholders)
-- `_adManager` paramètre passé mais non utilisé dans `MainScreen`
-- `isNetworkAvailable()` déclarée mais pas utilisée
+- ~~`_adManager` paramètre passé mais non utilisé dans `MainScreen`~~ → ✅ **CORRIGÉ** : Paramètre supprimé de `MainScreen`
+- ~~`isNetworkAvailable()` déclarée mais pas utilisée~~ → ✅ **CORRIGÉ** : Refactorisée en `companion fun` et utilisée pour vérifier la connexion avant navigation (Snackbar si pas de réseau)
 
 ---
 
@@ -207,7 +208,7 @@ LoadingAds → Error (URL invalide)
 - Bouton Cast est un placeholder (non fonctionnel)
 - ~~Quelques textes en dur (français) dans `Blocked` et `FallbackBanner`~~ → ✅ **CORRIGÉ** : Tous extraits dans `strings.xml`
 - ~~`FallbackBanner` utilise un ID AdMob en dur au lieu de `BuildConfig`~~ → ✅ **CORRIGÉ** : Utilise `BuildConfig.ADMOB_BANNER_ID`
-- `resolveVideoUrl()` pourrait être dans `PlayerController`
+- ~~`resolveVideoUrl()` pourrait être dans `PlayerController`~~ → ✅ **CORRIGÉ** : Déplacée dans `PlayerController.resolveVideoUrl(intent)` avec KDoc complet
 
 ---
 
@@ -242,7 +243,7 @@ After Rebuf  : 3s   (reprise après coupure)
 - ✅ Détection automatique des flux LIVE
 
 **Points d'amélioration** ⚠️ :
-- Coroutine de position tourne indéfiniment (pas de cancel explicite, se base sur `viewModelScope`)
+- ~~Coroutine de position tourne indéfiniment (pas de cancel explicite, se base sur `viewModelScope`)~~ → ✅ **CORRIGÉ** : `positionUpdateJob` explicite, annulé dans `releasePlayer()` et avant chaque réinitialisation dans `initializePlayer()`
 - ~~Commentaire `// Method removed temporarily to fix conflict` ligne 106 — code mort~~ → ✅ **CORRIGÉ** : Supprimé
 - ~~Variable `selector` commentée dans `selectTrack()`~~ → ✅ **CORRIGÉ** : Supprimée
 
@@ -269,8 +270,8 @@ After Rebuf  : 3s   (reprise après coupure)
 **Points d'amélioration** ⚠️ :
 - ~~Persistance JSON manuelle → pourrait utiliser Room ou Kotlin Serialization~~ → ✅ **CORRIGÉ** : Migration vers `kotlinx.serialization` (`Json.encodeToString` / `Json.decodeFromString`)
 - ~~`removeVideo()` filtre par titre+url au lieu de l'ID unique~~ → ✅ **CORRIGÉ** : Filtre par `it.id == item.id`
-- Pas de confirmation avant suppression
-- Texte "No results for..." en dur en anglais
+- ~~Pas de confirmation avant suppression~~ → ✅ **CORRIGÉ** : `AlertDialog` Compose de confirmation avant suppression avec titre de la vidéo affiché. 4 nouvelles strings ajoutées (`delete_confirm_title`, `delete_confirm_message`, `delete_confirm_yes`, `delete_confirm_no`).
+- ~~Texte "No results for..." en dur en anglais~~ → ✅ **CORRIGÉ** : Remplacé par `stringResource(R.string.no_results_for)`. Placeholder SearchBar et `contentDescription` ("Search", "Clear", "Delete") aussi remplacés par `stringResource()`.
 
 ---
 
@@ -283,7 +284,7 @@ After Rebuf  : 3s   (reprise après coupure)
 | Validation titre | Non vide, 2-100 caractères |
 | Validation URL | Non vide, `Patterns.WEB_URL` |
 | Feedback | Indicateurs visuels vert/rouge en temps réel |
-| Sauvegarde | `VideoListViewModel.addVideo()` |
+| Sauvegarde | ✅ Retourne un `RESULT_OK` avec les extras `EXTRA_TITLE` et `EXTRA_URL` à l'Activity appelante |
 
 **Points positifs** ✅ :
 - Validation en temps réel avec feedback visuel
@@ -292,12 +293,12 @@ After Rebuf  : 3s   (reprise après coupure)
 
 **Points d'amélioration** ⚠️ :
 - ~~`centerAlignedTopAppBarColors` au lieu de `topAppBarColors` (API dépréciée)~~ → ✅ **CORRIGÉ** : Utilise `topAppBarColors`
-- Messages de validation en anglais en dur
-- Instancie son propre `VideoListViewModel` (pas partagé avec `VideoListActivity`)
+- ~~Messages de validation en anglais en dur~~ → ✅ **CORRIGÉ** : 5 nouvelles strings de validation ajoutées (`validation_title_empty`, `validation_title_too_short`, `validation_title_too_long`, `validation_url_empty`, `validation_url_invalid`) avec traductions FR. Pré-chargées via `stringResource()` et utilisées dans les fonctions locales `validateTitle()` / `validateUrl()`.
+- ~~Instancie son propre `VideoListViewModel` (pas partagé avec `VideoListActivity`)~~ → ✅ **CORRIGÉ** : Le ViewModel a été supprimé de `AddVideoActivity`. L'activité retourne désormais un résultat via `setResult(RESULT_OK, intent)` avec les extras `EXTRA_TITLE` et `EXTRA_URL`. L'Activity appelante (`VideoListActivity` ou `MainActivity`) récupère le résultat via `registerForActivityResult` et appelle `viewModel.addVideo()` de son côté.
 
 ---
 
-### 3.6 AdManager.kt (180 lignes)
+### 3.6 AdManager.kt (161 lignes)
 
 **Rôle** : Gestion de la monétisation via Google AdMob.
 
@@ -307,13 +308,13 @@ After Rebuf  : 3s   (reprise après coupure)
 | Seuil | 3 échecs consécutifs → détection adblock |
 | Persistance | Compteur d'échecs dans `SharedPreferences` |
 | No Fill | Erreur "No Fill" (code 3) n'est pas comptée comme échec |
-| Dialogue | AlertDialog strict (ferme l'app, pas de retry) |
+| Dialogue | ✅ Délégué via callback `onAdBlockDetected` (pas de dialogue dans AdManager) |
 
 **Logique failover** :
 ```
 1er échec → Fallback bannière
 2ème échec → Fallback bannière
-3ème échec → Blocage strict (dialogue + fermeture)
+3ème échec → Blocage strict (callback onAdBlockDetected → dialogue Compose côté UI)
 Exception : "No Fill" → Reset compteur + fallback immédiat
 Exception : Erreur réseau → Fallback bannière (pas de blocage)
 ```
@@ -325,9 +326,9 @@ Exception : Erreur réseau → Fallback bannière (pas de blocage)
 - Utilisation de `applicationContext` (pas de fuite mémoire)
 
 **Points d'amélioration** ⚠️ :
-- IDs AdMob sont des IDs de test (`ca-app-pub-3940256099942544`)
-- `BANNER_AD_UNIT_ID` déclarée mais non utilisée dans cette classe
-- Dialogue en AlertDialog classique (pas Compose)
+- IDs AdMob sont des IDs de test (`ca-app-pub-3940256099942544`) — à renseigner dans `local.properties` pour prod
+- ~~`BANNER_AD_UNIT_ID` déclarée mais non utilisée dans cette classe~~ → ✅ **CORRIGÉ** : Supprimée (la bannière utilise `BuildConfig.ADMOB_BANNER_ID` dans `PlayerActivity`)
+- ~~Dialogue en AlertDialog classique (pas Compose)~~ → ✅ **CORRIGÉ** : `showStrictBlockerDialog()` supprimé. AdManager notifie désormais l'Activity via le callback `onAdBlockDetected` (paramètre ajouté aussi à `showInterstitial()`). L'affichage du dialogue est délégué à la couche UI (Compose), conforme au pattern MVVM.
 
 ---
 
@@ -565,8 +566,11 @@ STV Player v1.0 est une application **fonctionnelle et bien structurée** avec :
 - ✅ Support PiP, multi-qualité, deep links
 - ✅ Documentation abondante (135+ fichiers MD)
 - ✅ Privacy Policy & Terms of Service via liens web externes (conforme Play Store)
+- ✅ Vérification réseau avant navigation (Snackbar si pas de connexion)
+- ✅ Confirmation avant suppression de vidéo (AlertDialog)
+- ✅ Coroutine de position avec cancel explicite (pas de fuites)
 
-**Progrès des corrections** : **13 problèmes sur 15 corrigés** (1→2 ✅, 4→10 ✅, 13 ✅, 15 ✅) + **1 feature ajoutée** (badge LIVE). Restent : package name (n°3), Historique/Favoris (n°11), Cast (n°12), Tests (n°14).
+**Progrès des corrections** : **13 problèmes sur 15 corrigés** (1→2 ✅, 4→10 ✅, 13 ✅, 15 ✅) + **1 feature** (badge LIVE) + **10 améliorations** (adManager supprimé, isNetworkAvailable utilisé, resolveVideoUrl dans PlayerController, coroutine avec Job cancel, confirmation suppression, textes en dur i18n, messages validation i18n, ViewModel partagé via setResult, BANNER_AD_UNIT_ID supprimée, AlertDialog classique → callback Compose). Restent : package name (n°3), Historique/Favoris (n°11), Cast (n°12), Tests (n°14).
 
 **Blocage unique pour publication** : Package name `com.example.stv` (non autorisé Play Store) + IDs AdMob production à renseigner dans `local.properties`.
 
