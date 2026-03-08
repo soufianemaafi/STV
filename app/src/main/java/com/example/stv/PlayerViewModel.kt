@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.example.stv.ui.PlayerUiState
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -55,6 +56,33 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _isLive = MutableStateFlow(false)
     val isLive: StateFlow<Boolean> = _isLive.asStateFlow()
 
+    // State machine : null = pas encore initialisé (attend initializeUiState)
+    private val _uiState = MutableStateFlow<PlayerUiState?>(null)
+    val uiState: StateFlow<PlayerUiState?> = _uiState.asStateFlow()
+
+    /**
+     * Initialise l'état UI en fonction des paramètres d'entrée (URL, erreur, skipAds).
+     * Appelé dans PlayerActivity.onCreate() et onNewIntent().
+     */
+    fun initializeUiState(videoUrl: String?, urlError: String?, errorUrlNotProvided: String, skipAds: Boolean) {
+        _uiState.value = when {
+            urlError != null -> PlayerUiState.Error(urlError)
+            videoUrl == null -> PlayerUiState.Error(errorUrlNotProvided)
+            skipAds -> PlayerUiState.Ready(videoUrl)
+            else -> PlayerUiState.LoadingAds(videoUrl)
+        }
+    }
+
+    /**
+     * Met à jour l'état UI. Utilisé par les callbacks ads et les transitions.
+     */
+    fun setUiState(newState: PlayerUiState) {
+        _uiState.value = newState
+    }
+
+    /** Vérifie si l'état actuel est Ready */
+    fun isReady(): Boolean = _uiState.value is PlayerUiState.Ready
+
     private var trackSelector: DefaultTrackSelector? = null
     private var currentUrl: String? = null
     // ✅ Job explicite pour annuler la coroutine de position à chaque réinitialisation
@@ -67,7 +95,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 Player.STATE_READY -> {
                     _isLoading.value = false
                     _duration.value = _exoPlayer?.duration ?: 0L
-                    // ✅ Détecter si le flux est LIVE
                     _isLive.value = _exoPlayer?.isCurrentMediaItemLive == true
                 }
                 Player.STATE_ENDED -> {
@@ -111,6 +138,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
 
     fun initializePlayer(url: String) {
+        // Si déjà en lecture avec la même URL → rien à faire
         if (_exoPlayer != null && currentUrl == url) return
 
         releasePlayer()
@@ -149,7 +177,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 prepare()
             }
 
-        // ✅ Annuler l'ancienne coroutine de position (évite les doublons si réinitialisation)
+        // Annuler l'ancienne coroutine de position
         positionUpdateJob?.cancel()
         positionUpdateJob = viewModelScope.launch {
             while (true) {
@@ -262,7 +290,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val parameters = player.trackSelectionParameters
 
         if (parameters.overrides.isEmpty()) {
-            val width = player.videoFormat?.width ?: 0
             val height = player.videoFormat?.height ?: 0
             if (height > 0) {
                // Affiche "Auto (1920x1080)" pour être plus précis

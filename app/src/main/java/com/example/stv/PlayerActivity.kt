@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -44,6 +45,7 @@ import com.example.stv.player.PlayerController
 import com.example.stv.ui.PlayerUiState
 import com.example.stv.ui.theme.STVTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -115,8 +117,8 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        // Note : MobileAds.initialize() est déjà appelé dans STVApplication.onCreate()
-        adManager = AdManager(this)
+        // ✅ Utiliser le singleton AdManager (initialisé dans STVApplication)
+        adManager = AdManager.instance
         adsController = AdsController(adManager)
         playerController = PlayerController()
 
@@ -124,14 +126,16 @@ class PlayerActivity : ComponentActivity() {
 
         val videoUrl = playerController.resolveVideoUrl(intent)
         val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
-
-        // Validation initiale de l'URL
         val urlError = playerController.validateStreamUrl(videoUrl)
-        if (urlError != null) {
-            Log.w(tag, "Invalid URL provided")
-            // Détail de l'erreur en mode debug
-            Log.w(tag, "Invalid URL: $urlError")
-        }
+
+        // ✅ Initialiser l'état UI IMMÉDIATEMENT (avant setContent)
+        // Cela garantit que le LaunchedEffect des ads verra le bon état dès le premier frame
+        viewModel.initializeUiState(
+            videoUrl = videoUrl,
+            urlError = urlError,
+            errorUrlNotProvided = getString(R.string.url_not_provided),
+            skipAds = skipAds
+        )
 
         setContent {
             STVTheme {
@@ -139,65 +143,31 @@ class PlayerActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Black
                 ) {
-                    // ✅ Récupérer les ressources en contexte Composable d'abord
-                    val errorUrlNotProvided = stringResource(R.string.url_not_provided)
+                    val uiState by viewModel.uiState.collectAsState()
 
-                    // State machine unique pour gérer les différentes phases
-                    var uiState by remember {
-                        mutableStateOf<PlayerUiState>(
-                            if (urlError != null) {
-                                PlayerUiState.Error(urlError)
-                            } else if (videoUrl == null) {
-                                PlayerUiState.Error(errorUrlNotProvided)
-                            } else if (skipAds) {
-                                PlayerUiState.Ready(videoUrl)
-                            } else {
-                                PlayerUiState.LoadingAds
-                            }
-                        )
+                    // Tant que l'état n'est pas initialisé → écran noir
+                    if (uiState == null) {
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+                        return@Surface
                     }
 
-                    // Orchestration des ads si besoin
-                    LaunchedEffect(uiState) {
-                        if (uiState == PlayerUiState.LoadingAds && videoUrl != null) {
-                            val result = adsController.showAdIfNeeded(
-                                activity = this@PlayerActivity,
-                                onAdShowed = {
-                                    // ✅ Pub commence à s'afficher → passer en ShowingAd
-                                    uiState = PlayerUiState.ShowingAd(videoUrl)
-                                },
-                                onAdDismissed = {
-                                    // ✅ Pub fermée → passer en Ready (démarrage du player)
-                                    uiState = PlayerUiState.Ready(videoUrl)
-                                },
-                                timeoutMs = 6000
-                            )
+                    val currentState = uiState!!
 
-                            // Gérer le résultat initial si pas de pub affichée
-                            if (result != AdResult.AdShowed) {
-                                uiState = when (result) {
-                                    AdResult.AdDismissed -> {
-                                        // Pub fermée immédiatement (rare)
-                                        PlayerUiState.Ready(videoUrl)
-                                    }
-                                    AdResult.FallbackBanner,
-                                    AdResult.Timeout -> {
-                                        // Fallback temporaire (bannière 5s puis player)
-                                        PlayerUiState.Fallback(adBlockDetected = false)
-                                    }
-                                    AdResult.AdBlockDetected -> {
-                                        // ✅ BLOQUÉ : Adblock détecté → PAS d'accès au contenu
-                                        PlayerUiState.Blocked
-                                    }
-                                }
-                            }
+                    // ✅ Flux ads : se lance quand l'état est LoadingAds
+                    // Clé = Unit → ne se relance JAMAIS (pas annulé quand l'état change)
+                    // Pour relancer : passer par retryAds() qui remet l'état à LoadingAds
+                    LaunchedEffect(Unit) {
+                        val state = viewModel.uiState.value
+                        if (state is PlayerUiState.LoadingAds) {
+                            val url = state.videoUrl
+                            launchAdFlow(url)
                         }
                     }
 
-                    // Rendu basé sur l'état unique
-                    when (uiState) {
+                    // ✅ Rendu UI basé sur l'état
+                    when (currentState) {
                         is PlayerUiState.Error -> {
-                            ErrorScreen((uiState as PlayerUiState.Error).message)
+                            ErrorScreen(currentState.message)
                         }
                         is PlayerUiState.LoadingAds -> {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -205,74 +175,29 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
                         is PlayerUiState.ShowingAd -> {
-                            // ✅ Pub en cours d'affichage
-                            // Le player NE DÉMARRE PAS (pas de son en arrière-plan)
-                            // Affichage d'un écran noir en attendant la fermeture de la pub
-                            Box(
-                                modifier = Modifier.fillMaxSize().background(Color.Black),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                // Optionnel : loader discret
-                                CircularProgressIndicator(
-                                    color = Color.Red.copy(alpha = 0.3f),
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                            // La transition vers Ready se fera via le callback onAdDismissed
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                         }
-                        is PlayerUiState.Blocked -> {
-                            // ✅ BLOQUÉ : Adblock détecté
-                            // Le player NE DÉMARRE JAMAIS
-                            // Affiche un message et reste bloqué (le dialogue système se charge de fermer l'app)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Block,
-                                        contentDescription = stringResource(R.string.access_blocked),
-                                        tint = Color.Red,
-                                        modifier = Modifier.size(64.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(24.dp))
-                                    Text(
-                                        text = stringResource(R.string.access_blocked),
-                                        color = Color.White,
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        text = stringResource(R.string.ad_blocker_detected),
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                            // Pas de transition vers Ready : l'utilisateur reste bloqué
-                            // Le dialogue système (AdManager) se charge de fermer l'app
+                        is PlayerUiState.NeedRetry -> {
+                            // Pub échouée — bouton Réessayer
+                            BlockedScreen(
+                                icon = Icons.Filled.Refresh,
+                                title = stringResource(R.string.ad_load_failed_title),
+                                message = stringResource(R.string.ad_load_failed_message),
+                                onRetry = { retryAds() }
+                            )
                         }
-                        is PlayerUiState.Fallback -> {
-                            FallbackBanner(
-                                adBlockDetected = (uiState as PlayerUiState.Fallback).adBlockDetected,
-                                onFinish = {
-                                    if (videoUrl != null) {
-                                        uiState = PlayerUiState.Ready(videoUrl)
-                                    }
-                                }
+                        is PlayerUiState.NetworkError -> {
+                            // Pas de réseau — bouton Réessayer
+                            BlockedScreen(
+                                icon = Icons.Filled.WifiOff,
+                                title = stringResource(R.string.no_network_title),
+                                message = stringResource(R.string.no_network_message),
+                                onRetry = { retryAds() }
                             )
                         }
                         is PlayerUiState.Ready -> {
-                            val url = (uiState as PlayerUiState.Ready).videoUrl
+                            val url = currentState.videoUrl
 
-                            // ✅ Initialize player SEULEMENT ici (après fermeture de la pub)
                             LaunchedEffect(url) {
                                 viewModel.initializePlayer(url)
                             }
@@ -300,9 +225,29 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Relancer l'Activity pour prendre en compte le nouveau flux.
         setIntent(intent)
-        recreate()
+
+        // 1. Libérer le player actuel
+        viewModel.releasePlayer()
+
+        // 2. Résoudre la nouvelle URL
+        val newVideoUrl = playerController.resolveVideoUrl(intent)
+        val newSkipAds = intent.getBooleanExtra("SKIP_ADS", false)
+        val newUrlError = playerController.validateStreamUrl(newVideoUrl)
+
+        // 3. Réinitialiser la state machine avec la nouvelle URL
+        val errorMsg = newUrlError ?: if (newVideoUrl == null) "URL not provided" else null
+        viewModel.initializeUiState(
+            videoUrl = newVideoUrl,
+            urlError = errorMsg,
+            errorUrlNotProvided = getString(R.string.url_not_provided),
+            skipAds = newSkipAds
+        )
+
+        // 4. Relancer le flux ads (LaunchedEffect(Unit) ne se relance pas)
+        if (newVideoUrl != null && errorMsg == null && !newSkipAds) {
+            launchAdFlow(newVideoUrl)
+        }
     }
 
 
@@ -321,15 +266,62 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Lance le flux ads pour une URL donnée.
+     * Appelé depuis LaunchedEffect(Unit) au démarrage et depuis retryAds().
+     */
+    private fun launchAdFlow(url: String) {
+        lifecycleScope.launch {
+            val result = adsController.showAdIfNeeded(
+                activity = this@PlayerActivity,
+                onAdShowed = {
+                    viewModel.setUiState(PlayerUiState.ShowingAd(url))
+                }
+            )
+
+            viewModel.setUiState(when (result) {
+                AdResult.AdDismissed -> PlayerUiState.Ready(url)
+                AdResult.NoNetwork -> PlayerUiState.NetworkError(url)
+                AdResult.NeedRetry -> PlayerUiState.NeedRetry(url)
+                AdResult.Failed -> PlayerUiState.NeedRetry(url)
+            })
+        }
+    }
+
+    /**
+     * Bouton "Réessayer" : remet l'état à LoadingAds et relance le flux ads.
+     */
+    private fun retryAds() {
+        val url = extractCurrentUrl() ?: return
+        viewModel.setUiState(PlayerUiState.LoadingAds(url))
+        launchAdFlow(url)
+    }
+
+    /**
+     * Extrait l'URL depuis l'état actuel, quel que soit l'état.
+     */
+    private fun extractCurrentUrl(): String? {
+        return when (val state = viewModel.uiState.value) {
+            is PlayerUiState.LoadingAds -> state.videoUrl
+            is PlayerUiState.ShowingAd -> state.videoUrl
+            is PlayerUiState.Ready -> state.videoUrl
+            is PlayerUiState.NetworkError -> state.videoUrl
+            is PlayerUiState.NeedRetry -> state.videoUrl
+            else -> playerController.resolveVideoUrl(intent)
+        }
+    }
+
     override fun onStart() {
         super.onStart()
-        viewModel.play()
+        if (viewModel.exoPlayer != null && viewModel.isReady()) {
+            viewModel.play()
+        }
     }
 
     override fun onResume() {
         super.onResume()
         hideSystemUI()
-        if (!isInPipMode) {
+        if (!isInPipMode && viewModel.exoPlayer != null && viewModel.isReady()) {
             viewModel.play()
         }
     }
@@ -338,14 +330,16 @@ class PlayerActivity : ComponentActivity() {
         super.onPause()
         if (isInPictureInPictureMode) {
             // Continue playing in PIP mode
-        } else {
+        } else if (viewModel.exoPlayer != null) {
             viewModel.pause()
         }
     }
 
     override fun onStop() {
         super.onStop()
-        viewModel.pause()
+        if (viewModel.exoPlayer != null) {
+            viewModel.pause()
+        }
     }
 
     override fun onUserLeaveHint() {
@@ -598,7 +592,7 @@ fun PlayerControls(
                         IconButton(onClick = onPlayPauseClick) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (isPlaying) stringResource(R.string.ad_block_close_button) else stringResource(R.string.play_stream_button),
+                                contentDescription = if (isPlaying) stringResource(R.string.pause_button) else stringResource(R.string.play_stream_button),
                                 tint = Color.White,
                                 modifier = Modifier.size(40.dp) // Légèrement plus grand mais pas trop
                             )
@@ -760,6 +754,7 @@ fun QualitySelectionDialog(
     )
 }
 
+
 @Composable
 fun ErrorScreen(message: String) {
     Box(
@@ -770,62 +765,59 @@ fun ErrorScreen(message: String) {
     }
 }
 
+/**
+ * Écran bloqué réutilisable : adblock détecté ou pas de réseau.
+ * Affiche une icône, un titre, un message et un bouton "Réessayer".
+ */
 @Composable
-fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
-    // Affiche la bannière légère pendant 5 secondes pour laisser le temps à la pub bannière de se charger
-    var timeLeft by remember { mutableLongStateOf(5L) }
-
-    LaunchedEffect(Unit) {
-        while (timeLeft > 0) {
-            delay(1000)
-            timeLeft--
-        }
-        onFinish()
-    }
-
+fun BlockedScreen(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    message: String,
+    onRetry: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = Color.Red,
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = if (adBlockDetected) stringResource(R.string.fallback_blocker_active) else stringResource(R.string.fallback_preparing_stream),
+                text = title,
                 color = Color.White,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            // AdView container for Medium Rectangle
-            AndroidView(
-                modifier = Modifier.wrapContentSize(),
-                factory = { ctx ->
-                    com.google.android.gms.ads.AdView(ctx).apply {
-                        setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
-                        adUnitId = BuildConfig.ADMOB_BANNER_ID  // ✅ Utilise le BuildConfig (flavor-specific)
-                        loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Indicateur de progression
-            CircularProgressIndicator(
-                progress = { (5 - timeLeft) / 5f },
-                color = Color.Red,
-                modifier = Modifier.size(48.dp)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = stringResource(R.string.fallback_launching_stream, timeLeft.toInt()),
-                color = Color.White,
-                fontSize = 18.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            Button(
+                onClick = onRetry,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+            ) {
+                Text(
+                    text = stringResource(R.string.retry_button),
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+            }
         }
     }
 }
+

@@ -3,75 +3,110 @@ package com.example.stv.ads
 import android.app.Activity
 import android.util.Log
 import com.example.stv.AdManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 /**
- * Gère la logique d'affichage d'interstitiels avec timeout et fallback.
- * Découple la logique métier d'ads de l'UI/activité.
+ * Orchestre le flux des publicités.
+ *
+ * Règle unique : le player ne démarre que si l'utilisateur a VU et FERMÉ la pub.
+ *
+ * Logique :
+ * - Tentative 1..3 : retry automatique avec délai (transparent pour l'utilisateur)
+ * - Si 3 échecs consécutifs : retourne NeedRetry → affiche un écran "Réessayer"
+ * - Si pas de réseau : retourne NoNetwork → affiche un écran spécifique
+ * - Si pub fermée : retourne AdDismissed → player démarre
+ *
+ * Pas de compteur persistant. Pas de détection adblock.
+ * L'utilisateur est bloqué naturellement si la pub ne charge jamais.
  */
 class AdsController(private val adManager: AdManager) {
 
     private val TAG = "AdsController"
+    private val AUTO_RETRIES = 3
+    private val RETRY_DELAY_MS = 2000L
 
-    /**
-     * Tente de charger et afficher une publicité interstitielle.
-     * @param activity Activité pour afficher la pub.
-     * @param onAdShowed Callback appelé quand la pub commence à s'afficher.
-     * @param onAdDismissed Callback appelé quand la pub est fermée.
-     * @param timeoutMs Délai d'attente max (6000ms par défaut).
-     * @return Résultat du chargement initial.
-     */
     suspend fun showAdIfNeeded(
         activity: Activity,
-        onAdShowed: () -> Unit = {},
-        onAdDismissed: () -> Unit = {},
-        timeoutMs: Long = 6000
+        onAdShowed: () -> Unit = {}
     ): AdResult {
-        return try {
-            kotlinx.coroutines.withTimeout(timeoutMs) {
-                suspendCancellableCoroutine<AdResult> { continuation ->
-                    adManager.loadAndShowInterstitial(
-                        activity = activity,
-                        onAdShowed = {
-                            Log.d(TAG, "Ad showed successfully")
-                            onAdShowed() // ✅ Callback externe
-                            if (continuation.isActive) continuation.resume(AdResult.AdShowed)
-                        },
-                        onAdDismissed = {
-                            Log.d(TAG, "Ad dismissed")
-                            onAdDismissed() // ✅ Callback externe
-                            if (continuation.isActive) continuation.resume(AdResult.AdDismissed)
-                        },
-                        onFallbackAd = {
-                            Log.d(TAG, "Fallback ad (banner)")
-                            if (continuation.isActive) continuation.resume(AdResult.FallbackBanner)
-                        },
-                        onAdBlockDetected = {
-                            Log.w(TAG, "Ad blocker detected")
-                            if (continuation.isActive) continuation.resume(AdResult.AdBlockDetected)
-                        }
-                    )
+        for (attempt in 1..AUTO_RETRIES) {
+            Log.d(TAG, "Ad attempt $attempt / $AUTO_RETRIES")
+
+            val result = tryOnce(activity, onAdShowed)
+
+            when (result) {
+                is AdResult.AdDismissed -> return result
+                is AdResult.NoNetwork -> return result  // Afficher écran réseau immédiatement
+                is AdResult.Failed -> {
+                    if (attempt < AUTO_RETRIES) {
+                        delay(RETRY_DELAY_MS)
+                    }
+                }
+                else -> {}
+            }
+        }
+
+        // 3 tentatives auto échouées → laisser l'utilisateur décider
+        Log.d(TAG, "Auto retries exhausted → NeedRetry")
+        return AdResult.NeedRetry
+    }
+
+    private suspend fun tryOnce(
+        activity: Activity,
+        onAdShowed: () -> Unit
+    ): AdResult {
+        return suspendCancellableCoroutine { cont ->
+            // Timer pour le CHARGEMENT seulement (pas l'affichage)
+            val timeoutJob = kotlinx.coroutines.CoroutineScope(cont.context).launch {
+                delay(10_000)
+                // 10s écoulées sans que la pub soit ni chargée ni échouée
+                if (cont.isActive) {
+                    Log.w(TAG, "Ad load timeout (10s)")
+                    cont.resume(AdResult.Failed)
                 }
             }
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            Log.w(TAG, "Ad loading timeout after ${timeoutMs}ms")
-            AdResult.Timeout
-        } catch (e: Exception) {
-            Log.e(TAG, "Unexpected error during ad load", e)
-            AdResult.FallbackBanner
+
+            adManager.loadAndShow(
+                activity = activity,
+                onAdShowed = {
+                    // ✅ Pub affichée → ANNULER le timeout
+                    // On attend maintenant onAdDismissed sans limite de temps
+                    timeoutJob.cancel()
+                    Log.d(TAG, "Ad showing → timeout cancelled, waiting for dismiss")
+                    onAdShowed()
+                },
+                onAdDismissed = {
+                    timeoutJob.cancel()
+                    Log.d(TAG, "Ad dismissed")
+                    if (cont.isActive) cont.resume(AdResult.AdDismissed)
+                },
+                onFailed = {
+                    timeoutJob.cancel()
+                    Log.d(TAG, "Ad failed")
+                    if (cont.isActive) cont.resume(AdResult.Failed)
+                },
+                onNoNetwork = {
+                    timeoutJob.cancel()
+                    Log.d(TAG, "No network")
+                    if (cont.isActive) cont.resume(AdResult.NoNetwork)
+                }
+            )
         }
     }
 
-    /**
-     * Résultats possibles du chargement de pub.
-     */
     sealed class AdResult {
-        data object AdShowed : AdResult()
+        /** Pub vue et fermée → player peut démarrer */
         data object AdDismissed : AdResult()
-        data object FallbackBanner : AdResult()
-        data object Timeout : AdResult()
-        data object AdBlockDetected : AdResult()
+        /** Pub échouée (no fill, timeout, erreur) */
+        data object Failed : AdResult()
+        /** Pas de réseau */
+        data object NoNetwork : AdResult()
+        /** 3 tentatives auto échouées → afficher bouton Réessayer */
+        data object NeedRetry : AdResult()
     }
 }
 

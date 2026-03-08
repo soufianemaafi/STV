@@ -97,6 +97,7 @@
     <!-- Player Controls -->
     <string name="rewind_10s">Reculer 10s</string>
     <string name="forward_10s">Avancer 10s</string>
+    <string name="pause_button">Pause</string>
     <string name="cast_button">Cast</string>
     <string name="pip_button">PiP</string>
     <string name="live_badge_cd">Flux en direct</string>
@@ -104,6 +105,11 @@
     <string name="access_blocked">Accès bloqué</string>
     <string name="this_app_not_authorized">Cette application n\'est pas autorisée à lancer STV Player.</string>
     <string name="ad_blocker_detected">Un bloqueur de publicité a été détecté.\nVeuillez le désactiver pour continuer.</string>
+    <string name="ad_load_failed_title">Impossible de charger le contenu</string>
+    <string name="ad_load_failed_message">Le contenu n\'a pas pu être chargé.\nVérifiez votre connexion ou désactivez tout bloqueur de pub, puis réessayez.</string>
+    <string name="no_network_title">Pas de connexion</string>
+    <string name="no_network_message">Une connexion internet est nécessaire pour charger le contenu.\nVérifiez votre réseau et réessayez.</string>
+    <string name="retry_button">Réessayer</string>
     <string name="no_results_for">Aucun résultat pour</string>
 
     <!-- FallbackBanner -->

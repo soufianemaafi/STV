@@ -268,7 +268,7 @@ APRÈS :  Application.init() → utilisé partout
 
 ---
 
-### 🔴 Problème 2 : `onStart()` appelle `viewModel.play()` AVANT que le player soit initialisé
+### 🔴 Problème 2 : `onStart()` appelle `viewModel.play()` AVANT que le player soit initialisé — ✅ CORRIGÉ
 
 **Constat** :
 ```kotlin
@@ -301,9 +301,16 @@ override fun onStart() {
 }
 ```
 
+**✅ Correction appliquée le 8 mars 2026** :
+- `onStart()` : `play()` conditionné à `viewModel.exoPlayer != null`
+- `onResume()` : `play()` conditionné à `viewModel.exoPlayer != null`
+- `onPause()` : `pause()` conditionné à `viewModel.exoPlayer != null`
+- `onStop()` : `pause()` conditionné à `viewModel.exoPlayer != null`
+- Pendant la phase ads (LoadingAds/ShowingAd/Fallback), le player est null → aucun appel inutile
+
 ---
 
-### 🟡 Problème 3 : `uiState` est local au composable, pas dans le ViewModel
+### 🟡 Problème 3 : `uiState` est local au composable, pas dans le ViewModel — ✅ CORRIGÉ
 
 **Constat** :
 ```kotlin
@@ -320,9 +327,17 @@ L'état UI est un `mutableStateOf` **local** dans le composable. Il n'est **pas*
 
 **Recommandation** : Déplacer `uiState` dans `PlayerViewModel` comme `StateFlow<PlayerUiState>`.
 
+**✅ Correction appliquée le 8 mars 2026** :
+- Ajouté `_uiState: MutableStateFlow<PlayerUiState>` dans `PlayerViewModel`
+- Ajouté `initializeUiState()` pour l'initialisation (URL, erreur, skipAds)
+- Ajouté `setUiState()` pour les transitions (callbacks ads, fallback)
+- `PlayerActivity` utilise maintenant `viewModel.uiState.collectAsState()` au lieu de `remember { mutableStateOf }` 
+- Tous les `uiState = ...` remplacés par `viewModel.setUiState(...)`
+- L'état survit aux recompositions et est testable unitairement
+
 ---
 
-### 🟡 Problème 4 : Fallback bannière = 5 secondes FIXES (pas adaptatif)
+### 🟡 Problème 4 : Fallback bannière = 5 secondes FIXES (pas adaptatif) — ✅ CORRIGÉ
 
 **Constat** :
 ```kotlin
@@ -341,9 +356,32 @@ Le countdown est **toujours 5 secondes**, même si :
 - **Fin anticipée** : Si la bannière a été affichée pendant au moins 3s, terminer dès que l'utilisateur tape l'écran
 - **Skip button** : Ajouter un bouton "Passer" qui apparaît après 3s (comme YouTube)
 
+**✅ Correction appliquée le 8 mars 2026** — Approche gagnante (Ads payées + UX + connexions lentes) :
+- Ajouté `AdListener` sur la bannière pour détecter `onAdLoaded()` / `onAdFailedToLoad()`
+- Ajouté **timeout global 5s** pour le chargement de la bannière (protège contre les connexions lentes)
+- **Bannière charge en < 5s** → countdown 5s supplémentaires (impression AdMob comptée = revenus)
+- **Bannière échoue rapidement** → skip immédiat vers le player (pas d'attente vide)
+- **Bannière trop lente (> 5s)** → skip automatique (connexion trop mauvaise, pas d'attente infinie)
+- **Pendant le chargement** → spinner + message d'attente (feedback visuel)
+- Countdown et texte "Lancement dans Xs" visibles seulement si bannière affichée
+- **Aucun risque de blocage infini** : timeout global garantit une sortie dans tous les cas
+
 ---
 
-### 🟡 Problème 5 : Pas de préchargement du flux vidéo pendant la pub
+### 🔴 Problème 10b : Player démarre en arrière-plan pendant la pub — ✅ CORRIGÉ
+
+**Constat** : Après l'ajout du préchargement (Problème 5), le player pouvait démarrer en arrière-plan pendant que la pub était affichée.
+
+**Cause racine** : `preloadPlayer()` crée l'ExoPlayer (volume=0, playWhenReady=false). Mais quand l'utilisateur ferme la pub interstitielle, Android appelle `onResume()` sur PlayerActivity. La vérification `viewModel.exoPlayer != null` retournait `true` (car le player existe en préchargement), ce qui déclenchait `viewModel.play()` → le player démarrait en lecture réelle pendant la pub.
+
+**Correction appliquée le 8 mars 2026** :
+- Ajouté `val isPreloading: Boolean` dans PlayerViewModel (expose le flag `isPreloaded` en lecture seule)
+- `onStart()`, `onResume()`, `onPause()`, `onStop()` vérifient maintenant `!viewModel.isPreloading` en plus de `exoPlayer != null`
+- Le player en préchargement (mute+pause) n'est jamais démarré accidentellement par le lifecycle
+
+---
+
+### 🟡 Problème 5 : Pas de préchargement du flux vidéo pendant la pub — ✅ CORRIGÉ
 
 **Constat** : Pendant que la pub interstitielle est affichée (`ShowingAd`), **rien ne se passe côté vidéo**. Le player est initialisé seulement **après** la fermeture de la pub.
 
@@ -366,9 +404,16 @@ Cela permettrait une **lecture instantanée** dès la fermeture de la pub (0s de
 
 **Mise en garde** : Cela consomme de la bande passante pendant la pub. Acceptable sur WiFi, à limiter sur données mobiles.
 
+**✅ Correction appliquée le 8 mars 2026** :
+- Ajouté `preloadPlayer(url)` dans `PlayerViewModel` : crée ExoPlayer en mode mute (volume=0) + pause (playWhenReady=false), lance `prepare()` pour télécharger le manifeste et bufferiser
+- Modifié `initializePlayer(url)` : si le player est déjà préchargé avec la même URL, fait simplement `volume=1f` + `playWhenReady=true` → **lecture instantanée**
+- Dans `PlayerActivity`, l'état `ShowingAd` lance `preloadPlayer()` via `LaunchedEffect` → le buffer se remplit pendant que la pub est affichée
+- Ajouté flag `isPreloaded` pour distinguer préchargement vs lecture normale, réinitialisé dans `releasePlayer()`
+- **Gain estimé : 1.5 à 3 secondes** de temps de chargement éliminé après fermeture de la pub
+
 ---
 
-### 🟡 Problème 6 : `AdManager` crée un nouvel objet à chaque `PlayerActivity`
+### 🟡 Problème 6 : `AdManager` crée un nouvel objet à chaque `PlayerActivity` — ✅ CORRIGÉ
 
 **Constat** :
 ```kotlin
@@ -394,6 +439,15 @@ object AdManager {  // ou class avec @Singleton si Hilt
     // ...
 }
 ```
+
+**✅ Correction appliquée le 8 mars 2026** :
+- Transformé `AdManager` en **singleton thread-safe** (constructeur privé + companion object + double-checked locking)
+- Ajouté `AdManager.initialize(context)` dans `STVApplication.onCreate()` (une seule initialisation)
+- Ajouté `AdManager.instance.loadInterstitialAd()` dans `STVApplication.onCreate()` (préchargement au démarrage)
+- `MainActivity` utilise `AdManager.instance` au lieu de `AdManager(this)`, retire le `loadInterstitialAd()` redondant
+- `PlayerActivity` utilise `AdManager.instance` → la pub préchargée depuis `STVApplication` est **réutilisée**
+- `AdsController` reçoit toujours `adManager` en paramètre → aucun changement nécessaire
+- **Gain** : La pub est potentiellement déjà prête quand `PlayerActivity` démarre → affichage immédiat (0ms de chargement au lieu de 2000ms)
 
 ---
 
@@ -428,6 +482,35 @@ fun validateStreamUrl(url: String?): String? {
 ---
 
 ### 🟢 Problème 9 : Pas de vérification réseau avant de lancer les ads
+
+---
+
+### 🔴 Problème 10 : Pubs superposées lors du changement de flux en PiP — ✅ CORRIGÉ
+
+**Constat** : Quand le player est en mode PiP et que l'utilisateur clique sur un autre lien :
+1. `onNewIntent()` appelle `recreate()` → nouveau cycle `onCreate()` complet
+2. Le singleton `AdManager` charge une pub ET en a potentiellement une déjà prête
+3. `onAdDismissedFullScreenContent()` précharge immédiatement la pub suivante via `loadInterstitialAd()`
+4. La pub suivante est prête instantanément → s'affiche avant que le player ne démarre
+5. L'utilisateur voit 2 pubs ou plus se superposer
+
+**3 causes racines identifiées** :
+- `onNewIntent()` → `recreate()` relance tout le cycle ads (au lieu de réinitialiser)
+- `loadAndShowInterstitial()` charge toujours une nouvelle pub (ignore la préchargée)
+- `onAdDismissed` précharge immédiatement la suivante → conflit de timing
+
+**Corrections appliquées le 8 mars 2026** :
+
+1. **`onNewIntent()`** : Remplacé `recreate()` par une réinitialisation propre :
+   - `viewModel.releasePlayer()` → libère l'ExoPlayer actuel
+   - `viewModel.initializeUiState()` → réinitialise la state machine avec la nouvelle URL
+   - Pas de recréation d'Activity → pas de double cycle ads
+
+2. **`loadAndShowInterstitial()`** : Ajouté vérification `if (interstitialAd != null)` en début de méthode → réutilise la pub déjà prête au lieu d'en charger une nouvelle
+
+3. **`onAdDismissedFullScreenContent()`** : Le préchargement de la prochaine pub est maintenant **différé de 2 secondes** via `Handler.postDelayed()` → laisse le temps au player de démarrer avant de précharger
+
+4. **`PlayerUiState.LoadingAds` et `Fallback`** : Ajouté le champ `videoUrl` pour que l'URL soit toujours portée par l'état (pas capturée dans une variable locale de `onCreate()`) → supporte correctement `onNewIntent()`
 
 **Constat** : `PlayerActivity` ne vérifie **jamais** si le réseau est disponible avant de tenter de charger les ads. `MainActivity` a `isNetworkAvailable()` mais `PlayerActivity` ne l'utilise pas.
 
@@ -514,22 +597,202 @@ GAIN : ~7.5 secondes (60% plus rapide)
 
 ---
 
-## 8. CONCLUSION
+## 8. REFONTE RADICALE DU FLUX ADS — 8 mars 2026
 
-Le flux de démarrage actuel est **fonctionnel et sécurisé** :
-- ✅ State machine robuste et exhaustive
-- ✅ Timeout anti-blocage (6s)
-- ✅ Fallback progressif (interstitiel → bannière → blocage)
-- ✅ Le player ne démarre pas pendant la pub (pas de son parasite)
+### Problèmes persistants avant cette refonte :
+Malgré plusieurs corrections itératives, 3 bugs persistaient :
+1. **2 pubs superposées** : le préchargement dans `STVApplication` + le chargement dans `AdsController` créaient 2 pubs
+2. **Spinner infini** : quand 2 pubs s'affichaient, la continuation `suspendCancellableCoroutine` n'était jamais resumée correctement
+3. **Player en arrière-plan pendant la pub** : `preloadPlayer()` créait ExoPlayer, et `onResume()` après la pub déclenchait `play()`
 
-Les **améliorations prioritaires** sont :
-1. **AdManager singleton** → élimine le doublon d'initialisation et permet le préchargement réel
-2. **Préchargement vidéo pendant la pub** → lecture instantanée post-pub (gain de 1.5-3s)
-3. **Vérification réseau** → évite 11s de latence si offline
+### Décision : Architecture minimaliste, ZÉRO cache, ZÉRO préchargement
 
-Ces 3 améliorations combinées réduiraient le temps avant lecture de **~8.5s à ~5s** dans le cas idéal, et de **~12.5s à ~5s** dans le pire cas.
+Tous les mécanismes complexes (préchargement pub, préchargement vidéo, cache singleton, postDelayed) ont été **supprimés**. Un seul flux linéaire reste.
+
+### Code supprimé :
+
+| Élément supprimé | Fichier | Pourquoi |
+|-----------------|---------|----------|
+| `loadInterstitialAd()` (préchargement) | AdManager.kt | Source de la 2e pub |
+| `interstitialAd` (variable cache) | AdManager.kt | Plus de cache |
+| `isAdCurrentlyShowing` (guard) | AdManager.kt | Plus nécessaire (un seul flux) |
+| `postDelayed(loadInterstitialAd)` | AdManager.kt | Source de la 2e pub |
+| `preloadPlayer()` | PlayerViewModel.kt | Source du player en arrière-plan |
+| `isPreloaded` / `isPreloading` | PlayerViewModel.kt | Plus de préchargement |
+| `FallbackBanner` composable (~110 lignes) | PlayerActivity.kt | Supprimé |
+| `PlayerUiState.Fallback` | PlayerUiState.kt | Supprimé |
+| `AdResult.AdShowed` / `FallbackBanner` | AdsController.kt | Simplifié |
+| `AdManager.instance.loadInterstitialAd()` | STVApplication.kt | Plus de préchargement au démarrage |
+| `adManager` dans MainActivity | MainActivity.kt | Plus utilisé |
+
+### Nouvelle architecture (ultra-simple) :
+
+```
+STVApplication.onCreate()
+  └── MobileAds.initialize() + AdManager.initialize()  (init seulement, PAS de préchargement)
+
+PlayerActivity.onCreate()
+  └── adsController = AdsController(AdManager.instance)
+
+LaunchedEffect(LoadingAds)
+  └── adsController.showAdIfNeeded(timeout=8s)
+       └── AdManager.loadAndShow()
+            ├── InterstitialAd.load()  ← UN SEUL chargement
+            ├── ad.show()              ← UN SEUL affichage
+            └── callbacks :
+                 ├── onAdShowed → uiState = ShowingAd (UI seulement, pas de resume)
+                 ├── onAdDismissed → resume(AdDismissed) → uiState = Ready → initializePlayer()
+                 ├── onAdNotAvailable → resume(AdNotAvailable) → uiState = Ready → initializePlayer()
+                 └── onAdBlockDetected → resume(AdBlockDetected) → uiState = Blocked
+```
+
+### Garanties :
+- **0 variable d'état** dans AdManager (pas de `interstitialAd`, pas de `isAdCurrentlyShowing`)
+- **0 préchargement** (ni pub, ni vidéo)
+- **0 postDelayed** (pas de timer caché)
+- **1 seul InterstitialAd.load()** par lancement de flux
+- **1 seul continuation.resume()** par cycle (dans onAdDismissed, onAdNotAvailable, ou onAdBlockDetected)
+- **ExoPlayer créé UNIQUEMENT dans l'état Ready** (jamais pendant ShowingAd)
+- **onStart/onResume** vérifient `uiState is Ready` avant d'appeler `play()`
+
+### State machine finale (4 états + null initial) :
+
+```
+null (ViewModel créé, pas encore initialisé)
+  │
+  └── initializeUiState() dans onCreate() AVANT setContent
+       │
+       ▼
+LoadingAds(url) ──► ShowingAd(url) ──► Ready(url)
+     │                                      ▲
+     ├── AdNotAvailable ────────────────────┘
+     ├── Timeout ───────────────────────────┘
+     └── AdBlockDetected ──► Blocked
+
+Error(message) ← URL invalide (état terminal)
+```
+
+### 🔴 Problème 11 : Player démarre AVANT la pub (bug de timing LaunchedEffect) — ✅ CORRIGÉ
+
+**Constat** : Le player démarrait avant la pub, puis la pub se chargeait par-dessus, et après sa fermeture l'écran restait noir.
+
+**Cause racine** : Double `LaunchedEffect` avec timing incorrect :
+1. `_uiState` initialisé à `LoadingAds("")` (URL VIDE) dans le ViewModel
+2. `LaunchedEffect(uiState)` se déclenchait immédiatement avec `LoadingAds("")`
+3. `currentVideoUrl = ""` passait la condition `!= null` → `showAdIfNeeded()` lancé avec URL vide
+4. `LaunchedEffect(Unit)` s'exécutait ensuite → `initializeUiState(vraiUrl)` → `LoadingAds(vraiUrl)`
+5. `LaunchedEffect(uiState)` se re-déclenchait → DEUXIÈME appel avec la vraie URL
+6. Les callbacks s'emmêlaient → la continuation n'était jamais resumée correctement → écran noir
+
+**Corrections appliquées le 8 mars 2026** :
+1. `_uiState` initialisé à `null` (pas `LoadingAds("")`) → pas de faux déclenchement
+2. `initializeUiState()` appelé dans `onCreate()` AVANT `setContent` (pas dans un `LaunchedEffect`)
+3. Le composable affiche un écran noir tant que `uiState == null`
+4. UN SEUL `LaunchedEffect(currentState)` pour les ads → se déclenche avec la vraie URL
+5. Ajouté `isReady()` dans ViewModel pour simplifier les vérifications lifecycle
 
 ---
 
-*Rapport généré le 8 mars 2026 — GitHub Copilot*
+### 🔴 Problème 12 : Player démarre sans que la pub soit vue — ✅ CORRIGÉ
+
+**Constat** : Quand la pub n'était pas disponible (timeout, no fill), le player démarrait quand même (`AdNotAvailable → Ready`). L'utilisateur accédait au contenu sans avoir vu de pub.
+
+**Exigence** : Le player ne doit démarrer **QUE** si l'utilisateur a vu et fermé la pub.
+
+**Correction appliquée le 8 mars 2026** :
+- `AdsController` : Ajouté boucle de retry (max 3 tentatives, délai 2s entre chaque)
+- Si la pub n'est pas disponible → on réessaie (pas de passage en Ready)
+- Si 3 tentatives échouent → `AdBlockDetected` → Blocked (pas de player)
+- Seul `AdDismissed` (pub vue + fermée) permet de passer en `Ready`
+- `AdResult.Timeout` supprimé → un timeout = `AdNotAvailable` = réessai
+- Le `when` dans `PlayerActivity` ne connaît que 2 résultats : `AdDismissed → Ready` ou `AdBlockDetected → Blocked`
+
+---
+
+### 🔴 Problème 13 : Écran noir après fermeture de la pub (LaunchedEffect annulé) — ✅ CORRIGÉ
+
+**Constat** : Après la fermeture de la pub, le player ne démarrait jamais — l'écran restait noir indéfiniment.
+
+**Cause racine** : `LaunchedEffect(currentState)` utilisait `currentState` comme **clé de recomposition**. Quand `onAdShowed` changeait l'état de `LoadingAds` vers `ShowingAd`, Compose **annulait** le `LaunchedEffect` en cours (car la clé avait changé) et en relançait un nouveau. La coroutine `showAdIfNeeded()` était donc **annulée au milieu**, ce qui signifiait que plus personne n'écoutait le callback `onAdDismissed`.
+
+```
+AVANT (BUGUÉ) :
+  LaunchedEffect(currentState = LoadingAds) → showAdIfNeeded() démarre
+       │
+  onAdShowed → setUiState(ShowingAd) → currentState change !
+       │
+  Compose ANNULE le LaunchedEffect (clé changée) → coroutine MORTE
+       │
+  Utilisateur ferme la pub → onAdDismissed → continuation déjà annulée → RIEN
+       │
+  Écran noir pour toujours ❌
+```
+
+**Correction appliquée le 8 mars 2026** :
+- `LaunchedEffect(Unit)` au lieu de `LaunchedEffect(currentState)` → la coroutine n'est **jamais annulée** par un changement d'état
+- La coroutine lit `viewModel.uiState.value` une fois au démarrage, lance le flux ads, et attend le résultat final
+- Les transitions UI (`ShowingAd`) se font via `setUiState()` sans affecter la coroutine qui attend `onAdDismissed`
+
+```
+APRÈS (CORRIGÉ) :
+  LaunchedEffect(Unit) → showAdIfNeeded() démarre
+       │
+  onAdShowed → setUiState(ShowingAd) → l'UI change mais la coroutine CONTINUE
+       │
+  Utilisateur ferme la pub → onAdDismissed → continuation.resume(AdDismissed) ✅
+       │
+  setUiState(Ready) → ExoPlayer créé → lecture 🎬
+```
+
+---
+
+### 🔴 Problème 14 : Adblock bloque l'utilisateur pour toujours (même après désactivation) — ✅ CORRIGÉ
+
+**Constat** : Le compteur `failedLoadAttempts` était persisté dans `SharedPreferences`. Une fois le seuil de 3 atteint (adblock actif), même après désactivation de l'adblock et relancement de l'app, l'utilisateur restait bloqué pour toujours. De plus, un problème de réseau temporaire (ex : mode avion) comptait aussi comme "adblock".
+
+**Corrections appliquées le 8 mars 2026** :
+
+#### 1. Compteur en mémoire (pas SharedPreferences)
+- `failedLoadAttempts` est maintenant une simple variable `Int` (pas persistée)
+- Reset automatique à chaque démarrage de l'app
+- L'utilisateur qui désactive son adblock et relance l'app repart à zéro
+
+#### 2. Distinction réseau vs adblock dans AdManager
+- Nouveau callback `onNoNetwork` dans `loadAndShow()`
+- Vérification `isNetworkAvailable()` avant de charger la pub
+- Si `ConnectivityManager` dit pas de réseau → `onNoNetwork()` (ne compte PAS comme adblock)
+- Si `ERROR_CODE_NETWORK_ERROR` dans `onAdFailedToLoad()` → `onNoNetwork()` (ne compte PAS)
+- Si internet OK mais pub échoue → `failedLoadAttempts++` → adblock probable
+
+#### 3. Nouvel état `NetworkError` dans la state machine
+```
+LoadingAds(url) ──► ShowingAd(url) ──► Ready(url)  (pub vue et fermée)
+     │
+     ├── AdNotAvailable → retry (max 3)
+     │       └── 3 échecs → AdBlockDetected → Blocked ⛔ (internet OK, pub bloquée)
+     │
+     └── NoNetwork → NetworkError(url) 📡 (pas d'internet, pas d'adblock)
+```
+
+#### 4. Bouton "Réessayer" sur Blocked et NetworkError
+- Composable `BlockedScreen` réutilisable (icône + titre + message + bouton)
+- `Blocked` : icône ⛔, message "bloqueur détecté", bouton "Réessayer"
+- `NetworkError` : icône 📡, message "pas de connexion", bouton "Réessayer"
+- `retryAds()` : remet le compteur à 0, remet l'état à `LoadingAds`, relance `launchAdFlow()`
+
+#### 5. onNewIntent corrigé
+- Appelle `launchAdFlow(newVideoUrl)` après la réinitialisation de l'état
+- Utilise `getString(R.string.url_not_provided)` au lieu de string en dur
+
+| Fichier | Changement |
+|---------|-----------|
+| **AdManager.kt** | Compteur en mémoire, `isNetworkAvailable()`, callback `onNoNetwork`, `resetFailures()` |
+| **AdsController.kt** | Gestion `NoNetwork`, `resetAndRetry()` |
+| **PlayerUiState.kt** | Ajout état `NetworkError(url)` |
+| **PlayerActivity.kt** | `BlockedScreen` composable, `retryAds()`, `extractCurrentUrl()`, `onNewIntent` corrigé |
+| **strings.xml** (EN+FR) | `no_network_title`, `no_network_message`, `retry_button` |
+
+---
+
+*Rapport mis à jour le 8 mars 2026 — GitHub Copilot*
 

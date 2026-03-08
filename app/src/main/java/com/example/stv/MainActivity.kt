@@ -73,7 +73,6 @@ import com.example.stv.ui.theme.GrayMuted
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private lateinit var adManager: AdManager
     private var keepSplashScreen = true
     private val videoListViewModel: VideoListViewModel by viewModels()
 
@@ -101,10 +100,6 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        // Initialiser AdManager et charger l'interstitiel
-        // Note : MobileAds.initialize() est déjà appelé dans STVApplication.onCreate()
-        adManager = AdManager(this)
-        adManager.loadInterstitialAd()
 
         setContent {
             STVTheme {
