@@ -71,7 +71,7 @@
     <string name="no_videos_placeholder">No streams added.</string>
 
     <!-- Placeholders & UI Text -->
-    <string name="search_placeholder">Search a video...</string>
+    <string name="search_placeholder">Search a video…</string>
     <string name="title_placeholder">Ex: BBC News</string>
     <string name="url_placeholder">https://example.com/stream.m3u8</string>
     <string name="back_button">Back</string>

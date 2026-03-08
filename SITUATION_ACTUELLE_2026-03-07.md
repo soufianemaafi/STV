@@ -85,6 +85,7 @@
 - [x] Imports inutilisés supprimés (`android.net.Uri`, `DefaultAllocator`)
 - [x] **Badge LIVE** : détection automatique flux live via `isCurrentMediaItemLive` + badge rouge "● LIVE" en haut à droite du player
 - [x] 2 nouvelles strings ajoutées (`live_badge`, `live_badge_cd`)
+- [x] Fichier `values-fr/strings.xml` créé — **49 clés traduites** en français, 7 clés héritées intentionnellement (URLs, noms techniques, LIVE)
 
 ---
 
@@ -104,7 +105,7 @@
 | # | Tâche | Fichier(s) | Priorité |
 |---|-------|-----------|----------|
 | 5 | ~~Extraire textes français en dur → strings.xml~~ | `PlayerActivity.kt` | ✅ **CORRIGÉ** |
-| 6 | Créer `values-fr/strings.xml` pour multi-langues | `res/values-fr/` | 🟡 À faire |
+| 6 | ~~Créer `values-fr/strings.xml` pour multi-langues~~ | `res/values-fr/` | ✅ **CORRIGÉ** — 49 clés traduites, 7 héritées. |
 | 7 | ~~Corriger `removeVideo()` pour utiliser l'ID~~ | `VideoListViewModel.kt` | ✅ **CORRIGÉ** |
 | 8 | ~~Utiliser `BuildConfig.ADMOB_BANNER_ID` dans `FallbackBanner`~~ | `PlayerActivity.kt` | ✅ **CORRIGÉ** |
 | 9 | ~~Corriger `centerAlignedTopAppBarColors` déprécié~~ | `AddVideoActivity.kt` | ✅ **CORRIGÉ** |
@@ -256,7 +257,7 @@ prod → IDs test Google ⚠️ (À REMPLACER par IDs production)
 | Janv-Fév 2026 | Développement initial STV Player v1.0 |
 | 27 Fév 2026 | Corrections finales, build release APK, 135 docs MD |
 | 1er Mars 2026 | Fix 18 erreurs compilation, modernisation APIs, bug URLs identiques |
-| 7 Mars 2026 | Analyse complète du code, correction 9/10 problèmes identifiés (AdMob, i18n, sécurité, APIs dépréciées, suppression Activities Privacy/Terms → liens web) |
+| 7 Mars 2026 | Analyse complète du code, correction 13/15 problèmes identifiés (AdMob, i18n, sécurité, APIs dépréciées, suppression Activities Privacy/Terms → liens web, Kotlin Serialization, badge LIVE, traduction française) |
 
 ---
 
