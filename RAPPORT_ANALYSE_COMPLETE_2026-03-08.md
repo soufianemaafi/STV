@@ -10,14 +10,14 @@
 
 ## 1. ARCHITECTURE GÉNÉRALE
 
-### 1.1 Structure des fichiers (15 fichiers source Kotlin)
+### 1.1 Structure des fichiers (19 fichiers source Kotlin)
 
 ```
 com.example.stv/
 ├── STVApplication.kt          (38 lignes)  — Application globale : init AdMob + AdManager
 ├── MainActivity.kt            (449 lignes) — Écran d'accueil : accès player, drawer, navigation
-├── PlayerActivity.kt          (824 lignes) — Écran player : ads, player, contrôles, UI
-├── PlayerViewModel.kt         (341 lignes) — ViewModel player : ExoPlayer, tracks, état
+├── PlayerActivity.kt          (280 lignes) — Écran player : lifecycle, ads, sécurité
+├── PlayerViewModel.kt         (340 lignes) — ViewModel player : ExoPlayer, tracks, état
 ├── VideoListActivity.kt       (352 lignes) — Liste des flux sauvegardés
 ├── VideoListViewModel.kt      (42 lignes)  — ViewModel liste : CRUD vidéos (délègue à Repository)
 ├── AddVideoActivity.kt        (357 lignes) — Formulaire ajout d'un flux
@@ -34,6 +34,12 @@ com.example.stv/
 │   └── PermissionHelper.kt    (172 lignes) — Vérification signature appelant
 └── ui/
     ├── PlayerUiState.kt        (24 lignes)  — State machine du player (6 états)
+    ├── components/
+    │   ├── VideoPlayer.kt      (145 lignes) — Composable player ExoPlayer + contrôles
+    │   ├── PlayerControls.kt   (230 lignes) — Overlay contrôles + formatDuration()
+    │   ├── QualitySelectionDialog.kt (65 lignes) — Dialog sélection qualité
+    │   ├── ErrorScreen.kt      (24 lignes)  — Écran erreur simple
+    │   └── BlockedScreen.kt    (70 lignes)  — Écran "Réessayer" (ads/réseau)
     └── theme/
         ├── Color.kt            (40 lignes)  — Palette YouTube-style
         ├── Theme.kt            (~90 lignes) — Thème Material3 dark
@@ -156,15 +162,16 @@ MainActivity ──── [bouton +] ───► AddVideoActivity (résultat)
 
 | # | Problème | Fichier | Impact |
 |---|----------|---------|--------|
-| 4 | **PlayerActivity.kt = 824 lignes** | PlayerActivity.kt | Fichier trop gros — mélange Activity, composables `VideoPlayer`, `PlayerControls`, `QualitySelectionDialog`, `BlockedScreen`, `ErrorScreen`, `formatDuration()` |
+| 4 | **PlayerActivity.kt = 824 lignes** | PlayerActivity.kt | ~~Fichier trop gros~~ → ✅ Corrigé — **découpé en 6 fichiers** : PlayerActivity (280), VideoPlayer (145), PlayerControls (230), QualitySelectionDialog (65), ErrorScreen (24), BlockedScreen (70) |
 | 5 | **MainViewModel presque inutile** | MainViewModel.kt | ~~35 lignes, URL en dur, inutilisé~~ → ✅ Corrigé — **fichier supprimé** (aucune référence dans le code actif) |
 | 6 | **Persistance JSON/SharedPreferences** | VideoListViewModel.kt | ~~Logique persistance dans le ViewModel~~ → ✅ Corrigé — **VideoRepository** créé (`data/VideoRepository.kt`), séparation des responsabilités, prêt pour migration Room |
 | 7 | **PlayerController.validateStreamUrl() — messages en français** | PlayerController.kt L44-63 | ~~Messages en dur en français~~ → ✅ Corrigé — utilise `context.getString(R.string.*)`, 4 strings ajoutées (EN+FR) |
 | 8 | **ContentDescription "Back" en dur** | PlayerActivity.kt L529 | ~~`contentDescription = "Back"`~~ → ✅ Corrigé → `stringResource(R.string.back_button)` |
-| 9 | **Bouton Cast non implémenté** | PlayerActivity.kt L612 | `onClick = { }` — le bouton Cast est visible mais ne fait rien |
+| 9 | **Bouton Cast non implémenté** | PlayerControls.kt | ~~`onClick = { }` — bouton visible mais inactif~~ → ✅ Corrigé — **bouton supprimé** (sera réajouté quand Chromecast sera implémenté) |
 | 10 | **`width` inutilisé dans updateCurrentTrackName** | PlayerViewModel.kt L293 | ~~`val width` déclaré mais jamais utilisé~~ → ✅ Corrigé (variable supprimée) |
 | 11 | **Pas de tests unitaires** | — | ~~Aucun test~~ → ✅ Corrigé — **38 tests** : PlayerControllerTest (15), AdsControllerTest (8), PlayerUiStateTest (8), VideoItemTest (6), ExampleUnitTest supprimé |
 | 12 | **`onNewIntent` : string en dur "URL not provided"** | PlayerActivity.kt L239 | ~~string en dur~~ → ✅ Corrigé → `getString(R.string.url_not_provided)` |
+| 12b | **`error_unknown` sans paramètre (bug visible)** | PlayerViewModel.kt L127-137 | ~~`getString(R.string.error_unknown)` sans argument → affichait `%1$s` littéralement~~ → ✅ Corrigé — passe `error.localizedMessage` comme paramètre |
 
 ### 3.3 🟢 MINEUR — Améliorations futures
 
@@ -172,8 +179,8 @@ MainActivity ──── [bouton +] ───► AddVideoActivity (résultat)
 |---|----------|---------|--------|
 | 13 | **Navigation multi-Activity** | Manifest | 4 Activities séparées — pourrait utiliser Compose Navigation pour unifier |
 | 14 | **Pas de mode hors-ligne** | — | Si pas de réseau, aucune vidéo locale ne peut être lue |
-| 15 | **Drawer avec éléments factices** | MainActivity.kt L188-214 | "History", "Favorites", "Settings" sont dans le drawer mais ne font rien (`onClick = close`) |
-| 16 | **Pas de Chromecast** | PlayerActivity.kt L612 | Le bouton Cast est affiché mais pas fonctionnel |
+| 15 | **Drawer avec éléments factices** | MainActivity.kt | ~~"History", "Favorites", "Settings" ne faisaient rien~~ → ✅ Corrigé — **éléments supprimés** (seront réajoutés quand les fonctionnalités seront implémentées) |
+| 16 | **Pas de Chromecast** | PlayerControls.kt | Bouton Cast supprimé en attendant l'implémentation Chromecast |
 | 17 | **Pas de gestion de l'orientation** | — | Le player est toujours en paysage (`sensorLandscape`) — pas de mode portrait |
 | 18 | **Play/Pause contentDescription incorrecte** | PlayerActivity.kt L595 | ~~Utilisait `ad_block_close_button` pour Pause~~ → ✅ Corrigé → `pause_button` string dédiée ajoutée (EN+FR) |
 
@@ -340,7 +347,7 @@ app/src/test/java/com/example/stv/
 | Métrique | Valeur | Appréciation |
 |----------|--------|--------------|
 | Lignes totales | ~3 100 | ✅ Taille raisonnable pour un player complet |
-| Fichier le plus gros | PlayerActivity.kt (824) | ⚠️ À découper |
+| Fichier le plus gros | MainActivity.kt (449) | ✅ PlayerActivity découpé |
 | Fichier le plus petit | VideoTrackInfo.kt (11) | ✅ |
 | Warnings compilation | 4 (Theme.kt deprecated) | ✅ Non bloquants |
 | Erreurs compilation | 0 | ✅ |
@@ -362,7 +369,7 @@ app/src/test/java/com/example/stv/
 
 ### 🟡 P1 — Qualité
 
-4. **Découper PlayerActivity.kt** : extraire `VideoPlayer`, `PlayerControls`, `BlockedScreen`, `QualitySelectionDialog` dans des fichiers séparés sous `ui/components/`
+4. ~~Découper PlayerActivity.kt~~ → ✅ Fait — **6 fichiers** dans `ui/components/` (VideoPlayer, PlayerControls, QualitySelectionDialog, ErrorScreen, BlockedScreen)
 5. ~~Supprimer ou fusionner MainViewModel~~ → ✅ Fait (fichier supprimé)
 6. ~~Corriger le warning `width` inutilisé~~ → ✅ Fait
 7. ~~Corriger `contentDescription = "Back"`~~ → ✅ Fait
@@ -372,8 +379,8 @@ app/src/test/java/com/example/stv/
 ### 🟢 P2 — Améliorations futures
 
 10. ~~Ajouter des tests unitaires~~ → ✅ Fait (38 tests : PlayerController, AdsController, PlayerUiState, VideoItem)
-11. **Implémenter Chromecast** ou retirer le bouton Cast
-12. **Implémenter les éléments du Drawer** (History, Favorites, Settings) ou les retirer
+11. ~~Retirer bouton Cast non fonctionnel~~ → ✅ Fait (supprimé de PlayerControls)
+12. ~~Retirer éléments factices du Drawer~~ → ✅ Fait (History, Favorites, Settings supprimés)
 13. **Migrer vers Room DB** pour la persistance vidéos
 14. **Migrer vers Compose Navigation** (single Activity)
 15. **Mode portrait optionnel** pour le player
@@ -396,7 +403,6 @@ app/src/test/java/com/example/stv/
 
 ### Ce qui reste à faire :
 - ⚠️ Changer le package `com.example.stv` avant publication
-- ⚠️ Découper PlayerActivity.kt (824 lignes)
 - 💡 Chromecast, Drawer fonctionnel, Room DB (V2)
 
 ### Fichiers clés à connaître :

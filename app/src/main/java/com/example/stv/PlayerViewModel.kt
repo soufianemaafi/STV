@@ -125,15 +125,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun getUserFriendlyErrorMessage(error: PlaybackException): String {
-        val messageResId = when (error.errorCode) {
+        val app = getApplication<Application>()
+        return when (error.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> R.string.error_network
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> app.getString(R.string.error_network)
             PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
-            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> R.string.error_content_not_found
-            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> R.string.error_decoder
-            else -> R.string.error_unknown
+            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> app.getString(R.string.error_content_not_found)
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> app.getString(R.string.error_decoder)
+            else -> app.getString(R.string.error_unknown, error.localizedMessage ?: "Unknown")
         }
-        return getApplication<Application>().getString(messageResId)
     }
 
 

@@ -9,20 +9,28 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.lifecycle.lifecycleScope
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,25 +39,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import com.example.stv.ads.AdsController
 import com.example.stv.ads.AdsController.AdResult
 import com.example.stv.player.PlayerController
 import com.example.stv.ui.PlayerUiState
+import com.example.stv.ui.components.BlockedScreen
+import com.example.stv.ui.components.ErrorScreen
+import com.example.stv.ui.components.VideoPlayer
 import com.example.stv.ui.theme.STVTheme
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 
-// ✅ PlayerActivity est une Activity normale, pas une API Media3 instable
+/**
+ * Activity principale du player vidéo.
+ * Gère le lifecycle, les ads, la sécurité et délègue l'UI aux composables extraits.
+ */
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
 
@@ -70,7 +77,6 @@ class PlayerActivity : ComponentActivity() {
 
         if (!permissionHelper.isCallerAuthorizedForPlayer(callerPackage)) {
             Log.w(tag, "Unauthorized caller: $callerPackage. Blocking access.")
-            // Afficher un message d'erreur et fermer l'activité
             setContent {
                 STVTheme {
                     Surface(
@@ -129,7 +135,6 @@ class PlayerActivity : ComponentActivity() {
         val urlError = playerController.validateStreamUrl(videoUrl)
 
         // ✅ Initialiser l'état UI IMMÉDIATEMENT (avant setContent)
-        // Cela garantit que le LaunchedEffect des ads verra le bon état dès le premier frame
         viewModel.initializeUiState(
             videoUrl = videoUrl,
             urlError = urlError,
@@ -154,8 +159,6 @@ class PlayerActivity : ComponentActivity() {
                     val currentState = uiState!!
 
                     // ✅ Flux ads : se lance quand l'état est LoadingAds
-                    // Clé = Unit → ne se relance JAMAIS (pas annulé quand l'état change)
-                    // Pour relancer : passer par retryAds() qui remet l'état à LoadingAds
                     LaunchedEffect(Unit) {
                         val state = viewModel.uiState.value
                         if (state is PlayerUiState.LoadingAds) {
@@ -164,7 +167,7 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
-                    // ✅ Rendu UI basé sur l'état
+                    // ✅ Rendu UI basé sur l'état — composables extraits
                     when (currentState) {
                         is PlayerUiState.Error -> {
                             ErrorScreen(currentState.message)
@@ -178,7 +181,6 @@ class PlayerActivity : ComponentActivity() {
                             Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                         }
                         is PlayerUiState.NeedRetry -> {
-                            // Pub échouée — bouton Réessayer
                             BlockedScreen(
                                 icon = Icons.Filled.Refresh,
                                 title = stringResource(R.string.ad_load_failed_title),
@@ -187,7 +189,6 @@ class PlayerActivity : ComponentActivity() {
                             )
                         }
                         is PlayerUiState.NetworkError -> {
-                            // Pas de réseau — bouton Réessayer
                             BlockedScreen(
                                 icon = Icons.Filled.WifiOff,
                                 title = stringResource(R.string.no_network_title),
@@ -227,16 +228,13 @@ class PlayerActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
-        // 1. Libérer le player actuel
         viewModel.releasePlayer()
 
-        // 2. Résoudre la nouvelle URL
         val newVideoUrl = playerController.resolveVideoUrl(intent)
         val newSkipAds = intent.getBooleanExtra("SKIP_ADS", false)
         val newUrlError = playerController.validateStreamUrl(newVideoUrl)
 
-        // 3. Réinitialiser la state machine avec la nouvelle URL
-        val errorMsg = newUrlError ?: if (newVideoUrl == null) "URL not provided" else null
+        val errorMsg = newUrlError ?: if (newVideoUrl == null) getString(R.string.url_not_provided) else null
         viewModel.initializeUiState(
             videoUrl = newVideoUrl,
             urlError = errorMsg,
@@ -244,12 +242,10 @@ class PlayerActivity : ComponentActivity() {
             skipAds = newSkipAds
         )
 
-        // 4. Relancer le flux ads (LaunchedEffect(Unit) ne se relance pas)
         if (newVideoUrl != null && errorMsg == null && !newSkipAds) {
             launchAdFlow(newVideoUrl)
         }
     }
-
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -268,7 +264,6 @@ class PlayerActivity : ComponentActivity() {
 
     /**
      * Lance le flux ads pour une URL donnée.
-     * Appelé depuis LaunchedEffect(Unit) au démarrage et depuis retryAds().
      */
     private fun launchAdFlow(url: String) {
         lifecycleScope.launch {
@@ -349,475 +344,3 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 }
-
-@OptIn(UnstableApi::class)
-@Composable
-fun VideoPlayer(
-    isInPipMode: Boolean,
-    viewModel: PlayerViewModel = viewModel(),
-    onPipClick: () -> Unit,
-    onBackClick: () -> Unit
-) {
-
-    // ExoPlayer state from ViewModel
-    val isLoading by viewModel.isLoading.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val videoTracks by viewModel.videoTracks.collectAsState()
-    val currentTrackName by viewModel.currentTrackName.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val currentPosition by viewModel.currentPosition.collectAsState()
-    val bufferedPosition by viewModel.bufferedPosition.collectAsState()
-    val duration by viewModel.duration.collectAsState()
-    val isLive by viewModel.isLive.collectAsState()
-
-    // UI state
-    var showQualityDialog by remember { mutableStateOf(false) }
-    // Le player démarre en format fill par défaut
-    var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
-    var areControlsVisible by remember { mutableStateOf(true) }
-
-    LaunchedEffect(areControlsVisible, isPlaying) {
-        if (areControlsVisible && isPlaying) {
-            delay(3000)
-            areControlsVisible = false
-        }
-    }
-
-
-    Box(modifier = Modifier
-        .fillMaxSize()
-        .background(Color.Black)
-        .clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null
-        ) {
-            areControlsVisible = !areControlsVisible
-        }
-    ) {
-        if (errorMessage != null) {
-            Text(
-                text = errorMessage!!,
-                color = Color.White,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else {
-            val exoPlayer = viewModel.exoPlayer
-            if (exoPlayer != null) {
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
-                            useController = false // Désactiver les contrôles natifs
-                            keepScreenOn = true
-                        }
-                    },
-                    update = { playerView ->
-                        // Force la mise à jour du mode de redimensionnement
-                        if (playerView.resizeMode != resizeMode) {
-                            playerView.resizeMode = resizeMode
-                        }
-                        if (playerView.player != exoPlayer) {
-                            playerView.player = exoPlayer
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            // Overlay avec les contrôles personnalisés (Visible seulement si !isInPipMode)
-            if (!isInPipMode) {
-                PlayerControls(
-                    isVisible = areControlsVisible,
-                    isPlaying = isPlaying,
-                    isLive = isLive,
-                    currentPosition = currentPosition,
-                    bufferedPosition = bufferedPosition,
-                    duration = duration,
-                    resizeMode = resizeMode,
-                    onBackClick = onBackClick,
-                    onRewindClick = {
-                        viewModel.seekRewind()
-                        areControlsVisible = true
-                    },
-                    onPlayPauseClick = {
-                        viewModel.togglePlayPause()
-                        areControlsVisible = true
-                    },
-                    onForwardClick = {
-                        viewModel.seekForward()
-                        areControlsVisible = true
-                    },
-                    onResizeClick = {
-                         resizeMode = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
-                            AspectRatioFrameLayout.RESIZE_MODE_FILL
-                        } else {
-                            AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        }
-                        areControlsVisible = true
-                    },
-                    onPipClick = onPipClick,
-                    onSettingsClick = {
-                        showQualityDialog = true
-                        areControlsVisible = true
-                    },
-                    onSeek = { viewModel.seekTo(it) }
-                )
-            }
-
-            if (showQualityDialog) {
-                QualitySelectionDialog(
-                    tracks = videoTracks,
-                    currentTrackName = currentTrackName,
-                    onDismiss = { showQualityDialog = false },
-                    onTrackSelected = { trackInfo ->
-                        viewModel.selectTrack(trackInfo)
-                        showQualityDialog = false
-                    }
-                )
-            }
-
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = Color.Red // Loader rouge
-                )
-            }
-        }
-    }
-}
-
-@OptIn(UnstableApi::class)
-@Composable
-fun PlayerControls(
-    isVisible: Boolean,
-    isPlaying: Boolean,
-    isLive: Boolean = false,
-    currentPosition: Long,
-    bufferedPosition: Long,
-    duration: Long,
-    resizeMode: Int,
-    onBackClick: () -> Unit,
-    onRewindClick: () -> Unit,
-    onPlayPauseClick: () -> Unit,
-    onForwardClick: () -> Unit,
-    onResizeClick: () -> Unit,
-    onPipClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onSeek: (Long) -> Unit
-) {
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = fadeIn(),
-        exit = fadeOut(),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.4f))
-        ) {
-            // Bouton Retour en haut à gauche
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            // ✅ Badge LIVE en haut à droite (visible uniquement pour les flux en direct)
-            if (isLive) {
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                    color = Color.Red,
-                    contentColor = Color.White
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(Color.White, shape = androidx.compose.foundation.shape.CircleShape)
-                        )
-                        Text(
-                            text = stringResource(R.string.live_badge),
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            // Zone du bas (Contrôles complets)
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp) // Réduit le padding du bas pour descendre la barre
-                    .fillMaxWidth()
-            ) {
-                // Boutons principaux alignés en bas
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center, // Changé de SpaceEvenly à Center pour rapprocher les éléments
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Contrôles centralisés pour les rapprocher
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(24.dp), // Espace fixe et égal entre les boutons
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Rewind -10s
-                        IconButton(onClick = onRewindClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Replay10,
-                                contentDescription = stringResource(R.string.rewind_10s),
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-
-                        // Play/Pause
-                        IconButton(onClick = onPlayPauseClick) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (isPlaying) stringResource(R.string.pause_button) else stringResource(R.string.play_stream_button),
-                                tint = Color.White,
-                                modifier = Modifier.size(40.dp) // Légèrement plus grand mais pas trop
-                            )
-                        }
-
-                        // Forward +10s
-                        IconButton(onClick = onForwardClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Forward10,
-                                contentDescription = stringResource(R.string.forward_10s),
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-
-                        // Cast (À implémenter)
-                        IconButton(onClick = { }) {
-                            Icon(
-                                imageVector = Icons.Filled.Cast,
-                                contentDescription = stringResource(R.string.cast_button),
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-
-                        // Aspect Ratio (Redimensionnement)
-                        IconButton(onClick = onResizeClick) {
-                            Icon(
-                                imageVector = Icons.Filled.AspectRatio,
-                                contentDescription = stringResource(R.string.format_content_description),
-                                tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-
-                        // Picture in Picture (PiP)
-                        IconButton(onClick = onPipClick) {
-                            Icon(
-                                imageVector = Icons.Filled.PictureInPicture,
-                                contentDescription = stringResource(R.string.pip_button),
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-
-                        // Settings (Qualité) - Déplacé à la fin
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Settings,
-                                contentDescription = stringResource(R.string.quality_content_description),
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp)) // Réduit l'espace entre les boutons et la barre
-
-                // Barre de progression et temps
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = formatDuration(currentPosition),
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
-
-                    Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                        // Barre de buffer (arrière-plan)
-                        LinearProgressIndicator(
-                            progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp), // Hauteur proche de la track du slider
-                            color = Color.White.copy(alpha = 0.5f), // Couleur du buffer (blanc semi-transparent)
-                            trackColor = Color.White.copy(alpha = 0.2f), // Couleur du fond inactif
-                        )
-
-                        // Slider de lecture (avant-plan)
-                        Slider(
-                            value = currentPosition.toFloat(),
-                            onValueChange = { onSeek(it.toLong()) },
-                            valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.Red, // Curseur rouge
-                                activeTrackColor = Color.Red, // Barre prog rouge
-                                inactiveTrackColor = Color.Transparent // Fond transparent pour voir le buffer derrière
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    Text(
-                        text = formatDuration(duration),
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
-    }
-}
-
-// Utilitaire de formatage temps
-fun formatDuration(durationMs: Long): String {
-    val hours = TimeUnit.MILLISECONDS.toHours(durationMs)
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(durationMs) % 60
-    val seconds = TimeUnit.MILLISECONDS.toSeconds(durationMs) % 60
-    return if (hours > 0) {
-        String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
-    } else {
-        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
-    }
-}
-
-@Composable
-fun QualitySelectionDialog(
-    tracks: List<VideoTrackInfo>,
-    currentTrackName: String,
-    onDismiss: () -> Unit,
-    onTrackSelected: (VideoTrackInfo) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.quality_dialog_title)) },
-        text = {
-            LazyColumn {
-                items(tracks) { track ->
-                    val isSelected = if (track.group == null) {
-                        currentTrackName.startsWith("Auto")
-                    } else {
-                        track.name == currentTrackName
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable { onTrackSelected(track) }
-                            .padding(vertical = 12.dp, horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (track.group == null && currentTrackName.startsWith("Auto")) currentTrackName else track.name, // Show dynamic Auto label in list if selected
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.close_button))
-            }
-        }
-    )
-}
-
-
-@Composable
-fun ErrorScreen(message: String) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.fillMaxSize().background(Color.Black)
-    ) {
-        Text(text = message, color = Color.White)
-    }
-}
-
-/**
- * Écran bloqué réutilisable : adblock détecté ou pas de réseau.
- * Affiche une icône, un titre, un message et un bouton "Réessayer".
- */
-@Composable
-fun BlockedScreen(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    message: String,
-    onRetry: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = Color.Red,
-                modifier = Modifier.size(64.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = message,
-                color = Color.White,
-                fontSize = 16.sp,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-            Button(
-                onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-            ) {
-                Text(
-                    text = stringResource(R.string.retry_button),
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
-            }
-        }
-    }
-}
-

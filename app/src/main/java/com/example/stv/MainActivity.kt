@@ -179,48 +179,7 @@ fun MainScreen(onAddVideoClick: () -> Unit = {}) {
                     thickness = 1.dp
                 )
 
-                // Section 1 : Contenu principal
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                ) {
-                    NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.history), color = WhitePrimary) },
-                        icon = { Icon(Icons.Filled.Menu, contentDescription = null, tint = GrayLight) },
-                        selected = false,
-                        onClick = { scope.launch { drawerState.close() } },
-                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
-                        )
-                    )
-                    NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.favorites), color = WhitePrimary) },
-                        icon = { Icon(Icons.Filled.VideoLibrary, contentDescription = null, tint = GrayLight) },
-                        selected = false,
-                        onClick = { scope.launch { drawerState.close() } },
-                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
-                        )
-                    )
-                    NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.settings), color = WhitePrimary) },
-                        icon = { Icon(Icons.Filled.Info, contentDescription = null, tint = GrayLight) },
-                        selected = false,
-                        onClick = { scope.launch { drawerState.close() } },
-                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent
-                        )
-                    )
-                }
-
-                HorizontalDivider(
-                    color = GrayMuted,
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-
-                // Section 2 : Informations légales
+                // Section : Informations légales
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
