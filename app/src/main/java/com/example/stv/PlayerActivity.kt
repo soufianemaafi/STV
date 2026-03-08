@@ -86,20 +86,20 @@ class PlayerActivity : ComponentActivity() {
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Block,
-                                    contentDescription = "Accès refusé",
+                                    contentDescription = stringResource(R.string.access_denied),
                                     tint = Color.Red,
                                     modifier = Modifier.size(64.dp)
                                 )
                                 Spacer(modifier = Modifier.height(24.dp))
                                 Text(
-                                    text = "Accès refusé",
+                                    text = stringResource(R.string.access_denied),
                                     color = Color.White,
                                     fontSize = 24.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Cette application n'est pas autorisée à lancer STV Player.",
+                                    text = stringResource(R.string.this_app_not_authorized),
                                     color = Color.White,
                                     fontSize = 16.sp,
                                     textAlign = TextAlign.Center
@@ -243,14 +243,14 @@ class PlayerActivity : ComponentActivity() {
                                     )
                                     Spacer(modifier = Modifier.height(24.dp))
                                     Text(
-                                        text = "Accès bloqué",
+                                        text = stringResource(R.string.access_blocked),
                                         color = Color.White,
                                         fontSize = 24.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Text(
-                                        text = "Un bloqueur de publicité a été détecté.\nVeuillez le désactiver pour continuer.",
+                                        text = stringResource(R.string.ad_blocker_detected),
                                         color = Color.White,
                                         fontSize = 16.sp,
                                         textAlign = TextAlign.Center
@@ -385,8 +385,9 @@ fun VideoPlayer(
     val currentTrackName by viewModel.currentTrackName.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
-    val bufferedPosition by viewModel.bufferedPosition.collectAsState() // Récupérer la position du buffer
+    val bufferedPosition by viewModel.bufferedPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
+    val isLive by viewModel.isLive.collectAsState()
 
     // UI state
     var showQualityDialog by remember { mutableStateOf(false) }
@@ -447,6 +448,7 @@ fun VideoPlayer(
                 PlayerControls(
                     isVisible = areControlsVisible,
                     isPlaying = isPlaying,
+                    isLive = isLive,
                     currentPosition = currentPosition,
                     bufferedPosition = bufferedPosition,
                     duration = duration,
@@ -508,6 +510,7 @@ fun VideoPlayer(
 fun PlayerControls(
     isVisible: Boolean,
     isPlaying: Boolean,
+    isLive: Boolean = false,
     currentPosition: Long,
     bufferedPosition: Long,
     duration: Long,
@@ -544,6 +547,36 @@ fun PlayerControls(
                     tint = Color.White,
                     modifier = Modifier.size(32.dp)
                 )
+            }
+
+            // ✅ Badge LIVE en haut à droite (visible uniquement pour les flux en direct)
+            if (isLive) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                    color = Color.Red,
+                    contentColor = Color.White
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(Color.White, shape = androidx.compose.foundation.shape.CircleShape)
+                        )
+                        Text(
+                            text = stringResource(R.string.live_badge),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             // Zone du bas (Contrôles complets)
@@ -771,7 +804,7 @@ fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = if (adBlockDetected) "Détection de bloqueur actif" else "Préparation du flux...",
+                text = if (adBlockDetected) stringResource(R.string.fallback_blocker_active) else stringResource(R.string.fallback_preparing_stream),
                 color = Color.White,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 24.dp)
@@ -783,7 +816,7 @@ fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
                 factory = { ctx ->
                     com.google.android.gms.ads.AdView(ctx).apply {
                         setAdSize(com.google.android.gms.ads.AdSize.MEDIUM_RECTANGLE)
-                        adUnitId = "ca-app-pub-3940256099942544/6300978111"  // ✅ Test ID (remplacer par votre ID production)
+                        adUnitId = BuildConfig.ADMOB_BANNER_ID  // ✅ Utilise le BuildConfig (flavor-specific)
                         loadAd(com.google.android.gms.ads.AdRequest.Builder().build())
                     }
                 }
@@ -801,7 +834,7 @@ fun FallbackBanner(adBlockDetected: Boolean = false, onFinish: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Launching stream in $timeLeft s",
+                text = stringResource(R.string.fallback_launching_stream, timeLeft.toInt()),
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold

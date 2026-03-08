@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -214,7 +215,9 @@ fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
                         icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.privacy_policy_cd), tint = GrayLight) },
                         selected = false,
                         onClick = {
-                            val intent = Intent(context, PrivacyPolicyActivity::class.java)
+                            // ✅ Ouvrir la page web externe (conforme Play Store)
+                            val url = context.getString(R.string.privacy_policy_url)
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                             context.startActivity(intent)
                             scope.launch { drawerState.close() }
                         },
@@ -225,10 +228,12 @@ fun MainScreen(@Suppress("UNUSED_PARAMETER") _adManager: AdManager? = null) {
 
                     NavigationDrawerItem(
                         label = { Text(stringResource(R.string.terms_of_service), color = WhitePrimary) },
-                        icon = { Icon(Icons.Filled.Description, contentDescription = "Terms of Service", tint = GrayLight) },
+                        icon = { Icon(Icons.Filled.Description, contentDescription = stringResource(R.string.terms_of_service_cd), tint = GrayLight) },
                         selected = false,
                         onClick = {
-                            val intent = Intent(context, TermsOfServiceActivity::class.java)
+                            // ✅ Ouvrir la page web externe (conforme Play Store)
+                            val url = context.getString(R.string.terms_of_service_url)
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                             context.startActivity(intent)
                             scope.launch { drawerState.close() }
                         },

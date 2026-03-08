@@ -2,18 +2,24 @@ package com.example.stv
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.json.JSONArray
-import org.json.JSONObject
-import java.util.UUID
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class VideoListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // ✅ Kotlin Serialization : instance configurée pour tolérance
+    private val json = Json {
+        ignoreUnknownKeys = true   // Ignore les clés inconnues (compatibilité future)
+        encodeDefaults = true      // Encode les valeurs par défaut (id UUID)
+    }
 
     private val _videos = MutableStateFlow(loadVideos())
     val videos: StateFlow<List<VideoItem>> = _videos.asStateFlow()
@@ -26,7 +32,8 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun removeVideo(item: VideoItem) {
         if (isDefaultVideo(item)) return
-        val updated = _videos.value.filterNot { it.title == item.title && it.url == item.url }
+        // ✅ Filtrer par ID unique (et non par titre+url) pour éviter de supprimer les doublons
+        val updated = _videos.value.filterNot { it.id == item.id }
         _videos.value = updated
         saveVideos(updated)
     }
@@ -39,39 +46,23 @@ class VideoListViewModel(application: Application) : AndroidViewModel(applicatio
         return item.url == DEFAULT_VIDEO_URL
     }
 
+    // ✅ Kotlin Serialization : décodage typé automatique (remplace JSONArray/JSONObject manuel)
     private fun loadVideos(): List<VideoItem> {
         val stored = prefs.getString(PREFS_KEY, null) ?: return defaultVideos()
         return try {
-            val array = JSONArray(stored)
-            val list = mutableListOf<VideoItem>()
-            for (i in 0 until array.length()) {
-                val obj = array.getJSONObject(i)
-                // ✅ Charger l'ID depuis SharedPreferences, ou générer un nouveau si absent
-                val id = if (obj.has("id")) obj.getString("id") else UUID.randomUUID().toString()
-                list.add(VideoItem(
-                    id = id,
-                    title = obj.getString("title"),
-                    url = obj.getString("url")
-                ))
-            }
+            val list = json.decodeFromString<List<VideoItem>>(stored)
             if (list.isEmpty()) defaultVideos() else list
-        } catch (@Suppress("UNUSED_PARAMETER") e: Exception) {
+        } catch (e: Exception) {
+            Log.w("VideoListViewModel", "Error loading videos, resetting to defaults", e)
             defaultVideos()
         }
     }
 
+    // ✅ Kotlin Serialization : encodage typé automatique (remplace JSONArray/JSONObject manuel)
     private fun saveVideos(videos: List<VideoItem>) {
-        val array = JSONArray()
-        videos.forEach { item ->
-            val obj = JSONObject().apply {
-                put("id", item.id)  // ✅ Sauvegarder l'ID
-                put("title", item.title)
-                put("url", item.url)
-            }
-            array.put(obj)
-        }
+        val encoded = json.encodeToString(videos)
         prefs.edit {
-            putString(PREFS_KEY, array.toString())
+            putString(PREFS_KEY, encoded)
         }
     }
 

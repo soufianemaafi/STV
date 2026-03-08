@@ -87,10 +87,17 @@
     <string name="forward_10s">Forward 10s</string>
     <string name="cast_button">Cast</string>
     <string name="pip_button">PiP</string>
+    <string name="live_badge">LIVE</string>
+    <string name="live_badge_cd">Live stream</string>
     <string name="access_denied">Access denied</string>
     <string name="access_blocked">Access blocked</string>
     <string name="this_app_not_authorized">This application is not authorized to launch STV Player.</string>
     <string name="ad_blocker_detected">An ad blocker has been detected.\nPlease disable it to continue.</string>
     <string name="no_results_for">No results for</string>
+
+    <!-- FallbackBanner -->
+    <string name="fallback_blocker_active">Active blocker detection</string>
+    <string name="fallback_preparing_stream">Preparing stream…</string>
+    <string name="fallback_launching_stream">Launching stream in %1$d s</string>
 </resources>
 

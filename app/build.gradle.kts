@@ -4,8 +4,15 @@ import java.io.File
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
+// ✅ Charger les propriétés locales (IDs AdMob production, etc.)
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
 
 android {
     namespace = "com.example.stv"
@@ -26,26 +33,33 @@ android {
             useSupportLibrary = true
         }
 
-        // ✅ IDs AdMob par défaut (debug)
+        // ✅ IDs AdMob par défaut (test — fallback sécurisé)
         buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
         buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
+        manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
     }
 
     productFlavors {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            // IDs de test AdMob pour le développement
+            // ✅ IDs de test AdMob pour le développement (NE PAS CHANGER)
             buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
             buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
         }
 
         create("prod") {
             dimension = "environment"
-            // ✅ Utiliser les IDs test pour le moment (release test sur device)
-            // À remplacer par vos IDs production une fois prêts pour publication
-            buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
-            buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
+            // ✅ IDs PRODUCTION lus depuis local.properties (sécurisé, hors Git)
+            // Fallback sur IDs test si local.properties ne contient pas les clés
+            val prodInterstitialId = localProperties.getProperty("admob.interstitial.id", "ca-app-pub-3940256099942544/1033173712")
+            val prodBannerId = localProperties.getProperty("admob.banner.id", "ca-app-pub-3940256099942544/6300978111")
+            val prodAppId = localProperties.getProperty("admob.app.id", "ca-app-pub-3940256099942544~3347511713")
+
+            buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$prodInterstitialId\"")
+            buildConfigField("String", "ADMOB_BANNER_ID", "\"$prodBannerId\"")
+            manifestPlaceholders["admobAppId"] = prodAppId
         }
     }
 
@@ -127,6 +141,7 @@ dependencies {
 
     implementation(libs.play.services.ads)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

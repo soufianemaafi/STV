@@ -1,8 +1,6 @@
 package com.example.stv
 
-
 import android.app.Application
-import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.C
@@ -15,7 +13,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.upstream.DefaultAllocator
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +51,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentTrackName = MutableStateFlow(getApplication<Application>().getString(R.string.quality_auto))
     val currentTrackName: StateFlow<String> = _currentTrackName.asStateFlow()
 
+    // ✅ Détection flux LIVE (HLS live, DASH live, etc.)
+    private val _isLive = MutableStateFlow(false)
+    val isLive: StateFlow<Boolean> = _isLive.asStateFlow()
+
     private var trackSelector: DefaultTrackSelector? = null
     private var currentUrl: String? = null
 
@@ -64,6 +65,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 Player.STATE_READY -> {
                     _isLoading.value = false
                     _duration.value = _exoPlayer?.duration ?: 0L
+                    // ✅ Détecter si le flux est LIVE
+                    _isLive.value = _exoPlayer?.isCurrentMediaItemLive == true
                 }
                 Player.STATE_ENDED -> {
                     _isLoading.value = false
@@ -103,9 +106,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         return getApplication<Application>().getString(messageResId)
     }
-
-
-    // Method removed temporarily to fix conflict
 
 
     fun initializePlayer(url: String) {
@@ -200,7 +200,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectTrack(trackInfo: VideoTrackInfo) {
         val player = _exoPlayer ?: return
-        // val selector = trackSelector ?: return // selector inutilisé
 
         if (trackInfo.group != null && trackInfo.trackIndex != null) {
             // Sélection manuelle
