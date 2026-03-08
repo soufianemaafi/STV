@@ -20,6 +20,10 @@
 
     <!-- PlayerActivity -->
     <string name="url_not_provided">URL non fournie</string>
+    <string name="error_url_missing">URL de flux manquante</string>
+    <string name="error_url_invalid_scheme">Schéma invalide : seuls http:// et https:// sont acceptés</string>
+    <string name="error_url_too_long">URL trop longue (max 2048 caractères)</string>
+    <string name="error_url_invalid_format">Format d\'URL invalide</string>
     <string name="format_content_description">Format</string>
     <string name="quality_content_description">Qualité</string>
     <string name="resize_dialog_title">Format d\'affichage</string>
@@ -37,11 +41,6 @@
     <string name="quality_unknown">Inconnue</string>
     <string name="quality_manual">Manuel</string>
 
-    <!-- AdBlock -->
-    <string name="ad_block_strict_title">Avertissement : Blocage détecté</string>
-    <string name="ad_block_strict_message">Nous avons détecté un bloqueur de publicité ou une erreur de connexion persistante.\n\nL\'accès au contenu nécessite l\'affichage des publicités qui financent cette application.\n\nVeuillez désactiver votre bloqueur (DNS, AdGuard, VPN) ou vérifier votre connexion.</string>
-    <string name="ad_block_retry_button">Réessayer</string>
-    <string name="ad_block_close_button">Fermer</string>
     <string name="no_internet_connection">Pas de connexion internet. Veuillez vérifier votre réseau.</string>
 
     <!-- Player Errors -->
@@ -102,19 +101,12 @@
     <string name="pip_button">PiP</string>
     <string name="live_badge_cd">Flux en direct</string>
     <string name="access_denied">Accès refusé</string>
-    <string name="access_blocked">Accès bloqué</string>
     <string name="this_app_not_authorized">Cette application n\'est pas autorisée à lancer STV Player.</string>
-    <string name="ad_blocker_detected">Un bloqueur de publicité a été détecté.\nVeuillez le désactiver pour continuer.</string>
     <string name="ad_load_failed_title">Impossible de charger le contenu</string>
     <string name="ad_load_failed_message">Le contenu n\'a pas pu être chargé.\nVérifiez votre connexion ou désactivez tout bloqueur de pub, puis réessayez.</string>
     <string name="no_network_title">Pas de connexion</string>
     <string name="no_network_message">Une connexion internet est nécessaire pour charger le contenu.\nVérifiez votre réseau et réessayez.</string>
     <string name="retry_button">Réessayer</string>
     <string name="no_results_for">Aucun résultat pour</string>
-
-    <!-- FallbackBanner -->
-    <string name="fallback_blocker_active">Détection de bloqueur actif</string>
-    <string name="fallback_preparing_stream">Préparation du flux…</string>
-    <string name="fallback_launching_stream">Lancement du flux dans %1$d s</string>
 </resources>
 

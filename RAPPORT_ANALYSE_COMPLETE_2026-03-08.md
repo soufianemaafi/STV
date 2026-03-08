@@ -16,19 +16,20 @@
 com.example.stv/
 ├── STVApplication.kt          (38 lignes)  — Application globale : init AdMob + AdManager
 ├── MainActivity.kt            (449 lignes) — Écran d'accueil : accès player, drawer, navigation
-├── MainViewModel.kt           (35 lignes)  — ViewModel accueil (URL par défaut, validation)
 ├── PlayerActivity.kt          (824 lignes) — Écran player : ads, player, contrôles, UI
 ├── PlayerViewModel.kt         (341 lignes) — ViewModel player : ExoPlayer, tracks, état
 ├── VideoListActivity.kt       (352 lignes) — Liste des flux sauvegardés
-├── VideoListViewModel.kt      (84 lignes)  — ViewModel liste : CRUD vidéos (JSON/SharedPrefs)
+├── VideoListViewModel.kt      (42 lignes)  — ViewModel liste : CRUD vidéos (délègue à Repository)
 ├── AddVideoActivity.kt        (357 lignes) — Formulaire ajout d'un flux
 ├── AdManager.kt               (~110 lignes) — Singleton AdMob : loadAndShow()
 ├── VideoItem.kt               (13 lignes)  — Data class vidéo (id UUID, title, url)
 ├── VideoTrackInfo.kt          (11 lignes)  — Data class piste vidéo (nom, groupe, index)
 ├── ads/
 │   └── AdsController.kt       (113 lignes) — Orchestration pub : retry, timeout, state
+├── data/
+│   └── VideoRepository.kt     (67 lignes)  — Persistance vidéos (SharedPrefs + Kotlin Serialization)
 ├── player/
-│   └── PlayerController.kt    (91 lignes)  — Résolution URL, validation flux
+│   └── PlayerController.kt    (89 lignes)  — Résolution URL, validation flux (localisé)
 ├── security/
 │   └── PermissionHelper.kt    (172 lignes) — Vérification signature appelant
 └── ui/
@@ -46,11 +47,12 @@ com.example.stv/
 | Couche | Pattern | Implémentation |
 |--------|---------|----------------|
 | UI | Jetpack Compose | `PlayerActivity`, `MainActivity`, composables |
-| State | MVVM + StateFlow | `PlayerViewModel`, `VideoListViewModel`, `MainViewModel` |
+| State | MVVM + StateFlow | `PlayerViewModel`, `VideoListViewModel` |
 | Ads | Singleton + Controller | `AdManager` (singleton), `AdsController` (orchestration) |
 | Sécurité | Vérification signature | `PermissionHelper` |
 | Navigation | Multi-Activity | 4 Activities (pas Compose Navigation) |
-| Persistance | SharedPreferences + JSON | `VideoListViewModel` avec Kotlin Serialization |
+| Persistance | Repository + SharedPrefs + JSON | `VideoRepository` avec Kotlin Serialization |
+| Tests | JUnit + MockK + Coroutines Test | 38 tests unitaires (4 suites) |
 
 ### 1.3 Diagramme des composants
 
@@ -147,21 +149,21 @@ MainActivity ──── [bouton +] ───► AddVideoActivity (résultat)
 | # | Problème | Fichier | Impact | État |
 |---|----------|---------|--------|------|
 | 1 | **Package `com.example.stv`** | `build.gradle.kts` L25 | **Refus publication Play Store** — `com.example.*` est interdit | ⚠️ À faire |
-| 2 | **Strings FallbackBanner orphelines** | `strings.xml` L112-115 | 3 strings inutilisées (`fallback_blocker_active`, `fallback_preparing_stream`, `fallback_launching_stream`) | ⚠️ Nettoyage |
-| 3 | **Strings AdBlock orphelines** | `strings.xml` L34-38 | Anciennes strings adblock (`ad_block_strict_title/message/retry/close`) plus utilisées | ⚠️ Nettoyage |
+| 2 | **Strings FallbackBanner orphelines** | `strings.xml` | ~~3 strings inutilisées~~ → ✅ Corrigé (supprimées EN+FR) |
+| 3 | **Strings AdBlock orphelines** | `strings.xml` | ~~7 strings inutilisées (`ad_block_strict_*`, `ad_block_retry/close`, `access_blocked`, `ad_blocker_detected`)~~ → ✅ Corrigé (supprimées EN+FR) |
 
 ### 3.2 🟡 MOYEN — Qualité / Maintenabilité
 
 | # | Problème | Fichier | Impact |
 |---|----------|---------|--------|
 | 4 | **PlayerActivity.kt = 824 lignes** | PlayerActivity.kt | Fichier trop gros — mélange Activity, composables `VideoPlayer`, `PlayerControls`, `QualitySelectionDialog`, `BlockedScreen`, `ErrorScreen`, `formatDuration()` |
-| 5 | **MainViewModel presque inutile** | MainViewModel.kt | 35 lignes — contient une URL en dur (`skynewsarabia`) et une validation simple — pourrait être supprimé ou fusionné |
-| 6 | **Persistance JSON/SharedPreferences** | VideoListViewModel.kt | Pas de Room DB — suffisant pour une petite liste mais ne scale pas (pas de recherche indexée, pas de migration) |
-| 7 | **PlayerController.validateStreamUrl() — messages en français** | PlayerController.kt L44-63 | Messages d'erreur en dur en français : `"URL de flux manquante"`, `"Schéma invalide..."`, `"URL trop longue..."` — devrait utiliser des string resources |
+| 5 | **MainViewModel presque inutile** | MainViewModel.kt | ~~35 lignes, URL en dur, inutilisé~~ → ✅ Corrigé — **fichier supprimé** (aucune référence dans le code actif) |
+| 6 | **Persistance JSON/SharedPreferences** | VideoListViewModel.kt | ~~Logique persistance dans le ViewModel~~ → ✅ Corrigé — **VideoRepository** créé (`data/VideoRepository.kt`), séparation des responsabilités, prêt pour migration Room |
+| 7 | **PlayerController.validateStreamUrl() — messages en français** | PlayerController.kt L44-63 | ~~Messages en dur en français~~ → ✅ Corrigé — utilise `context.getString(R.string.*)`, 4 strings ajoutées (EN+FR) |
 | 8 | **ContentDescription "Back" en dur** | PlayerActivity.kt L529 | ~~`contentDescription = "Back"`~~ → ✅ Corrigé → `stringResource(R.string.back_button)` |
 | 9 | **Bouton Cast non implémenté** | PlayerActivity.kt L612 | `onClick = { }` — le bouton Cast est visible mais ne fait rien |
 | 10 | **`width` inutilisé dans updateCurrentTrackName** | PlayerViewModel.kt L293 | ~~`val width` déclaré mais jamais utilisé~~ → ✅ Corrigé (variable supprimée) |
-| 11 | **Pas de tests unitaires** | — | Aucun test pour AdManager, AdsController, PlayerController, ViewModels |
+| 11 | **Pas de tests unitaires** | — | ~~Aucun test~~ → ✅ Corrigé — **38 tests** : PlayerControllerTest (15), AdsControllerTest (8), PlayerUiStateTest (8), VideoItemTest (6), ExampleUnitTest supprimé |
 | 12 | **`onNewIntent` : string en dur "URL not provided"** | PlayerActivity.kt L239 | ~~string en dur~~ → ✅ Corrigé → `getString(R.string.url_not_provided)` |
 
 ### 3.3 🟢 MINEUR — Améliorations futures
@@ -307,6 +309,30 @@ PlayerActivity.onCreate()
 | AddVideoActivity | `exported=false` |
 | Deep links | `stv://play`, `video/*`, `application/vnd.apple.mpegurl` |
 
+### 6.4 Tests unitaires (38 tests — 4 suites)
+
+**Emplacement** : `app/src/test/java/com/example/stv/`  
+**Dépendances** : JUnit 4, MockK, kotlinx-coroutines-test  
+**Commande** : `./gradlew testDevDebugUnitTest`
+
+```
+app/src/test/java/com/example/stv/
+├── ads/
+│   └── AdsControllerTest.kt       (8 tests) — Retry, timeout, NoNetwork, AdDismissed
+├── player/
+│   └── PlayerControllerTest.kt    (15 tests) — Validation URL, résolution Intent, deep links
+├── ui/
+│   └── PlayerUiStateTest.kt       (8 tests) — State machine, égalité, distinction des états
+└── VideoItemTest.kt               (6 tests) — Sérialisation JSON, UUID unique, round-trip
+```
+
+| Suite | Tests | Ce qui est vérifié |
+|-------|-------|--------------------|
+| **AdsControllerTest** | 8 | Pub fermée → AdDismissed ; 3 échecs → NeedRetry ; NoNetwork immédiat (pas de retry) ; échec puis succès ; comptage des appels |
+| **PlayerControllerTest** | 15 | URL null/vide/sans schéma/FTP/RTSP → erreur ; URL trop longue → erreur ; resolveVideoUrl depuis extra/data/deep link ; priorité extra sur data |
+| **PlayerUiStateTest** | 8 | Chaque état contient la bonne URL/message ; états distincts avec même URL ; égalité de 2 états identiques |
+| **VideoItemTest** | 6 | UUID unique ; sérialisation round-trip ; liste ; clés inconnues tolérées ; ID inclus dans le JSON |
+
 ---
 
 ## 7. MÉTRIQUES DE QUALITÉ
@@ -318,11 +344,11 @@ PlayerActivity.onCreate()
 | Fichier le plus petit | VideoTrackInfo.kt (11) | ✅ |
 | Warnings compilation | 4 (Theme.kt deprecated) | ✅ Non bloquants |
 | Erreurs compilation | 0 | ✅ |
-| Couverture i18n | ~95% | ✅ Reste PlayerController + 1 contentDescription |
-| Couverture tests | 0% | 🔴 Aucun test |
+| Couverture i18n | ~99% | ✅ PlayerController corrigé |
+| Couverture tests | 38 tests | ✅ Logique métier couverte |
 | Packages | 4 (root, ads, player, security, ui) | ✅ Organisation claire |
 | State machine | 6 états typés | ✅ Explicite et exhaustive |
-| Strings orphelines | ~6 | ⚠️ Nettoyage à faire |
+| Strings orphelines | 0 | ✅ Nettoyé |
 
 ---
 
@@ -331,21 +357,21 @@ PlayerActivity.onCreate()
 ### 🔴 P0 — Avant publication Play Store
 
 1. **Changer le package** `com.example.stv` → `com.votredomaine.stvplayer` (build.gradle + dossiers)
-2. **Nettoyer les strings orphelines** (fallback_*, ad_block_strict_*)
-3. **Corriger PlayerController** : messages d'erreur en français → string resources
+2. ~~Nettoyer les strings orphelines~~ → ✅ Fait
+3. ~~Corriger PlayerController~~ → ✅ Fait (string resources EN+FR)
 
 ### 🟡 P1 — Qualité
 
 4. **Découper PlayerActivity.kt** : extraire `VideoPlayer`, `PlayerControls`, `BlockedScreen`, `QualitySelectionDialog` dans des fichiers séparés sous `ui/components/`
-5. **Supprimer ou fusionner MainViewModel** (presque inutile)
-6. **Corriger le warning `width` inutilisé** dans PlayerViewModel L293
-7. **Corriger `contentDescription = "Back"`** → `stringResource(R.string.back_button)`
-8. **Corriger Play/Pause contentDescription** : utilise `ad_block_close_button` pour Pause
-9. **Corriger `onNewIntent` L239** : string en dur → `getString(R.string.url_not_provided)`
+5. ~~Supprimer ou fusionner MainViewModel~~ → ✅ Fait (fichier supprimé)
+6. ~~Corriger le warning `width` inutilisé~~ → ✅ Fait
+7. ~~Corriger `contentDescription = "Back"`~~ → ✅ Fait
+8. ~~Corriger Play/Pause contentDescription~~ → ✅ Fait
+9. ~~Corriger `onNewIntent` L239~~ → ✅ Fait
 
 ### 🟢 P2 — Améliorations futures
 
-10. **Ajouter des tests unitaires** (AdManager, AdsController, PlayerController)
+10. ~~Ajouter des tests unitaires~~ → ✅ Fait (38 tests : PlayerController, AdsController, PlayerUiState, VideoItem)
 11. **Implémenter Chromecast** ou retirer le bouton Cast
 12. **Implémenter les éléments du Drawer** (History, Favorites, Settings) ou les retirer
 13. **Migrer vers Room DB** pour la persistance vidéos
@@ -370,10 +396,7 @@ PlayerActivity.onCreate()
 
 ### Ce qui reste à faire :
 - ⚠️ Changer le package `com.example.stv` avant publication
-- ⚠️ Nettoyer les strings orphelines
-- ⚠️ Corriger les quelques textes en dur (PlayerController, contentDescriptions)
 - ⚠️ Découper PlayerActivity.kt (824 lignes)
-- ⚠️ Ajouter des tests
 - 💡 Chromecast, Drawer fonctionnel, Room DB (V2)
 
 ### Fichiers clés à connaître :
@@ -382,6 +405,8 @@ PlayerActivity.onCreate()
 - **Player** : `PlayerViewModel.initializePlayer()` — ExoPlayer + buffer config
 - **Sécurité** : `PermissionHelper.verifySignature()` + `PlayerActivity.onCreate()` guard
 - **Config build** : `app/build.gradle.kts` (flavors, signing, AdMob IDs)
+- **Tests** : `app/src/test/` — 38 tests (PlayerController, AdsController, PlayerUiState, VideoItem)
+- **Persistance** : `VideoRepository.kt` (data/) — prêt pour migration Room
 
 ---
 

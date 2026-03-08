@@ -120,7 +120,7 @@ class PlayerActivity : ComponentActivity() {
         // ✅ Utiliser le singleton AdManager (initialisé dans STVApplication)
         adManager = AdManager.instance
         adsController = AdsController(adManager)
-        playerController = PlayerController()
+        playerController = PlayerController(this)
 
         hideSystemUI()
 

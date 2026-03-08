@@ -13,6 +13,10 @@
 
     <!-- PlayerActivity -->
     <string name="url_not_provided">URL not provided</string>
+    <string name="error_url_missing">Stream URL is missing</string>
+    <string name="error_url_invalid_scheme">Invalid scheme: only http:// and https:// are accepted</string>
+    <string name="error_url_too_long">URL too long (max 2048 characters)</string>
+    <string name="error_url_invalid_format">Invalid URL format</string>
     <string name="format_content_description">Format</string>
     <string name="quality_content_description">Quality</string>
     <string name="resize_dialog_title">Display format</string>
@@ -31,11 +35,6 @@
     <string name="quality_auto_with_resolution" translatable="false">Auto (%1$dp)</string>
     <string name="quality_manual">Manual</string>
 
-    <!-- AdBlock -->
-    <string name="ad_block_strict_title">Warning: Blocking detected</string>
-    <string name="ad_block_strict_message">We have detected an ad blocker or persistent connection error.\n\nAccess to content requires displaying ads that fund this application.\n\nPlease disable your blocker (DNS, AdGuard, VPN) or check your connection.</string>
-    <string name="ad_block_retry_button">Retry</string>
-    <string name="ad_block_close_button">Close</string>
     <string name="no_internet_connection">No internet connection. Please check your network.</string>
 
     <!-- Player Errors -->
@@ -100,19 +99,12 @@
     <string name="live_badge" translatable="false">LIVE</string>
     <string name="live_badge_cd">Live stream</string>
     <string name="access_denied">Access denied</string>
-    <string name="access_blocked">Access blocked</string>
     <string name="this_app_not_authorized">This application is not authorized to launch STV Player.</string>
-    <string name="ad_blocker_detected">An ad blocker has been detected.\nPlease disable it to continue.</string>
     <string name="ad_load_failed_title">Unable to load content</string>
     <string name="ad_load_failed_message">The content could not be loaded.\nPlease check your connection or disable any ad blocker, then try again.</string>
     <string name="no_network_title">No connection</string>
     <string name="no_network_message">Internet connection is required to load content.\nPlease check your network and try again.</string>
     <string name="retry_button">Retry</string>
     <string name="no_results_for">No results for</string>
-
-    <!-- FallbackBanner -->
-    <string name="fallback_blocker_active">Active blocker detection</string>
-    <string name="fallback_preparing_stream">Preparing stream…</string>
-    <string name="fallback_launching_stream">Launching stream in %1$d s</string>
 </resources>
 

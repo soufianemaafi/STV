@@ -1,15 +1,15 @@
 package com.example.stv.player
 
+import android.content.Context
 import android.content.Intent
 import android.util.Patterns
+import com.example.stv.R
 
 /**
  * Contrôleur métier pour orchestrer l'initialisation du player.
  * Gère la validation d'URL, la résolution d'URL depuis les intents, et la préparation de la lecture.
  */
-class PlayerController {
-
-    private val TAG = "PlayerController"
+class PlayerController(private val context: Context) {
 
     /**
      * Résout l'URL vidéo à partir d'un Intent.
@@ -37,11 +37,11 @@ class PlayerController {
     /**
      * Valide une URL de flux.
      * @param url L'URL à valider.
-     * @return Null si valide, sinon un message d'erreur.
+     * @return Null si valide, sinon un message d'erreur localisé.
      */
     fun validateStreamUrl(url: String?): String? {
         if (url.isNullOrBlank()) {
-            return "URL de flux manquante"
+            return context.getString(R.string.error_url_missing)
         }
 
         val trimmedUrl = url.trim()
@@ -49,17 +49,17 @@ class PlayerController {
         // Vérifier le schéma (http ou https)
         if (!trimmedUrl.startsWith("http://", ignoreCase = true) &&
             !trimmedUrl.startsWith("https://", ignoreCase = true)) {
-            return "Schéma invalide : seuls http:// et https:// sont acceptés"
+            return context.getString(R.string.error_url_invalid_scheme)
         }
 
         // Vérifier la longueur (limiter les abus)
         if (trimmedUrl.length > 2048) {
-            return "URL trop longue (max 2048 caractères)"
+            return context.getString(R.string.error_url_too_long)
         }
 
         // Utiliser le validateur Android natif
         if (!Patterns.WEB_URL.matcher(trimmedUrl).matches()) {
-            return "Format d'URL invalide"
+            return context.getString(R.string.error_url_invalid_format)
         }
 
         return null // Valide
