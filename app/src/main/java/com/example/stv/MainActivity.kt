@@ -70,7 +70,6 @@ import com.example.stv.ui.theme.BlackDrawer
 import com.example.stv.ui.theme.WhitePrimary
 import com.example.stv.ui.theme.GrayLight
 import com.example.stv.ui.theme.GrayMuted
-import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -102,10 +101,8 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        // Initialiser AdMob
-        MobileAds.initialize(this) {}
-
         // Initialiser AdManager et charger l'interstitiel
+        // Note : MobileAds.initialize() est déjà appelé dans STVApplication.onCreate()
         adManager = AdManager(this)
         adManager.loadInterstitialAd()
 

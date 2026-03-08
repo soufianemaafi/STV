@@ -43,7 +43,6 @@ import com.example.stv.ads.AdsController.AdResult
 import com.example.stv.player.PlayerController
 import com.example.stv.ui.PlayerUiState
 import com.example.stv.ui.theme.STVTheme
-import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.delay
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -116,7 +115,7 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        MobileAds.initialize(this) {}
+        // Note : MobileAds.initialize() est déjà appelé dans STVApplication.onCreate()
         adManager = AdManager(this)
         adsController = AdsController(adManager)
         playerController = PlayerController()
