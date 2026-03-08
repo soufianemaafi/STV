@@ -206,15 +206,15 @@ fun PlayerControls(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isLive) {
-                        // ── LIVE : barre de progression en lecture seule ──
+                        // ── LIVE : barre de progression en lecture seule (même style visuel que VOD) ──
                         Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                            // Barre de buffer (arrière-plan) — jaune clair
+                            // Barre de buffer (arrière-plan) — même style que VOD
                             LinearProgressIndicator(
                                 progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(3.dp),
-                                color = Color(0xFFFFF176),
+                                color = Color.White.copy(alpha = 0.5f),
                                 trackColor = Color.White.copy(alpha = 0.2f),
                             )
 

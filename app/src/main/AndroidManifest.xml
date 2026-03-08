@@ -88,17 +88,6 @@
                 <data android:mimeType="video/*" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".VideoListActivity"
-            android:exported="false"
-            android:label="@string/videos_screen_title"
-            android:launchMode="singleTask"
-            android:theme="@style/Theme.STV" />
-        <activity
-            android:name=".AddVideoActivity"
-            android:exported="false"
-            android:label="@string/add_video_title"
-            android:theme="@style/Theme.STV" />
     </application>
 
 </manifest>

@@ -10,24 +10,25 @@
 
 ## 1. ARCHITECTURE GÉNÉRALE
 
-### 1.1 Structure des fichiers (20 fichiers source Kotlin)
+### 1.1 Structure des fichiers (22 fichiers source Kotlin)
 
 ```
 com.example.stv/
 ├── STVApplication.kt          (34 lignes)  — Application globale : init AdMob + AdManager
-├── MainActivity.kt            (410 lignes) — Écran d'accueil : drawer, navigation
-├── PlayerActivity.kt          (359 lignes) — Écran player : lifecycle, ads, sécurité
+├── MainActivity.kt            (51 lignes)  — Point d'entrée unique : NavHost + splash
+├── PlayerActivity.kt          (359 lignes) — Écran player : lifecycle, ads, sécurité (Activity séparée pour PiP)
 ├── PlayerViewModel.kt         (342 lignes) — ViewModel player : ExoPlayer, tracks, état
-├── VideoListActivity.kt       (352 lignes) — Liste des flux sauvegardés
 ├── VideoListViewModel.kt      (42 lignes)  — ViewModel liste : CRUD vidéos (délègue à Repository)
-├── AddVideoActivity.kt        (357 lignes) — Formulaire ajout d'un flux
-├── AdManager.kt               (116 lignes) — Singleton AdMob : loadAndShow()
+├── AdManager.kt               (106 lignes) — Singleton AdMob : loadAndShow()
 ├── VideoItem.kt               (13 lignes)  — Data class vidéo (id UUID, title, url)
 ├── VideoTrackInfo.kt          (11 lignes)  — Data class piste vidéo (nom, groupe, index)
 ├── ads/
 │   └── AdsController.kt       (113 lignes) — Orchestration pub : retry, timeout, state
 ├── data/
 │   └── VideoRepository.kt     (69 lignes)  — Persistance vidéos (SharedPrefs + JSON)
+├── navigation/
+│   ├── Screen.kt              (17 lignes)  — Sealed class des routes (Home, Videos, AddVideo)
+│   └── NavGraph.kt            (107 lignes) — NavHost avec 3 destinations + transitions animées
 ├── player/
 │   └── PlayerController.kt    (91 lignes)  — Résolution URL, validation flux (localisé)
 ├── security/
@@ -36,6 +37,10 @@ com.example.stv/
 │   └── NetworkUtils.kt        (26 lignes)  — Point unique vérification réseau
 └── ui/
     ├── PlayerUiState.kt        (24 lignes)  — State machine du player (6 états)
+    ├── screens/
+    │   ├── HomeScreen.kt       (277 lignes) — Écran d'accueil (drawer, hero, boutons)
+    │   ├── VideoListScreen.kt  (276 lignes) — Liste flux + recherche + suppression
+    │   └── AddVideoScreen.kt   (267 lignes) — Formulaire ajout flux + validation
     ├── components/
     │   ├── VideoPlayer.kt      (158 lignes) — Composable player ExoPlayer + contrôles
     │   ├── PlayerControls.kt   (339 lignes) — Overlay contrôles + seekbar personnalisée
@@ -48,19 +53,19 @@ com.example.stv/
         └── Type.kt             (~15 lignes) — Typographie
 ```
 
-**Total** : ~3 220 lignes de code Kotlin source + 38 tests
+**Total** : ~3 350 lignes de code Kotlin source + 38 tests
 
 ### 1.2 Architecture pattern
 
 | Couche | Pattern | Implémentation |
 |--------|---------|----------------|
-| UI | Jetpack Compose | 4 Activities + composables réutilisables dans `ui/components/` |
-| State | MVVM + StateFlow | `PlayerViewModel`, `VideoListViewModel` |
+| UI | Jetpack Compose | 1 Activity hôte (NavHost) + 1 Activity Player (PiP) + composables écrans dans `ui/screens/` |
+| Navigation | Compose Navigation | `NavHost` avec 3 routes (Home, Videos, AddVideo) + transitions animées slide/fade |
+| State | MVVM + StateFlow | `PlayerViewModel`, `VideoListViewModel` (partagé via NavGraph) |
 | State machine | Sealed class 6 états | `PlayerUiState` (LoadingAds, ShowingAd, Ready, Error, NeedRetry, NetworkError) |
 | Ads | Singleton + Controller | `AdManager` (singleton), `AdsController` (orchestration retry/timeout) |
 | Persistance | Repository + SharedPrefs + JSON | `VideoRepository` avec Kotlin Serialization |
 | Sécurité | Vérification signature | `PermissionHelper` |
-| Navigation | Multi-Activity | 4 Activities (singleTask pour Player et VideoList) |
 | Tests | JUnit + MockK + Coroutines Test | 38 tests unitaires (4 suites) |
 
 ### 1.3 Diagramme des composants
@@ -70,20 +75,19 @@ STVApplication.onCreate()
   ├── MobileAds.initialize()  ← 1 seule fois
   └── AdManager.initialize()  ← Singleton prêt
 
-MainActivity ──── [+] ───► AddVideoActivity (résultat)
-     │                                │
-     └── [Videos] ──► VideoListActivity ──── [clic item] ──► PlayerActivity
-                             │                                     │
-                        [+] ──► AddVideoActivity                   │
-                                                                   │
-                                PlayerActivity ◄─── Deep links / Intent externe
-                                     │
-                          ┌──────────┴──────────┐
-                          │                     │
-                    AdsController          PlayerViewModel
-                          │                     │
-                    AdManager              ExoPlayer (Media3)
-                   (singleton)
+MainActivity (NavHost — 1 seule Activity hôte)
+  ├── HomeScreen ──── [+] ───► AddVideoScreen (navController)
+  │       │                         │
+  │       └── [Videos] ──► VideoListScreen ──── [+] ──► AddVideoScreen
+  │                             │
+  │                      [clic item] ──► PlayerActivity (startActivity — séparée)
+  │
+  └── VideoListViewModel (partagé entre tous les écrans via NavGraph)
+
+PlayerActivity ◄─── Deep links / Intent externe
+      │
+      ├── AdsController → AdManager (singleton)
+      └── PlayerViewModel → ExoPlayer (Media3)
 ```
 
 ---
@@ -129,7 +133,7 @@ MainActivity ──── [+] ───► AddVideoActivity (résultat)
 | Point | Détail |
 |-------|--------|
 | **Vérification signature** | `PermissionHelper` vérifie que l'appelant est signé avec la même clé |
-| **Activities non exportées** | `VideoListActivity` et `AddVideoActivity` → `exported=false` |
+| **Écrans internes non exposés** | VideoList et AddVideo sont des composables dans NavHost — inaccessibles de l'extérieur |
 | **network_security_config** | Présent pour contrôler les connexions réseau |
 | **Validation URL complète** | Schéma (http/https), longueur (≤2048), format (Patterns.WEB_URL) |
 | **IDs AdMob protégés** | Production lus depuis `local.properties` (hors Git) |
@@ -154,7 +158,7 @@ app/src/test/java/com/example/stv/
 
 ---
 
-## 3. HISTORIQUE COMPLET DES 32 CORRECTIONS RÉALISÉES ✅
+## 3. HISTORIQUE COMPLET DES 34 CORRECTIONS RÉALISÉES ✅
 
 | # | Correction | Détail |
 |---|-----------|--------|
@@ -190,6 +194,8 @@ app/src/test/java/com/example/stv/
 | 30 | `isNetworkAvailable()` dupliquée | Créé `util/NetworkUtils.kt` — point unique. Supprimé dans `MainActivity` (companion) et `AdManager` (méthode privée) |
 | 31 | `catch(e)` non utilisé `PlayerController` | → `catch (_: Exception)` dans `isWhitelistedDomain()` |
 | 32 | Fallback `"Auto (${height}p)"` en dur | Fallback utilise `R.string.quality_auto` au lieu d'un texte anglais en dur |
+| 33 | Migration Compose Navigation | `NavHost` avec 3 routes (Home, Videos, AddVideo) + transitions slide/fade. Supprimé `VideoListActivity` et `AddVideoActivity`. `MainActivity` réduit à 51 lignes. `VideoListViewModel` partagé via NavGraph. `PlayerActivity` reste séparée (PiP/singleTask). |
+| 34 | Seekbar LIVE même style que VOD | Buffer LIVE changé de jaune `#FFF176` → blanc 50% (identique VOD). Fonctionnement lecture seule inchangé. |
 
 ---
 
@@ -219,7 +225,7 @@ app/src/test/java/com/example/stv/
 | U2 | Historique de lecture | ⏱️ 1-2h |
 | U3 | Favoris | ⏱️ 1h |
 | U4 | Migration vers Room DB | ⏱️ 2h |
-| U5 | Compose Navigation (single Activity) | ⏱️ 3-4h |
+| ~~U5~~ | ~~Compose Navigation (single Activity)~~ | ✅ Corrigé (#33) |
 | U6 | Mode portrait optionnel | ⏱️ 1h |
 
 ### 4.4 🔵 PERFORMANCE / MÉMOIRE — Aucun problème détecté
@@ -275,7 +281,7 @@ Lifecycle :
 |---------|---------|--------|
 | Badge LIVE | ✅ Rouge + point blanc | ❌ |
 | Seekbar | ✅ Lecture seule | ✅ Interactive (drag) |
-| Buffer | Jaune `#FFF176` | Blanc 50% |
+| Buffer | Blanc 50% (même style que VOD) | Blanc 50% |
 | Thumb | Material3 réduit, non déplaçable | Material3 réduit, glissable |
 | Track | 3dp | 3dp |
 | Temps | ❌ | ✅ position / durée |
@@ -288,15 +294,17 @@ Lifecycle :
 
 | Métrique | Valeur |
 |----------|--------|
-| Lignes source | ~3 220 |
-| Fichiers source | 21 (+1 `util/NetworkUtils.kt`) |
-| Fichier le plus gros | MainActivity.kt (392) |
+| Lignes source | ~3 350 |
+| Fichiers source | 22 (dont 3 nouveaux : `navigation/`, `ui/screens/`) |
+| Fichier le plus gros | PlayerActivity.kt (359) |
+| MainActivity.kt | 51 lignes (réduit de 392 → 51 grâce à NavHost) |
 | Warnings | 2 (Theme.kt deprecated — non bloquants) |
 | Erreurs | 0 |
 | i18n | 100% (EN + FR) |
 | Tests | 38 (0 échec) |
-| Corrections appliquées | 32 |
+| Corrections appliquées | 34 |
 | Strings orphelines restantes | 0 ✅ |
+| Activities | 2 (MainActivity NavHost + PlayerActivity PiP) — réduit de 4 |
 
 ---
 
@@ -309,8 +317,10 @@ Lifecycle :
 - Sécurité signature + validation URL
 - i18n EN/FR 100%
 - 38 tests unitaires
-- Code découpé (21 fichiers, aucun > 500 lignes)
+- Compose Navigation — 1 Activity hôte (NavHost) + PlayerActivity séparée (PiP)
+- Code découpé (22 fichiers, aucun > 360 lignes)
 - `NetworkUtils.kt` — point unique pour vérification réseau
+- `VideoListViewModel` partagé entre tous les écrans (plus de Intent/ActivityResult)
 - 0 strings orphelines
 
 ### ⚠️ À faire :
@@ -318,15 +328,21 @@ Lifecycle :
 - **Rapide** : `usesCleartextTraffic="true"` global (M1)
 
 ### 💡 V2 :
-- Chromecast, Historique, Favoris, Room DB, Compose Navigation
+- Chromecast, Historique, Favoris, Room DB
 
 ### Fichiers clés :
 | Fichier | Rôle |
 |---------|------|
 | `STVApplication.kt` | Init AdMob + AdManager |
+| `MainActivity.kt` | Point d'entrée unique — NavHost + splash (51 lignes) |
+| `navigation/Screen.kt` | Routes sealed class (Home, Videos, AddVideo) |
+| `navigation/NavGraph.kt` | NavHost 3 destinations + transitions slide/fade |
+| `ui/screens/HomeScreen.kt` | Écran accueil (drawer, boutons) |
+| `ui/screens/VideoListScreen.kt` | Liste flux + recherche + suppression |
+| `ui/screens/AddVideoScreen.kt` | Formulaire ajout flux + validation |
 | `AdManager.kt` | Singleton — `loadAndShow()` |
 | `AdsController.kt` | Orchestration retry/timeout |
-| `PlayerActivity.kt` | Lifecycle, ads flow, sécurité |
+| `PlayerActivity.kt` | Lifecycle, ads flow, sécurité (séparée pour PiP) |
 | `PlayerViewModel.kt` | ExoPlayer, `uiState` StateFlow, tracks |
 | `PlayerUiState.kt` | Sealed class 6 états |
 | `PlayerController.kt` | Validation URL, résolution Intent |

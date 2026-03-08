@@ -1,11 +1,6 @@
-package com.example.stv
+package com.example.stv.ui.screens
 
 import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,14 +14,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -34,7 +29,6 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -52,66 +46,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.stv.ui.theme.STVTheme
+import com.example.stv.PlayerActivity
+import com.example.stv.R
+import com.example.stv.VideoItem
+import com.example.stv.VideoListViewModel
 
-// ✅ VideoListActivity est une Activity normale, pas une API Media3 instable
-class VideoListActivity : ComponentActivity() {
-
-    private val viewModel: VideoListViewModel by viewModels()
-
-    private val addVideoLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data
-            val title = data?.getStringExtra(AddVideoActivity.EXTRA_TITLE)
-            val url = data?.getStringExtra(AddVideoActivity.EXTRA_URL)
-            if (!title.isNullOrBlank() && !url.isNullOrBlank()) {
-                viewModel.addVideo(VideoItem(title = title, url = url))
-            }
-        }
-    }
-
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            STVTheme {
-                VideoListScreen(
-                    viewModel = viewModel,
-                    onAddClick = {
-                        val intent = Intent(this, AddVideoActivity::class.java)
-                        addVideoLauncher.launch(intent)
-                    },
-                    onVideoClick = { item ->
-                        val intent = Intent(this, PlayerActivity::class.java)
-                        intent.putExtra("VIDEO_URL", item.url)
-                        startActivity(intent)
-                    }
-                )
-            }
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Recharger la liste depuis SharedPreferences au cas où elle a été modifiée
-        viewModel.refreshVideos()
-    }
-}
-
+/**
+ * Écran liste des flux — anciennement dans VideoListActivity.kt
+ *
+ * @param viewModel      ViewModel partagé pour la gestion des vidéos
+ * @param onAddClick     Naviguer vers l'écran AddVideo
+ * @param onBackClick    Revenir en arrière (navController.popBackStack)
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoListScreen(
     viewModel: VideoListViewModel,
     onAddClick: () -> Unit,
-    onVideoClick: (VideoItem) -> Unit
+    onBackClick: () -> Unit
 ) {
     val videos by viewModel.videos.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
 
-    // Filtrer les vidéos en fonction de la recherche
     val filteredVideos = videos.filter { video ->
         video.title.contains(searchQuery, ignoreCase = true) ||
         video.url.contains(searchQuery, ignoreCase = true)
@@ -131,13 +89,10 @@ fun VideoListScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        // Fermer VideoListActivity - revenir à MainActivity
-                        (context as? ComponentActivity)?.finish()
-                    }) {
+                    IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back_button)
                         )
                     }
                 },
@@ -164,7 +119,6 @@ fun VideoListScreen(
     ) { padding ->
         Surface(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Barre de recherche
                 SearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
@@ -201,7 +155,6 @@ fun VideoListScreen(
                         }
                     }
                 } else {
-                    // ✅ State pour le dialogue de confirmation de suppression
                     var videoToDelete by remember { mutableStateOf<VideoItem?>(null) }
 
                     LazyColumn(
@@ -215,12 +168,16 @@ fun VideoListScreen(
                                 item = item,
                                 canDelete = canDelete,
                                 onDelete = { videoToDelete = item },
-                                onClick = { onVideoClick(item) }
+                                onClick = {
+                                    // ✅ Lancer PlayerActivity (reste une Activity séparée pour PiP/singleTask)
+                                    val intent = Intent(context, PlayerActivity::class.java)
+                                    intent.putExtra("VIDEO_URL", item.url)
+                                    context.startActivity(intent)
+                                }
                             )
                         }
                     }
 
-                    // ✅ Dialogue de confirmation avant suppression
                     videoToDelete?.let { item ->
                         AlertDialog(
                             onDismissRequest = { videoToDelete = null },
@@ -349,3 +306,4 @@ private fun VideoCard(
         }
     }
 }
+
