@@ -13,9 +13,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +36,7 @@ import java.util.concurrent.TimeUnit
  * Overlay des contrôles du player (play/pause, seek, PiP, qualité, etc.).
  * Apparaît avec fadeIn/fadeOut et disparaît automatiquement après 3s.
  */
+@kotlin.OptIn(ExperimentalMaterial3Api::class)
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerControls(
@@ -121,14 +128,17 @@ fun PlayerControls(
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Rewind -10s
-                        IconButton(onClick = onRewindClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Replay10,
-                                contentDescription = stringResource(R.string.rewind_10s),
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
+                        // ✅ Rewind/Forward masqués pour les flux LIVE (pas de sens de seek)
+                        if (!isLive) {
+                            // Rewind -10s
+                            IconButton(onClick = onRewindClick) {
+                                Icon(
+                                    imageVector = Icons.Filled.Replay10,
+                                    contentDescription = stringResource(R.string.rewind_10s),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                         }
 
                         // Play/Pause
@@ -141,14 +151,16 @@ fun PlayerControls(
                             )
                         }
 
-                        // Forward +10s
-                        IconButton(onClick = onForwardClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Forward10,
-                                contentDescription = stringResource(R.string.forward_10s),
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
+                        if (!isLive) {
+                            // Forward +10s
+                            IconButton(onClick = onForwardClick) {
+                                Icon(
+                                    imageVector = Icons.Filled.Forward10,
+                                    contentDescription = stringResource(R.string.forward_10s),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                         }
 
 
@@ -184,49 +196,126 @@ fun PlayerControls(
                     }
                 }
 
+                // ✅ Seekbar : toujours visible comme indicateur visuel
+                // - LIVE : lecture seule (pas de thumb, pas de drag, pas de temps)
+                // - VOD : interactive (drag + temps affiché)
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Barre de progression et temps
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = formatDuration(currentPosition),
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
+                    if (isLive) {
+                        // ── LIVE : barre de progression en lecture seule ──
+                        Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                            // Barre de buffer (arrière-plan) — jaune clair
+                            LinearProgressIndicator(
+                                progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3.dp),
+                                color = Color(0xFFFFF176),
+                                trackColor = Color.White.copy(alpha = 0.2f),
+                            )
 
-                    Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                        // Barre de buffer (arrière-plan)
-                        LinearProgressIndicator(
-                            progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp),
-                            color = Color.White.copy(alpha = 0.5f),
-                            trackColor = Color.White.copy(alpha = 0.2f),
+                            // Slider en lecture seule — thumb réduit en hauteur, track réduite 3dp
+                            Slider(
+                                value = currentPosition.toFloat(),
+                                onValueChange = { /* Lecture seule */ },
+                                enabled = false,
+                                valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                                thumb = {
+                                    SliderDefaults.Thumb(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        modifier = Modifier.graphicsLayer(scaleY = 0.7f),
+                                        colors = SliderDefaults.colors(disabledThumbColor = Color.Red),
+                                        enabled = false
+                                    )
+                                },
+                                track = { sliderState ->
+                                    SliderDefaults.Track(
+                                        sliderState = sliderState,
+                                        modifier = Modifier.height(3.dp),
+                                        colors = SliderDefaults.colors(
+                                            disabledActiveTrackColor = Color.Red,
+                                            disabledInactiveTrackColor = Color.Transparent
+                                        )
+                                    )
+                                },
+                                colors = SliderDefaults.colors(
+                                    disabledThumbColor = Color.Red,
+                                    disabledActiveTrackColor = Color.Red,
+                                    disabledInactiveTrackColor = Color.Transparent
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        // ── VOD : barre interactive avec drag + temps ──
+                        var isDragging by remember { mutableStateOf(false) }
+                        var dragPosition by remember { mutableFloatStateOf(0f) }
+
+                        Text(
+                            text = formatDuration(if (isDragging) dragPosition.toLong() else currentPosition),
+                            color = Color.White,
+                            fontSize = 12.sp
                         )
 
-                        // Slider de lecture (avant-plan)
-                        Slider(
-                            value = currentPosition.toFloat(),
-                            onValueChange = { onSeek(it.toLong()) },
-                            valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.Red,
-                                activeTrackColor = Color.Red,
-                                inactiveTrackColor = Color.Transparent
-                            ),
-                            modifier = Modifier.fillMaxWidth()
+                        Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                            // Barre de buffer (arrière-plan) — track 3dp
+                            LinearProgressIndicator(
+                                progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3.dp),
+                                color = Color.White.copy(alpha = 0.5f),
+                                trackColor = Color.White.copy(alpha = 0.2f),
+                            )
+
+                            // Slider Material3 — thumb réduit en hauteur, track réduite 3dp
+                            Slider(
+                                value = if (isDragging) dragPosition else currentPosition.toFloat(),
+                                onValueChange = {
+                                    isDragging = true
+                                    dragPosition = it
+                                },
+                                onValueChangeFinished = {
+                                    isDragging = false
+                                    onSeek(dragPosition.toLong())
+                                },
+                                valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                                thumb = {
+                                    SliderDefaults.Thumb(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        modifier = Modifier.graphicsLayer(scaleY = 0.7f),
+                                        colors = SliderDefaults.colors(thumbColor = Color.Red)
+                                    )
+                                },
+                                track = { sliderState ->
+                                    SliderDefaults.Track(
+                                        sliderState = sliderState,
+                                        modifier = Modifier.height(3.dp),
+                                        colors = SliderDefaults.colors(
+                                            activeTrackColor = Color.Red,
+                                            inactiveTrackColor = Color.Transparent
+                                        )
+                                    )
+                                },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.Red,
+                                    activeTrackColor = Color.Red,
+                                    inactiveTrackColor = Color.Transparent
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        Text(
+                            text = formatDuration(duration),
+                            color = Color.White,
+                            fontSize = 12.sp
                         )
                     }
-
-                    Text(
-                        text = formatDuration(duration),
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
                 }
             }
         }

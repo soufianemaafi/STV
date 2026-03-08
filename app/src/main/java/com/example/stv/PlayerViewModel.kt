@@ -212,19 +212,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun seekTo(positionMs: Long) {
-        _exoPlayer?.seekTo(positionMs)
-        _currentPosition.value = positionMs
+        val player = _exoPlayer ?: return
+        val clamped = positionMs.coerceIn(0L, player.duration.coerceAtLeast(0L))
+        player.seekTo(clamped)
+        _currentPosition.value = clamped
     }
 
     fun seekForward() {
         _exoPlayer?.let { player ->
-            seekTo(player.currentPosition + 10000)
+            seekTo((player.currentPosition + 10000).coerceAtMost(player.duration.coerceAtLeast(0L)))
         }
     }
 
     fun seekRewind() {
         _exoPlayer?.let { player ->
-            seekTo(player.currentPosition - 10000)
+            seekTo((player.currentPosition - 10000).coerceAtLeast(0L))
         }
     }
 
@@ -298,7 +300,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                        R.string.quality_auto_with_resolution,
                        height
                    )
-               } catch (e: Exception) {
+               } catch (_: Exception) {
                    // Fallback si la ressource n'existe pas encore ou erreur
                    _currentTrackName.value = "Auto (${height}p)"
                }

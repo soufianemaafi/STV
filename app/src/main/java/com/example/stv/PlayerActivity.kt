@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
@@ -70,6 +71,13 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // ✅ Gestion du bouton Retour (Android 13+ : onBackPressedDispatcher)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                finishAndRemoveTask()
+            }
+        })
 
         // ✅ SÉCURITÉ : Vérifier l'appelant avant de continuer
         val permissionHelper = com.example.stv.security.PermissionHelper(this)
@@ -339,7 +347,11 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        // ✅ PiP automatique UNIQUEMENT si le player est en lecture (pas pendant les ads, erreurs, etc.)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
+            && viewModel.isReady()
+            && viewModel.exoPlayer?.isPlaying == true
+        ) {
             enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().build())
         }
     }
