@@ -32,6 +32,8 @@ com.example.stv/
 │   └── PlayerController.kt    (91 lignes)  — Résolution URL, validation flux (localisé)
 ├── security/
 │   └── PermissionHelper.kt    (172 lignes) — Vérification signature appelant
+├── util/
+│   └── NetworkUtils.kt        (26 lignes)  — Point unique vérification réseau
 └── ui/
     ├── PlayerUiState.kt        (24 lignes)  — State machine du player (6 états)
     ├── components/
@@ -46,7 +48,7 @@ com.example.stv/
         └── Type.kt             (~15 lignes) — Typographie
 ```
 
-**Total** : ~3 200 lignes de code Kotlin source + 38 tests
+**Total** : ~3 220 lignes de code Kotlin source + 38 tests
 
 ### 1.2 Architecture pattern
 
@@ -136,7 +138,7 @@ MainActivity ──── [+] ───► AddVideoActivity (résultat)
 
 | Point | Détail |
 |-------|--------|
-| **2 langues complètes** | `values/strings.xml` (EN — 109 strings) + `values-fr/strings.xml` (FR — 110 strings) |
+| **2 langues complètes** | `values/strings.xml` (EN — 76 strings) + `values-fr/strings.xml` (FR — 71 strings) |
 | **Tous les textes** | UI, erreurs, validations, contrôles → `stringResource()` / `getString()` |
 | **Messages d'erreur** | PlayerController, AddVideoActivity, PlayerViewModel → string resources |
 
@@ -152,7 +154,7 @@ app/src/test/java/com/example/stv/
 
 ---
 
-## 3. HISTORIQUE COMPLET DES 28 CORRECTIONS RÉALISÉES ✅
+## 3. HISTORIQUE COMPLET DES 32 CORRECTIONS RÉALISÉES ✅
 
 | # | Correction | Détail |
 |---|-----------|--------|
@@ -184,6 +186,10 @@ app/src/test/java/com/example/stv/
 | 26 | Warning `catch(e)` non utilisé | → `catch (_: Exception)` |
 | 27 | 0 tests unitaires | 38 tests créés (AdsController, PlayerController, PlayerUiState, VideoItem) |
 | 28 | Seekbar/thumb trop gros | Thumb `scaleY=0.7`, track `3dp`, buffer LIVE jaune `#FFF176` |
+| 29 | ~10 strings orphelines (EN+FR) | Supprimé : `history`, `favorites`, `settings`, `cast_button`, `resize_dialog_title`, `resize_mode_*` (5) + doublon `format_content_description` FR |
+| 30 | `isNetworkAvailable()` dupliquée | Créé `util/NetworkUtils.kt` — point unique. Supprimé dans `MainActivity` (companion) et `AdManager` (méthode privée) |
+| 31 | `catch(e)` non utilisé `PlayerController` | → `catch (_: Exception)` dans `isWhitelistedDomain()` |
+| 32 | Fallback `"Auto (${height}p)"` en dur | Fallback utilise `R.string.quality_auto` au lieu d'un texte anglais en dur |
 
 ---
 
@@ -200,10 +206,10 @@ app/src/test/java/com/example/stv/
 | # | Problème | Fichier | Effort |
 |---|----------|---------|--------|
 | M1 | `usesCleartextTraffic="true"` global | AndroidManifest.xml L18 | ⏱️ 10 min |
-| M2 | ~9 strings orphelines (history, favorites, settings, cast_button, resize_mode_*) | strings.xml EN+FR | ⏱️ 5 min |
-| M3 | `isNetworkAvailable()` dupliquée dans MainActivity et AdManager | 2 fichiers | ⏱️ 10 min |
-| M4 | `catch(e)` non utilisé dans `PlayerController.isWhitelistedDomain()` | PlayerController.kt L85 | ⏱️ 1 min |
-| M5 | Fallback `"Auto (${height}p)"` en dur (anglais) | PlayerViewModel.kt L305 | ⏱️ 5 min |
+| ~~M2~~ | ~~\~9 strings orphelines~~ | ~~strings.xml EN+FR~~ | ✅ Corrigé (#29) |
+| ~~M3~~ | ~~`isNetworkAvailable()` dupliquée~~ | ~~2 fichiers~~ | ✅ Corrigé (#30) — `util/NetworkUtils.kt` |
+| ~~M4~~ | ~~`catch(e)` non utilisé~~ | ~~PlayerController.kt~~ | ✅ Corrigé (#31) |
+| ~~M5~~ | ~~Fallback `"Auto (${height}p)"` en dur~~ | ~~PlayerViewModel.kt~~ | ✅ Corrigé (#32) |
 
 ### 4.3 🟢 FONCTIONNALITÉS V2
 
@@ -282,15 +288,15 @@ Lifecycle :
 
 | Métrique | Valeur |
 |----------|--------|
-| Lignes source | ~3 200 |
-| Fichiers source | 20 |
-| Fichier le plus gros | MainActivity.kt (410) |
+| Lignes source | ~3 220 |
+| Fichiers source | 21 (+1 `util/NetworkUtils.kt`) |
+| Fichier le plus gros | MainActivity.kt (392) |
 | Warnings | 2 (Theme.kt deprecated — non bloquants) |
 | Erreurs | 0 |
 | i18n | 100% (EN + FR) |
 | Tests | 38 (0 échec) |
-| Corrections appliquées | 28 |
-| Strings orphelines restantes | ~9 (mineur) |
+| Corrections appliquées | 32 |
+| Strings orphelines restantes | 0 ✅ |
 
 ---
 
@@ -303,11 +309,13 @@ Lifecycle :
 - Sécurité signature + validation URL
 - i18n EN/FR 100%
 - 38 tests unitaires
-- Code découpé (20 fichiers, aucun > 500 lignes)
+- Code découpé (21 fichiers, aucun > 500 lignes)
+- `NetworkUtils.kt` — point unique pour vérification réseau
+- 0 strings orphelines
 
 ### ⚠️ À faire :
 - **BLOQUANT** : Changer le package `com.example.stv`
-- **Rapide** : Nettoyer ~9 strings orphelines, factoriser `isNetworkAvailable()`
+- **Rapide** : `usesCleartextTraffic="true"` global (M1)
 
 ### 💡 V2 :
 - Chromecast, Historique, Favoris, Room DB, Compose Navigation
@@ -324,6 +332,7 @@ Lifecycle :
 | `PlayerController.kt` | Validation URL, résolution Intent |
 | `VideoRepository.kt` | Persistance SharedPrefs + JSON |
 | `PlayerControls.kt` | Seekbar LIVE/VOD, contrôles |
+| `util/NetworkUtils.kt` | Point unique vérification réseau |
 | `build.gradle.kts` | Flavors dev/prod, signing |
 | `app/src/test/` | 38 tests (4 suites) |
 

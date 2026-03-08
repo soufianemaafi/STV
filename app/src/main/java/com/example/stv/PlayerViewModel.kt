@@ -294,15 +294,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (parameters.overrides.isEmpty()) {
             val height = player.videoFormat?.height ?: 0
             if (height > 0) {
-               // Affiche "Auto (1920x1080)" pour être plus précis
-               try {
-                   _currentTrackName.value = getApplication<Application>().getString(
+               _currentTrackName.value = try {
+                   getApplication<Application>().getString(
                        R.string.quality_auto_with_resolution,
                        height
                    )
                } catch (_: Exception) {
-                   // Fallback si la ressource n'existe pas encore ou erreur
-                   _currentTrackName.value = "Auto (${height}p)"
+                   // Fallback : utilise la string Auto simple
+                   getApplication<Application>().getString(R.string.quality_auto)
                }
             } else {
                 _currentTrackName.value = getApplication<Application>().getString(R.string.quality_auto)

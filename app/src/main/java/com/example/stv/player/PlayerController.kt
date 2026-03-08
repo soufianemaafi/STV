@@ -82,7 +82,7 @@ class PlayerController(private val context: Context) {
             val uri = android.net.Uri.parse(url)
             val host = uri.host ?: return false
             allowedDomains.any { host.endsWith(it) }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

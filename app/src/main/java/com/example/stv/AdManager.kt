@@ -2,9 +2,8 @@ package com.example.stv
 
 import android.app.Activity
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.util.Log
+import com.example.stv.util.NetworkUtils
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
@@ -48,12 +47,6 @@ class AdManager private constructor(context: Context) {
     private val TAG = "AdManager"
     private val AD_UNIT_ID = BuildConfig.ADMOB_INTERSTITIAL_ID
 
-    private fun isNetworkAvailable(): Boolean {
-        val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork ?: return false
-        val caps = cm.getNetworkCapabilities(network) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
 
     /**
      * Charge et affiche une pub interstitielle.
@@ -70,7 +63,7 @@ class AdManager private constructor(context: Context) {
         onFailed: () -> Unit,
         onNoNetwork: () -> Unit
     ) {
-        if (!isNetworkAvailable()) {
+        if (!NetworkUtils.isNetworkAvailable(appContext)) {
             Log.w(TAG, "No network.")
             onNoNetwork()
             return
@@ -84,7 +77,7 @@ class AdManager private constructor(context: Context) {
             object : InterstitialAdLoadCallback() {
                 override fun onAdFailedToLoad(adError: LoadAdError) {
                     Log.d(TAG, "Ad failed to load: $adError")
-                    if (!isNetworkAvailable() || adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
+                    if (!NetworkUtils.isNetworkAvailable(appContext) || adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
                         onNoNetwork()
                     } else {
                         onFailed()

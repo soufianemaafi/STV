@@ -9,9 +9,6 @@
     -->
 
     <!-- MainActivity -->
-    <string name="history">Historique</string>
-    <string name="favorites">Favoris</string>
-    <string name="settings">Paramètres</string>
     <string name="menu_content_description">Menu</string>
     <string name="stream_url_label">URL du flux</string>
     <string name="url_empty_error">L\'URL ne peut pas être vide</string>
@@ -26,12 +23,6 @@
     <string name="error_url_invalid_format">Format d\'URL invalide</string>
     <string name="format_content_description">Format</string>
     <string name="quality_content_description">Qualité</string>
-    <string name="resize_dialog_title">Format d\'affichage</string>
-    <string name="resize_mode_fit">Ajuster</string>
-    <string name="resize_mode_fill">Remplir</string>
-    <string name="resize_mode_zoom">Zoom</string>
-    <string name="resize_mode_fixed_width">Largeur fixe</string>
-    <string name="resize_mode_fixed_height">Hauteur fixe</string>
     <string name="close_button">Fermer</string>
     <string name="quality_dialog_title">Qualité vidéo</string>
 
@@ -97,7 +88,6 @@
     <string name="rewind_10s">Reculer 10s</string>
     <string name="forward_10s">Avancer 10s</string>
     <string name="pause_button">Pause</string>
-    <string name="cast_button">Cast</string>
     <string name="pip_button">PiP</string>
     <string name="live_badge_cd">Flux en direct</string>
     <string name="access_denied">Accès refusé</string>

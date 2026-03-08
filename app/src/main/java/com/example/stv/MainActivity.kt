@@ -1,9 +1,6 @@
 package com.example.stv
 
-import android.content.Context
 import android.content.Intent
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -70,6 +67,7 @@ import com.example.stv.ui.theme.BlackDrawer
 import com.example.stv.ui.theme.WhitePrimary
 import com.example.stv.ui.theme.GrayLight
 import com.example.stv.ui.theme.GrayMuted
+import com.example.stv.util.NetworkUtils
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -116,20 +114,6 @@ class MainActivity : ComponentActivity() {
         window.decorView.postDelayed({
             keepSplashScreen = false
         }, 500)
-    }
-
-    companion object {
-        /**
-         * Vérifie si une connexion internet est disponible et validée.
-         * Utilise l'API moderne NetworkCapabilities (depuis minSdk=24).
-         */
-        fun isNetworkAvailable(context: Context): Boolean {
-            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = connectivityManager.activeNetwork ?: return false
-            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-            return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                   capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-        }
     }
 }
 
@@ -298,7 +282,7 @@ fun MainScreen(onAddVideoClick: () -> Unit = {}) {
                                 if (now - lastClickTime > debounceTime) {
                                     lastClickTime = now
                                     // ✅ Vérification réseau avant navigation
-                                    if (MainActivity.isNetworkAvailable(context)) {
+                                    if (NetworkUtils.isNetworkAvailable(context)) {
                                         onAddVideoClick()
                                     } else {
                                         scope.launch {
@@ -335,7 +319,7 @@ fun MainScreen(onAddVideoClick: () -> Unit = {}) {
                             if (now - lastClickTime > debounceTime) {
                                 lastClickTime = now
                                 // ✅ Vérification réseau avant navigation
-                                if (MainActivity.isNetworkAvailable(context)) {
+                                if (NetworkUtils.isNetworkAvailable(context)) {
                                     val intent = Intent(context, VideoListActivity::class.java)
                                     context.startActivity(intent)
                                 } else {
