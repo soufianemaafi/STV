@@ -86,6 +86,7 @@ class AdManager private constructor(context: Context) {
                     synchronized(preloadLock) {
                         isPreloading = false
                     }
+                    preloadInterstitial()
                 }
 
                 override fun onAdLoaded(ad: InterstitialAd) {
