@@ -165,12 +165,14 @@ class PlayerViewModel @JvmOverloads constructor(
     fun onAction(action: PlayerUiAction) {
         when (action) {
             is PlayerUiAction.LoadVideo -> {
+                currentUrl = action.videoUrl
                 _uiState.value = if (action.skipAds) {
                     PlayerUiState.Ready(action.videoUrl)
                 } else {
                     PlayerUiState.LoadingAds(action.videoUrl)
                 }
             }
+            is PlayerUiAction.RetryAdCheck -> retryAdCheck()
             is PlayerUiAction.RejectInvalidIntent -> {
                 _uiState.value = PlayerUiState.Error(action.userMessage)
             }
@@ -224,6 +226,25 @@ class PlayerViewModel @JvmOverloads constructor(
         _player.playWhenReady = true
         _player.setMediaItem(MediaItem.fromUri(url))
         _player.prepare()
+    }
+
+    private fun retryAdCheck() {
+        val url = currentUrl ?: extractCurrentUrlFromState() ?: return
+        currentUrl = url
+        _errorMessage.value = null
+        _uiState.value = PlayerUiState.LoadingAds(url, forceAdCheck = true)
+    }
+
+    private fun extractCurrentUrlFromState(): String? {
+        return when (val state = _uiState.value) {
+            is PlayerUiState.LoadingAds -> state.videoUrl
+            is PlayerUiState.ShowingAd -> state.videoUrl
+            is PlayerUiState.Ready -> state.videoUrl
+            is PlayerUiState.NeedRetry -> state.videoUrl
+            is PlayerUiState.NetworkError -> state.videoUrl
+            is PlayerUiState.AdBlockerBlocked -> state.videoUrl
+            else -> null
+        }
     }
 
     private fun togglePlayPause() {

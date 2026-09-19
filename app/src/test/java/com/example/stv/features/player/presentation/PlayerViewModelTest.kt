@@ -95,6 +95,16 @@ class PlayerViewModelTest {
         assertEquals(PlayerUiState.Error("Lien invalide"), viewModel.uiState.value)
     }
 
+    @Test
+    fun `RetryAdCheck relance LoadingAds avec la meme URL`() {
+        val url = "https://example.com/video.mp4"
+        viewModel.onAction(PlayerUiAction.LoadVideo(url, skipAds = false))
+
+        viewModel.onAction(PlayerUiAction.RetryAdCheck)
+
+        assertEquals(PlayerUiState.LoadingAds(url, forceAdCheck = true), viewModel.uiState.value)
+    }
+
     // ==================== onAction — PreparePlayback (construction MediaItem) ====================
 
     @Test

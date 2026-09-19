@@ -21,6 +21,9 @@ sealed class PlayerUiAction {
      */
     data class LoadVideo(val videoUrl: String, val skipAds: Boolean) : PlayerUiAction()
 
+    /** Relance proprement la vérification pub / AdBlocker via MVI. */
+    data object RetryAdCheck : PlayerUiAction()
+
     /**
      * L'Intent entrant a été jugé invalide ou potentiellement malveillant
      * (schéma interdit, URL malformée, extras corrompus, etc.).

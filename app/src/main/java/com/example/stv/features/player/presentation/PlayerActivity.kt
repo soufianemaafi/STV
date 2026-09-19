@@ -46,11 +46,11 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
 import com.example.stv.AdManager
 import com.example.stv.R
-import com.example.stv.ads.AdsController
-import com.example.stv.ads.AdsController.AdResult
+import com.example.stv.features.ads.AdFlowController
+import com.example.stv.features.ads.AdFlowController.AdResult
+import com.example.stv.features.ads.AdFrequencyManager
 import com.example.stv.core.security.IntentSecurityManager
 import com.example.stv.core.security.IntentValidationResult
-import com.example.stv.player.PlayerController
 import com.example.stv.ui.components.BlockedScreen
 import com.example.stv.ui.components.ErrorScreen
 import com.example.stv.ui.components.VideoPlayer
@@ -69,8 +69,7 @@ class PlayerActivity : ComponentActivity() {
     private var isInPipMode by mutableStateOf(false)
     private val viewModel: PlayerViewModel by viewModels()
     private lateinit var adManager: AdManager
-    private lateinit var adsController: AdsController
-    private lateinit var playerController: PlayerController
+    private lateinit var adsController: AdFlowController
     // ✅ Sécurité : valide TOUT intent entrant avant de le transmettre au ViewModel
     // (protection Intent Hijacking / Intent Redirection — voir core.security.IntentSecurityManager)
     private val intentSecurityManager = IntentSecurityManager()
@@ -139,15 +138,14 @@ class PlayerActivity : ComponentActivity() {
 
         // ✅ Utiliser le singleton AdManager (initialisé dans STVApplication)
         adManager = AdManager.instance
-        adsController = AdsController(adManager)
-        playerController = PlayerController(this)
+        adsController = AdFlowController(adManager, AdFrequencyManager.shared())
 
         hideSystemUI()
 
         // ✅ SÉCURITÉ : l'Activity ne fait AUCUNE logique métier — elle délègue
         // la validation stricte de l'Intent (schéma http/https uniquement) au
         // IntentSecurityManager, puis transforme le résultat en action MVI.
-        handleIncomingIntent(intent, isNewIntent = false)
+        handleIncomingIntent(intent)
 
         setContent {
             STVTheme {
@@ -166,11 +164,12 @@ class PlayerActivity : ComponentActivity() {
                     val currentState = uiState!!
 
                     // ✅ Flux ads : se lance quand l'état est LoadingAds
-                    LaunchedEffect(Unit) {
-                        val state = viewModel.uiState.value
-                        if (state is PlayerUiState.LoadingAds) {
-                            val url = state.videoUrl
-                            launchAdFlow(url)
+                    LaunchedEffect(currentState) {
+                        if (currentState is PlayerUiState.LoadingAds) {
+                            launchAdFlow(
+                                url = currentState.videoUrl,
+                                bypassCooldown = currentState.forceAdCheck
+                            )
                         }
                     }
 
@@ -187,12 +186,20 @@ class PlayerActivity : ComponentActivity() {
                         is PlayerUiState.ShowingAd -> {
                             Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                         }
+                        is PlayerUiState.AdBlockerBlocked -> {
+                            BlockedScreen(
+                                icon = Icons.Filled.Refresh,
+                                title = stringResource(R.string.ad_load_failed_title),
+                                message = stringResource(R.string.ad_load_failed_message),
+                                onRetry = { viewModel.onAction(PlayerUiAction.RetryAdCheck) }
+                            )
+                        }
                         is PlayerUiState.NeedRetry -> {
                             BlockedScreen(
                                 icon = Icons.Filled.Refresh,
                                 title = stringResource(R.string.ad_load_failed_title),
                                 message = stringResource(R.string.ad_load_failed_message),
-                                onRetry = { retryAds() }
+                                onRetry = { viewModel.onAction(PlayerUiAction.RetryAdCheck) }
                             )
                         }
                         is PlayerUiState.NetworkError -> {
@@ -200,7 +207,7 @@ class PlayerActivity : ComponentActivity() {
                                 icon = Icons.Filled.WifiOff,
                                 title = stringResource(R.string.no_network_title),
                                 message = stringResource(R.string.no_network_message),
-                                onRetry = { retryAds() }
+                                onRetry = { viewModel.onAction(PlayerUiAction.RetryAdCheck) }
                             )
                         }
                         is PlayerUiState.Ready -> {
@@ -240,7 +247,7 @@ class PlayerActivity : ComponentActivity() {
         // ✅ Le player (propriété du ViewModel) n'est PAS libéré ici : seule l'URL
         // change. `preparePlayback` (déclenché via PreparePlayback) réutilise
         // l'instance existante — pas de recréation, pas de fuite mémoire.
-        handleIncomingIntent(intent, isNewIntent = true)
+        handleIncomingIntent(intent)
     }
 
     /**
@@ -252,15 +259,12 @@ class PlayerActivity : ComponentActivity() {
      * potentiellement malveillant, il est ignoré en toute sécurité (log + état d'erreur
      * générique) — jamais de crash.
      */
-    private fun handleIncomingIntent(intent: Intent, isNewIntent: Boolean) {
+    private fun handleIncomingIntent(intent: Intent) {
         val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
 
         when (val result = intentSecurityManager.validateIncomingIntent(intent)) {
             is IntentValidationResult.Valid -> {
                 viewModel.onAction(PlayerUiAction.LoadVideo(result.videoUrl, skipAds))
-                if (isNewIntent && !skipAds) {
-                    launchAdFlow(result.videoUrl)
-                }
             }
             is IntentValidationResult.Invalid -> {
                 Log.w(tag, "Intent rejeté par IntentSecurityManager: ${result.reason}")
@@ -289,10 +293,11 @@ class PlayerActivity : ComponentActivity() {
     /**
      * Lance le flux ads pour une URL donnée.
      */
-    private fun launchAdFlow(url: String) {
+    private fun launchAdFlow(url: String, bypassCooldown: Boolean = false) {
         lifecycleScope.launch {
             val result = adsController.showAdIfNeeded(
                 activity = this@PlayerActivity,
+                bypassCooldown = bypassCooldown,
                 onAdShowed = {
                     viewModel.setUiState(PlayerUiState.ShowingAd(url))
                 }
@@ -300,33 +305,11 @@ class PlayerActivity : ComponentActivity() {
 
             viewModel.setUiState(when (result) {
                 AdResult.AdDismissed -> PlayerUiState.Ready(url)
+                AdResult.SkippedByCooldown -> PlayerUiState.Ready(url)
                 AdResult.NoNetwork -> PlayerUiState.NetworkError(url)
-                AdResult.NeedRetry -> PlayerUiState.NeedRetry(url)
-                AdResult.Failed -> PlayerUiState.NeedRetry(url)
+                AdResult.AdBlockerBlocked -> PlayerUiState.AdBlockerBlocked(url)
+                AdResult.Failed -> PlayerUiState.AdBlockerBlocked(url)
             })
-        }
-    }
-
-    /**
-     * Bouton "Réessayer" : remet l'état à LoadingAds et relance le flux ads.
-     */
-    private fun retryAds() {
-        val url = extractCurrentUrl() ?: return
-        viewModel.setUiState(PlayerUiState.LoadingAds(url))
-        launchAdFlow(url)
-    }
-
-    /**
-     * Extrait l'URL depuis l'état actuel, quel que soit l'état.
-     */
-    private fun extractCurrentUrl(): String? {
-        return when (val state = viewModel.uiState.value) {
-            is PlayerUiState.LoadingAds -> state.videoUrl
-            is PlayerUiState.ShowingAd -> state.videoUrl
-            is PlayerUiState.Ready -> state.videoUrl
-            is PlayerUiState.NetworkError -> state.videoUrl
-            is PlayerUiState.NeedRetry -> state.videoUrl
-            else -> playerController.resolveVideoUrl(intent)
         }
     }
 

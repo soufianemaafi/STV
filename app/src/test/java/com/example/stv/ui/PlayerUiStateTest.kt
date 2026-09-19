@@ -1,6 +1,5 @@
-package com.example.stv.ui
+package com.example.stv.features.player.presentation
 
-import com.example.stv.features.player.presentation.PlayerUiState
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -35,6 +34,12 @@ class PlayerUiStateTest {
     }
 
     @Test
+    fun `AdBlockerBlocked contient la bonne URL`() {
+        val state = PlayerUiState.AdBlockerBlocked("https://example.com/stream.m3u8")
+        assertEquals("https://example.com/stream.m3u8", state.videoUrl)
+    }
+
+    @Test
     fun `NeedRetry contient la bonne URL`() {
         val state = PlayerUiState.NeedRetry("https://example.com/stream.m3u8")
         assertEquals("https://example.com/stream.m3u8", state.videoUrl)
@@ -52,10 +57,14 @@ class PlayerUiStateTest {
         val loading = PlayerUiState.LoadingAds(url)
         val ready = PlayerUiState.Ready(url)
         val showing = PlayerUiState.ShowingAd(url)
+        val blocked = PlayerUiState.AdBlockerBlocked(url)
 
         assertNotEquals(loading, ready)
         assertNotEquals(loading, showing)
         assertNotEquals(ready, showing)
+        assertNotEquals(loading, blocked)
+        assertNotEquals(ready, blocked)
+        assertNotEquals(showing, blocked)
     }
 
     @Test
