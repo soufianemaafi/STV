@@ -18,6 +18,10 @@ class AdFlowController(
     private val frequencyManager: AdFrequencyManager = AdFrequencyManager.shared()
 ) {
 
+    init {
+        adManager.preloadInterstitial()
+    }
+
     private val tag = "AdFlowController"
     private val autoRetries = 3
     private val retryDelayMs = 2_000L

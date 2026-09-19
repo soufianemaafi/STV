@@ -15,11 +15,12 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
  * Singleton pour la gestion des publicités AdMob.
  *
  * Logique ultra-simple :
- * - loadAndShow() : charge et affiche une pub
+ * - preloadInterstitial() : charge en arrière-plan une pub prête à être affichée
+ * - loadAndShow() : consomme une pub préchargée ou charge/affiche à la demande
  * - Résultat : onAdDismissed (pub fermée), onFailed (échec), onNoNetwork (pas de réseau)
  * - PAS de compteur. PAS de détection adblock.
  * - Le player ne démarre que si onAdDismissed est appelé.
- * - Si la pub échoue, l'appelant (AdsController) réessaie.
+ * - Si la pub échoue, l'appelant (`AdFlowController`) gère le retry ou le blocage.
  */
 class AdManager private constructor(context: Context) {
 
@@ -46,6 +47,65 @@ class AdManager private constructor(context: Context) {
     private val appContext = context.applicationContext
     private val TAG = "AdManager"
     private val AD_UNIT_ID = BuildConfig.ADMOB_INTERSTITIAL_ID
+    private val preloadLock = Any()
+
+    @Volatile
+    private var preloadedInterstitial: InterstitialAd? = null
+
+    @Volatile
+    private var isPreloading = false
+
+    init {
+        preloadInterstitial()
+    }
+
+    /**
+     * Lance le préchargement d'une interstitielle si aucune pub n'est déjà prête.
+     */
+    fun preloadInterstitial() {
+        if (!NetworkUtils.isNetworkAvailable(appContext)) {
+            Log.d(TAG, "Preload skipped: no network")
+            return
+        }
+
+        synchronized(preloadLock) {
+            if (preloadedInterstitial != null || isPreloading) {
+                return
+            }
+            isPreloading = true
+        }
+
+        Log.d(TAG, "Preloading interstitial ad...")
+        InterstitialAd.load(
+            appContext,
+            AD_UNIT_ID,
+            AdRequest.Builder().build(),
+            object : InterstitialAdLoadCallback() {
+                override fun onAdFailedToLoad(adError: LoadAdError) {
+                    Log.d(TAG, "Preload failed: $adError")
+                    synchronized(preloadLock) {
+                        isPreloading = false
+                    }
+                }
+
+                override fun onAdLoaded(ad: InterstitialAd) {
+                    Log.d(TAG, "Interstitial preloaded")
+                    synchronized(preloadLock) {
+                        preloadedInterstitial = ad
+                        isPreloading = false
+                    }
+                }
+            }
+        )
+    }
+
+    private fun takePreloadedInterstitial(): InterstitialAd? {
+        synchronized(preloadLock) {
+            return preloadedInterstitial.also {
+                preloadedInterstitial = null
+            }
+        }
+    }
 
 
     /**
@@ -69,7 +129,20 @@ class AdManager private constructor(context: Context) {
             return
         }
 
-        Log.d(TAG, "Loading interstitial ad...")
+        val cachedAd = takePreloadedInterstitial()
+        if (cachedAd != null) {
+            Log.d(TAG, "Showing preloaded interstitial.")
+            showInterstitial(
+                activity = activity,
+                ad = cachedAd,
+                onAdShowed = onAdShowed,
+                onAdDismissed = onAdDismissed,
+                onFailed = onFailed
+            )
+            return
+        }
+
+        Log.d(TAG, "Loading interstitial ad on-demand...")
         InterstitialAd.load(
             appContext,
             AD_UNIT_ID,
@@ -82,27 +155,49 @@ class AdManager private constructor(context: Context) {
                     } else {
                         onFailed()
                     }
+                    preloadInterstitial()
                 }
 
                 override fun onAdLoaded(ad: InterstitialAd) {
                     Log.d(TAG, "Ad loaded. Showing...")
-                    ad.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdShowedFullScreenContent() {
-                            Log.d(TAG, "Ad showing.")
-                            onAdShowed()
-                        }
-                        override fun onAdDismissedFullScreenContent() {
-                            Log.d(TAG, "Ad dismissed.")
-                            onAdDismissed()
-                        }
-                        override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                            Log.e(TAG, "Ad failed to show: $adError")
-                            onFailed()
-                        }
-                    }
-                    ad.show(activity)
+                    showInterstitial(
+                        activity = activity,
+                        ad = ad,
+                        onAdShowed = onAdShowed,
+                        onAdDismissed = onAdDismissed,
+                        onFailed = onFailed
+                    )
                 }
             }
         )
+    }
+
+    private fun showInterstitial(
+        activity: Activity,
+        ad: InterstitialAd,
+        onAdShowed: () -> Unit,
+        onAdDismissed: () -> Unit,
+        onFailed: () -> Unit
+    ) {
+        ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdShowedFullScreenContent() {
+                Log.d(TAG, "Ad showing.")
+                onAdShowed()
+            }
+
+            override fun onAdDismissedFullScreenContent() {
+                Log.d(TAG, "Ad dismissed.")
+                onAdDismissed()
+                preloadInterstitial()
+            }
+
+            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                Log.e(TAG, "Ad failed to show: $adError")
+                onFailed()
+                preloadInterstitial()
+            }
+        }
+
+        ad.show(activity)
     }
 }

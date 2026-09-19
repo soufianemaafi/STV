@@ -48,7 +48,7 @@ class AdFrequencyManager(
     }
 
     companion object {
-        const val DEFAULT_COOLDOWN_MS = 180_000L
+        const val DEFAULT_COOLDOWN_MS = 90_000L
 
         @Volatile
         private var sharedInstance: AdFrequencyManager? = null

@@ -9,10 +9,10 @@ import com.google.android.gms.ads.MobileAds
  *
  * Responsabilités :
  * - Initialisation unique du SDK AdMob (MobileAds.initialize)
- * - Initialisation unique du singleton AdManager (PAS de préchargement)
+ * - Initialisation unique du singleton AdManager (avec préchargement automatique)
  *
- * Le chargement de la pub se fait dans AdsController.showAdIfNeeded()
- * au moment où PlayerActivity en a besoin → un seul flux linéaire.
+ * Le flux publicitaire est orchestré par `AdFlowController` au moment où
+ * `PlayerActivity` en a besoin → un seul flux linéaire.
  */
 class STVApplication : Application() {
 
@@ -24,9 +24,8 @@ class STVApplication : Application() {
             Log.d("STVApplication", "AdMob SDK initialized successfully")
         }
 
-        // ✅ Initialisation du singleton AdManager (PAS de préchargement ici)
-        // Le chargement de la pub se fera dans AdsController.showAdIfNeeded()
-        // Cela évite les doublons de pub (préchargée + chargée à nouveau)
+        // ✅ Initialisation du singleton AdManager : cela lance aussi le préchargement
+        // d'une interstitielle pour garantir un zapping rapide.
         AdManager.initialize(this)
     }
 }

@@ -9,14 +9,14 @@ class AdFrequencyManagerTest {
     @Test
     fun `le cooldown est actif juste apres avoir affiche une pub`() {
         var now = 1_000L
-        val manager = AdFrequencyManager(cooldownMs = 180_000L, clock = { now })
+        val manager = AdFrequencyManager(cooldownMs = 90_000L, clock = { now })
 
         manager.markAdShown()
 
         assertTrue(manager.isCooldownActive())
         assertTrue(manager.shouldSkipAd())
 
-        now = 200_001L
+        now = 91_001L
         assertFalse(manager.isCooldownActive())
         assertFalse(manager.shouldSkipAd())
     }
@@ -24,7 +24,7 @@ class AdFrequencyManagerTest {
     @Test
     fun `un adblock suspect bloque le bypass cooldown`() {
         val now = 1_000L
-        val manager = AdFrequencyManager(cooldownMs = 180_000L, clock = { now })
+        val manager = AdFrequencyManager(cooldownMs = 90_000L, clock = { now })
 
         manager.markAdShown()
         manager.markAdBlockerSuspected()

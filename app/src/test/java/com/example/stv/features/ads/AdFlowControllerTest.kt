@@ -26,7 +26,7 @@ class AdFlowControllerTest {
 
     @Test
     fun `le cooldown court-circuite le chargement de pub`() = runTest {
-        val frequencyManager = AdFrequencyManager(cooldownMs = 180_000L, clock = { 1_000L })
+        val frequencyManager = AdFrequencyManager(cooldownMs = 90_000L, clock = { 1_000L })
         frequencyManager.markAdShown(nowMs = 1_000L)
 
         val controller = AdFlowController(adManager, frequencyManager)
@@ -39,8 +39,10 @@ class AdFlowControllerTest {
     @Test
     fun `une pub affichee met a jour le cooldown`() = runTest {
         val now = 1_000L
-        val frequencyManager = AdFrequencyManager(cooldownMs = 180_000L, clock = { now })
+        val frequencyManager = AdFrequencyManager(cooldownMs = 90_000L, clock = { now })
         val controller = AdFlowController(adManager, frequencyManager)
+
+        verify(exactly = 1) { adManager.preloadInterstitial() }
 
         every {
             adManager.loadAndShow(
@@ -66,7 +68,7 @@ class AdFlowControllerTest {
     @Test
     fun `le retry peut contourner le cooldown pour rechecker la pub`() = runTest {
         val now = 1_000L
-        val frequencyManager = AdFrequencyManager(cooldownMs = 180_000L, clock = { now })
+        val frequencyManager = AdFrequencyManager(cooldownMs = 90_000L, clock = { now })
         frequencyManager.markAdShown(nowMs = 1_000L)
         val controller = AdFlowController(adManager, frequencyManager)
 
