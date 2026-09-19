@@ -1,4 +1,4 @@
-package com.example.stv
+package com.example.stv.features.player.presentation
 
 import android.content.Intent
 import android.content.res.Configuration
@@ -44,10 +44,13 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
+import com.example.stv.AdManager
+import com.example.stv.R
 import com.example.stv.ads.AdsController
 import com.example.stv.ads.AdsController.AdResult
+import com.example.stv.core.security.IntentSecurityManager
+import com.example.stv.core.security.IntentValidationResult
 import com.example.stv.player.PlayerController
-import com.example.stv.ui.PlayerUiState
 import com.example.stv.ui.components.BlockedScreen
 import com.example.stv.ui.components.ErrorScreen
 import com.example.stv.ui.components.VideoPlayer
@@ -68,6 +71,9 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var adManager: AdManager
     private lateinit var adsController: AdsController
     private lateinit var playerController: PlayerController
+    // ✅ Sécurité : valide TOUT intent entrant avant de le transmettre au ViewModel
+    // (protection Intent Hijacking / Intent Redirection — voir core.security.IntentSecurityManager)
+    private val intentSecurityManager = IntentSecurityManager()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,17 +144,10 @@ class PlayerActivity : ComponentActivity() {
 
         hideSystemUI()
 
-        val videoUrl = playerController.resolveVideoUrl(intent)
-        val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
-        val urlError = playerController.validateStreamUrl(videoUrl)
-
-        // ✅ Initialiser l'état UI IMMÉDIATEMENT (avant setContent)
-        viewModel.initializeUiState(
-            videoUrl = videoUrl,
-            urlError = urlError,
-            errorUrlNotProvided = getString(R.string.url_not_provided),
-            skipAds = skipAds
-        )
+        // ✅ SÉCURITÉ : l'Activity ne fait AUCUNE logique métier — elle délègue
+        // la validation stricte de l'Intent (schéma http/https uniquement) au
+        // IntentSecurityManager, puis transforme le résultat en action MVI.
+        handleIncomingIntent(intent, isNewIntent = false)
 
         setContent {
             STVTheme {
@@ -238,20 +237,35 @@ class PlayerActivity : ComponentActivity() {
 
         viewModel.releasePlayer()
 
-        val newVideoUrl = playerController.resolveVideoUrl(intent)
-        val newSkipAds = intent.getBooleanExtra("SKIP_ADS", false)
-        val newUrlError = playerController.validateStreamUrl(newVideoUrl)
+        // ✅ SÉCURITÉ : même traitement que onCreate() — validation stricte avant relance des ads
+        handleIncomingIntent(intent, isNewIntent = true)
+    }
 
-        val errorMsg = newUrlError ?: if (newVideoUrl == null) getString(R.string.url_not_provided) else null
-        viewModel.initializeUiState(
-            videoUrl = newVideoUrl,
-            urlError = errorMsg,
-            errorUrlNotProvided = getString(R.string.url_not_provided),
-            skipAds = newSkipAds
-        )
+    /**
+     * Point d'entrée unique de traitement des Intents entrants (onCreate + onNewIntent).
+     *
+     * Aucune logique métier ici : on délègue au [IntentSecurityManager] la validation
+     * stricte (schéma http/https uniquement, garde-fous null-safe), puis on transforme
+     * le résultat en action MVI envoyée au ViewModel. Si l'intent est invalide ou
+     * potentiellement malveillant, il est ignoré en toute sécurité (log + état d'erreur
+     * générique) — jamais de crash.
+     */
+    private fun handleIncomingIntent(intent: Intent, isNewIntent: Boolean) {
+        val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
 
-        if (newVideoUrl != null && errorMsg == null && !newSkipAds) {
-            launchAdFlow(newVideoUrl)
+        when (val result = intentSecurityManager.validateIncomingIntent(intent)) {
+            is IntentValidationResult.Valid -> {
+                viewModel.onAction(PlayerUiAction.LoadVideo(result.videoUrl, skipAds))
+                if (isNewIntent && !skipAds) {
+                    launchAdFlow(result.videoUrl)
+                }
+            }
+            is IntentValidationResult.Invalid -> {
+                Log.w(tag, "Intent rejeté par IntentSecurityManager: ${result.reason}")
+                viewModel.onAction(
+                    PlayerUiAction.RejectInvalidIntent(getString(R.string.error_intent_security_rejected))
+                )
+            }
         }
     }
 

@@ -48,10 +48,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.stv.PlayerActivity
+import com.example.stv.features.player.presentation.PlayerActivity
 import com.example.stv.R
-import com.example.stv.VideoItem
-import com.example.stv.VideoListViewModel
+import com.example.stv.core.domain.model.VideoItem
+import com.example.stv.features.home.presentation.VideoListViewModel
 
 /**
  * Écran liste des flux — anciennement dans VideoListActivity.kt

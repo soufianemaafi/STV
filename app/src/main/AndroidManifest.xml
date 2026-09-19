@@ -25,7 +25,7 @@
             android:value="${admobAppId}"/>
 
         <activity
-            android:name=".MainActivity"
+            android:name=".features.home.presentation.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:windowLightStatusBar="false"
@@ -37,7 +37,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".PlayerActivity"
+            android:name=".features.player.presentation.PlayerActivity"
             android:screenOrientation="sensorLandscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:exported="true"
@@ -48,13 +48,30 @@
             android:windowLightStatusBar="false"
             android:theme="@style/Theme.STV">
 
+            <!--
+                ⚠️ SÉCURITÉ (Intent Hijacking / Intent Redirection) :
+                Ces intent-filters ne font que ROUTER l'intent vers PlayerActivity.
+                Ils n'accordent AUCUNE confiance au contenu (extras/data). Toute URL
+                est systématiquement revalidée au runtime par
+                `com.example.stv.core.security.IntentSecurityManager` (schéma
+                http/https strict) avant d'être transmise au ViewModel — voir
+                PlayerActivity.handleIncomingIntent().
+
+                Note App Links : `android:autoVerify="true"` n'est utile que pour un
+                schéma https adossé à un `assetlinks.json` hébergé sur un domaine que
+                nous possédons. Notre app ne dispose pas d'un tel domaine associé ;
+                l'activer sans assetlinks.json n'apporterait aucune vérification
+                réelle. À activer si un App Link officiel (https://stv.example.com/...)
+                est mis en place.
+            -->
+
             <!-- Intent Filter 1 : Action personnalisée pour SoukiTV et vos apps catalogue -->
             <intent-filter>
                 <action android:name="com.example.stv.action.PLAY_STREAM" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
-            <!-- Intent Filter 2 : Deep Link public (stv://play?url=...) -->
+            <!-- Intent Filter 2 : Deep Link interne (stv://play?url=...) — schéma privé, non vérifiable via App Links -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -65,7 +82,7 @@
                     android:host="play" />
             </intent-filter>
 
-            <!-- Intent Filter 3 : Fichiers vidéo (comme VLC, MX Player) -->
+            <!-- Intent Filter 3 : Fichiers vidéo HLS/DASH (comme VLC, MX Player) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -77,7 +94,7 @@
                 <data android:mimeType="application/x-mpegurl" />
             </intent-filter>
 
-            <!-- Intent Filter 4 : Tous types de vidéo -->
+            <!-- Intent Filter 4 : Tous types de vidéo (schéma restreint à http/https uniquement) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -21,6 +21,7 @@
     <string name="error_url_invalid_scheme">Schéma invalide : seuls http:// et https:// sont acceptés</string>
     <string name="error_url_too_long">URL trop longue (max 2048 caractères)</string>
     <string name="error_url_invalid_format">Format d\'URL invalide</string>
+    <string name="error_intent_security_rejected">Ce lien ne peut pas être ouvert pour des raisons de sécurité.</string>
     <string name="format_content_description">Format</string>
     <string name="quality_content_description">Qualité</string>
     <string name="close_button">Fermer</string>

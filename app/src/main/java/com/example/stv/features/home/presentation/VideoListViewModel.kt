@@ -1,7 +1,8 @@
-package com.example.stv
+package com.example.stv.features.home.presentation
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.example.stv.core.domain.model.VideoItem
 import com.example.stv.data.VideoRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

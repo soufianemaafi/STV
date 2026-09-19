@@ -1,4 +1,4 @@
-package com.example.stv
+package com.example.stv.core.domain.model
 
 import kotlinx.serialization.Serializable
 import java.util.UUID

@@ -1,4 +1,4 @@
-package com.example.stv
+package com.example.stv.core.domain.model
 
 data class VideoTrackInfo(
     val name: String,

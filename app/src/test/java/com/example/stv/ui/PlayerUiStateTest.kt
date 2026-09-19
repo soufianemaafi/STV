@@ -1,5 +1,6 @@
 package com.example.stv.ui
 
+import com.example.stv.features.player.presentation.PlayerUiState
 import org.junit.Assert.*
 import org.junit.Test
 

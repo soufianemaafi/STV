@@ -3,7 +3,7 @@ package com.example.stv.data
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
-import com.example.stv.VideoItem
+import com.example.stv.core.domain.model.VideoItem
 import kotlinx.serialization.json.Json
 
 /**

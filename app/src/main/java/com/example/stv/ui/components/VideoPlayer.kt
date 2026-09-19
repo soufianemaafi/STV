@@ -17,7 +17,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import com.example.stv.PlayerViewModel
+import com.example.stv.features.player.presentation.PlayerViewModel
 import kotlinx.coroutines.delay
 
 /**

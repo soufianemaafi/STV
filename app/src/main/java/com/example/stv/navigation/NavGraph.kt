@@ -8,8 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.stv.VideoItem
-import com.example.stv.VideoListViewModel
+import com.example.stv.core.domain.model.VideoItem
+import com.example.stv.features.home.presentation.VideoListViewModel
 import com.example.stv.ui.screens.AddVideoScreen
 import com.example.stv.ui.screens.HomeScreen
 import com.example.stv.ui.screens.VideoListScreen

@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.stv.R
-import com.example.stv.VideoTrackInfo
+import com.example.stv.core.domain.model.VideoTrackInfo
 
 /**
  * Dialog de sélection de la qualité vidéo.

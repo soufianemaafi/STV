@@ -1,4 +1,4 @@
-package com.example.stv.ui
+package com.example.stv.features.player.presentation
 
 /**
  * State machine pour l'écran du player.

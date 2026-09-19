@@ -1,5 +1,6 @@
 package com.example.stv
 
+import com.example.stv.core.domain.model.VideoItem
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.*

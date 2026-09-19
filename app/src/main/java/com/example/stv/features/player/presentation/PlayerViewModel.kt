@@ -1,4 +1,4 @@
-package com.example.stv
+package com.example.stv.features.player.presentation
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -19,7 +19,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.example.stv.ui.PlayerUiState
+import com.example.stv.R
+import com.example.stv.core.domain.model.VideoTrackInfo
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -56,20 +57,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _isLive = MutableStateFlow(false)
     val isLive: StateFlow<Boolean> = _isLive.asStateFlow()
 
-    // State machine : null = pas encore initialisé (attend initializeUiState)
+    // State machine : null = pas encore initialisé (attend une PlayerUiAction)
     private val _uiState = MutableStateFlow<PlayerUiState?>(null)
     val uiState: StateFlow<PlayerUiState?> = _uiState.asStateFlow()
 
     /**
-     * Initialise l'état UI en fonction des paramètres d'entrée (URL, erreur, skipAds).
-     * Appelé dans PlayerActivity.onCreate() et onNewIntent().
+     * Point d'entrée MVI unique pour la View.
+     *
+     * `PlayerActivity` ne fait aucune logique métier : elle délègue la validation
+     * de l'Intent entrant à `IntentSecurityManager`, puis envoie le résultat ici
+     * sous forme d'action. Appelé depuis `onCreate()` et `onNewIntent()`.
      */
-    fun initializeUiState(videoUrl: String?, urlError: String?, errorUrlNotProvided: String, skipAds: Boolean) {
-        _uiState.value = when {
-            urlError != null -> PlayerUiState.Error(urlError)
-            videoUrl == null -> PlayerUiState.Error(errorUrlNotProvided)
-            skipAds -> PlayerUiState.Ready(videoUrl)
-            else -> PlayerUiState.LoadingAds(videoUrl)
+    fun onAction(action: PlayerUiAction) {
+        _uiState.value = when (action) {
+            is PlayerUiAction.LoadVideo -> {
+                if (action.skipAds) {
+                    PlayerUiState.Ready(action.videoUrl)
+                } else {
+                    PlayerUiState.LoadingAds(action.videoUrl)
+                }
+            }
+            is PlayerUiAction.RejectInvalidIntent -> PlayerUiState.Error(action.userMessage)
         }
     }
 
