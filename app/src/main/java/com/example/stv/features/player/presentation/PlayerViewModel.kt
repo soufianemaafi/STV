@@ -3,6 +3,7 @@ package com.example.stv.features.player.presentation
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -10,24 +11,61 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.exoplayer.DefaultLoadControl
+import com.example.stv.R
+import com.example.stv.core.domain.model.VideoTrackInfo
 import java.util.Locale
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.example.stv.R
-import com.example.stv.core.domain.model.VideoTrackInfo
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+/**
+ * ViewModel MVI du player vidéo — **seul et unique propriétaire** du cycle de vie d'ExoPlayer.
+ *
+ * ## 🔒 Sécurité mémoire (Mission 2 — isolation Media3 dans la couche Presentation)
+ * - Le [ExoPlayer] est construit **une seule fois**, avec le contexte de l'[Application]
+ *   (jamais celui d'une Activity) via [playerFactory]/[createDefaultExoPlayer] → aucune
+ *   fuite mémoire possible liée à la rétention d'une référence Activity après sa destruction.
+ * - Ce ViewModel (`AndroidViewModel`) **survit aux rotations d'écran** (l'Activity est
+ *   recréée, pas le ViewModel) : le player n'est donc JAMAIS recréé lors d'une rotation,
+ *   la lecture continue sans interruption.
+ * - [onCleared] appelle **IMPÉRATIVEMENT** `player.release()` quand le ViewModel est
+ *   définitivement détruit (Activity `finish()`/back) — zéro fuite mémoire garantie.
+ * - L'Activity/UI (`PlayerActivity` / composable `VideoPlayer`) ne fait qu'**attacher /
+ *   détacher** une `PlayerView` à [player] (`playerView.player = viewModel.player` puis
+ *   `= null`) — elle ne possède ni ne contrôle jamais l'instance du player directement ;
+ *   tout contrôle passe par [onAction] (MVI).
+ *
+ * @param playerFactory Factory de construction du player, injectable pour les tests
+ * unitaires (permet d'injecter un [Player] mocké — interface pure — plutôt qu'un
+ * [ExoPlayer] concret qui nécessite un environnement Android réel). Par défaut :
+ * [createDefaultExoPlayer], qui utilise TOUJOURS le contexte Application.
+ */
+@androidx.annotation.OptIn(UnstableApi::class)
+class PlayerViewModel @JvmOverloads constructor(
+    application: Application,
+    private val playerFactory: (Application) -> Player = ::createDefaultExoPlayer
+) : AndroidViewModel(application) {
 
-    private var _exoPlayer: ExoPlayer? = null
-    val exoPlayer: ExoPlayer?
-        get() = _exoPlayer
+    // ✅ SÉCURITÉ MÉMOIRE : construit UNE SEULE FOIS avec le contexte Application.
+    // Ne JAMAIS reconstruire avec un contexte d'Activity (fuite mémoire garantie).
+    // Typé [Player] (interface Media3) — seules les capacités de contrôle de lecture
+    // communes sont utilisées ici, ce qui permet aussi de tester ce ViewModel avec un
+    // Player mocké sans dépendre de la classe concrète ExoPlayer (native/Android).
+    private val _player: Player = playerFactory(application)
+
+    /**
+     * Instance exposée à l'UI. L'UI ne doit s'en servir QUE pour l'attacher/détacher
+     * d'une `PlayerView` (`playerView.player = viewModel.player`) — tout contrôle
+     * (play/pause/seek/...) doit passer par [onAction].
+     */
+    val player: Player get() = _player
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -61,49 +99,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiState = MutableStateFlow<PlayerUiState?>(null)
     val uiState: StateFlow<PlayerUiState?> = _uiState.asStateFlow()
 
-    /**
-     * Point d'entrée MVI unique pour la View.
-     *
-     * `PlayerActivity` ne fait aucune logique métier : elle délègue la validation
-     * de l'Intent entrant à `IntentSecurityManager`, puis envoie le résultat ici
-     * sous forme d'action. Appelé depuis `onCreate()` et `onNewIntent()`.
-     */
-    fun onAction(action: PlayerUiAction) {
-        _uiState.value = when (action) {
-            is PlayerUiAction.LoadVideo -> {
-                if (action.skipAds) {
-                    PlayerUiState.Ready(action.videoUrl)
-                } else {
-                    PlayerUiState.LoadingAds(action.videoUrl)
-                }
-            }
-            is PlayerUiAction.RejectInvalidIntent -> PlayerUiState.Error(action.userMessage)
-        }
-    }
-
-    /**
-     * Met à jour l'état UI. Utilisé par les callbacks ads et les transitions.
-     */
-    fun setUiState(newState: PlayerUiState) {
-        _uiState.value = newState
-    }
-
-    /** Vérifie si l'état actuel est Ready */
-    fun isReady(): Boolean = _uiState.value is PlayerUiState.Ready
-
-    private var trackSelector: DefaultTrackSelector? = null
     private var currentUrl: String? = null
-    // ✅ Job explicite pour annuler la coroutine de position à chaque réinitialisation
-    private var positionUpdateJob: kotlinx.coroutines.Job? = null
 
+    // ✅ Dernière hauteur vidéo connue (via onVideoSizeChanged), utilisée pour afficher
+    // "Auto (1080p)" sans dépendre de `ExoPlayer.videoFormat` (spécifique à la classe
+    // concrète) — garde `_player` typé [Player] uniquement (interface pure, testable).
+    private var lastVideoHeight: Int = 0
+
+    // ✅ Job explicite pour annuler la coroutine de position dans onCleared (pas de fuite de coroutine)
+    private var positionUpdateJob: Job? = null
+
+    /**
+     * Synchronise le `StateFlow<PlayerUiState>` (et les autres StateFlows) avec les
+     * événements réels du player Media3. Ajouté une seule fois, à la création du ViewModel.
+     */
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
                 Player.STATE_BUFFERING -> _isLoading.value = true
                 Player.STATE_READY -> {
                     _isLoading.value = false
-                    _duration.value = _exoPlayer?.duration ?: 0L
-                    _isLive.value = _exoPlayer?.isCurrentMediaItemLive == true
+                    _duration.value = _player.duration.coerceAtLeast(0L)
+                    _isLive.value = _player.isCurrentMediaItemLive
                 }
                 Player.STATE_ENDED -> {
                     _isLoading.value = false
@@ -128,9 +145,57 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
+            lastVideoHeight = videoSize.height
             updateCurrentTrackName()
         }
     }
+
+    init {
+        _player.addListener(playerListener)
+        startPositionUpdates()
+    }
+
+    /**
+     * Point d'entrée MVI **unique** pour la View. Aucune logique métier côté
+     * Activity/Composable : tout contrôle du player passe par ici.
+     *
+     * Appelé depuis `PlayerActivity` (`onCreate`/`onNewIntent`) et depuis le
+     * composable `VideoPlayer` (contrôles play/pause/seek/qualité).
+     */
+    fun onAction(action: PlayerUiAction) {
+        when (action) {
+            is PlayerUiAction.LoadVideo -> {
+                _uiState.value = if (action.skipAds) {
+                    PlayerUiState.Ready(action.videoUrl)
+                } else {
+                    PlayerUiState.LoadingAds(action.videoUrl)
+                }
+            }
+            is PlayerUiAction.RejectInvalidIntent -> {
+                _uiState.value = PlayerUiState.Error(action.userMessage)
+            }
+            is PlayerUiAction.PreparePlayback -> preparePlayback(action.videoUrl)
+            is PlayerUiAction.Play -> _player.play()
+            is PlayerUiAction.Pause -> _player.pause()
+            is PlayerUiAction.TogglePlayPause -> togglePlayPause()
+            is PlayerUiAction.SeekTo -> seekTo(action.positionMs)
+            is PlayerUiAction.SeekForward -> seekForward()
+            is PlayerUiAction.SeekRewind -> seekRewind()
+            is PlayerUiAction.SelectTrack -> selectTrack(action.trackInfo)
+        }
+    }
+
+    /**
+     * Met à jour l'état UI directement. Utilisé par `PlayerActivity` pour les
+     * transitions liées au flux publicitaire (ads dismissed/failed/network error),
+     * qui restent orchestrées côté Activity via `AdsController` (hors scope Media3).
+     */
+    fun setUiState(newState: PlayerUiState) {
+        _uiState.value = newState
+    }
+
+    /** Vérifie si l'état actuel est Ready */
+    fun isReady(): Boolean = _uiState.value is PlayerUiState.Ready
 
     private fun getUserFriendlyErrorMessage(error: PlaybackException): String {
         val app = getApplication<Application>()
@@ -144,106 +209,45 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Construit le [MediaItem] et lance la préparation du player : `setMediaItem` + `prepare()`.
+     * N'est appelé qu'une seule fois par URL (idempotent) — une rotation d'écran ne
+     * relance donc jamais la préparation puisque le ViewModel (et `currentUrl`) survit.
+     */
+    private fun preparePlayback(url: String) {
+        if (currentUrl == url && _player.playbackState != Player.STATE_IDLE) return
 
-    fun initializePlayer(url: String) {
-        // Si déjà en lecture avec la même URL → rien à faire
-        if (_exoPlayer != null && currentUrl == url) return
-
-        releasePlayer()
         currentUrl = url
         _isLoading.value = true
         _errorMessage.value = null
 
-        val context = getApplication<Application>()
-        trackSelector = DefaultTrackSelector(context)
-
-        // Optimisation du Buffer pour un démarrage rapide (1.5s) et une stabilité accrue (Profil "Robuste")
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                15_000, // Min Buffer (15s) : Seuil critique avant rechargement agressif
-                50_000, // Max Buffer (50s) : Capacité maximale pour absorber les coupures
-                1_500,  // bufferForPlaybackMs : Démarrage rapide (1.5s) - Effet Zapping
-                3_000   // bufferForPlaybackAfterRebufferMs : Reprise rapide après coupure (3s)
-            )
-            .build()
-
-        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
-            .setUsage(C.USAGE_MEDIA)
-            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-            .build()
-
-        _exoPlayer = ExoPlayer.Builder(context)
-            .setTrackSelector(trackSelector!!)
-            .setLoadControl(loadControl) // Application de l'optimisation
-            .setAudioAttributes(audioAttributes, true) // Activer gestion focus audio
-            .setHandleAudioBecomingNoisy(true) // Pause sur déconnexion écouteurs
-            .build()
-            .apply {
-                addListener(playerListener)
-                playWhenReady = true
-                setMediaItem(MediaItem.fromUri(url))
-                prepare()
-            }
-
-        // Annuler l'ancienne coroutine de position
-        positionUpdateJob?.cancel()
-        positionUpdateJob = viewModelScope.launch {
-            while (true) {
-                val player = _exoPlayer
-                if (player != null && player.isPlaying) {
-                    _currentPosition.value = player.currentPosition
-                    _bufferedPosition.value = player.bufferedPosition
-                    _duration.value = player.duration.coerceAtLeast(0L)
-                } else if (player != null) {
-                    _bufferedPosition.value = player.bufferedPosition
-                }
-                delay(1000)
-            }
-        }
+        _player.playWhenReady = true
+        _player.setMediaItem(MediaItem.fromUri(url))
+        _player.prepare()
     }
 
-    fun togglePlayPause() {
-        val player = _exoPlayer ?: return
-        if (player.isPlaying) {
-            player.pause()
-        } else {
-            player.play()
-        }
+    private fun togglePlayPause() {
+        if (_player.isPlaying) _player.pause() else _player.play()
     }
 
-    fun play() {
-        _exoPlayer?.play()
-    }
-
-    fun pause() {
-        _exoPlayer?.pause()
-    }
-
-    fun seekTo(positionMs: Long) {
-        val player = _exoPlayer ?: return
-        val clamped = positionMs.coerceIn(0L, player.duration.coerceAtLeast(0L))
-        player.seekTo(clamped)
+    private fun seekTo(positionMs: Long) {
+        val clamped = positionMs.coerceIn(0L, _player.duration.coerceAtLeast(0L))
+        _player.seekTo(clamped)
         _currentPosition.value = clamped
     }
 
-    fun seekForward() {
-        _exoPlayer?.let { player ->
-            seekTo((player.currentPosition + 10000).coerceAtMost(player.duration.coerceAtLeast(0L)))
-        }
+    private fun seekForward() {
+        seekTo((_player.currentPosition + 10_000).coerceAtMost(_player.duration.coerceAtLeast(0L)))
     }
 
-    fun seekRewind() {
-        _exoPlayer?.let { player ->
-            seekTo((player.currentPosition - 10000).coerceAtLeast(0L))
-        }
+    private fun seekRewind() {
+        seekTo((_player.currentPosition - 10_000).coerceAtLeast(0L))
     }
 
-    fun selectTrack(trackInfo: VideoTrackInfo) {
-        val player = _exoPlayer ?: return
-
+    private fun selectTrack(trackInfo: VideoTrackInfo) {
         if (trackInfo.group != null && trackInfo.trackIndex != null) {
             // Sélection manuelle
-            player.trackSelectionParameters = player.trackSelectionParameters
+            _player.trackSelectionParameters = _player.trackSelectionParameters
                 .buildUpon()
                 .setOverrideForType(
                     TrackSelectionOverride(trackInfo.group, trackInfo.trackIndex)
@@ -252,7 +256,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _currentTrackName.value = trackInfo.name
         } else {
             // Mode Auto
-            player.trackSelectionParameters = player.trackSelectionParameters
+            _player.trackSelectionParameters = _player.trackSelectionParameters
                 .buildUpon()
                 .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
                 .build()
@@ -296,53 +300,102 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun updateCurrentTrackName() {
-        val player = _exoPlayer ?: return
-        val parameters = player.trackSelectionParameters
+        val parameters = _player.trackSelectionParameters
 
         if (parameters.overrides.isEmpty()) {
-            val height = player.videoFormat?.height ?: 0
+            val height = lastVideoHeight
             if (height > 0) {
-               _currentTrackName.value = try {
-                   getApplication<Application>().getString(
-                       R.string.quality_auto_with_resolution,
-                       height
-                   )
-               } catch (_: Exception) {
-                   // Fallback : utilise la string Auto simple
-                   getApplication<Application>().getString(R.string.quality_auto)
-               }
+                _currentTrackName.value = try {
+                    getApplication<Application>().getString(
+                        R.string.quality_auto_with_resolution,
+                        height
+                    )
+                } catch (_: Exception) {
+                    // Fallback : utilise la string Auto simple
+                    getApplication<Application>().getString(R.string.quality_auto)
+                }
             } else {
                 _currentTrackName.value = getApplication<Application>().getString(R.string.quality_auto)
             }
         } else {
-             // Si on est en manuel, le nom est déjà mis à jour lors de la sélection,
-             // mais on peut vérifier si l'override correspond toujours
-             val override = parameters.overrides.values.firstOrNull()
-             if (override != null) {
-                 val matching = _videoTracks.value.find {
-                     it.group == override.mediaTrackGroup && override.trackIndices.contains(it.trackIndex)
-                 }
-                 _currentTrackName.value = matching?.name ?: getApplication<Application>().getString(R.string.quality_manual)
-             }
+            // Si on est en manuel, le nom est déjà mis à jour lors de la sélection,
+            // mais on peut vérifier si l'override correspond toujours
+            val override = parameters.overrides.values.firstOrNull()
+            if (override != null) {
+                val matching = _videoTracks.value.find {
+                    it.group == override.mediaTrackGroup && override.trackIndices.contains(it.trackIndex)
+                }
+                _currentTrackName.value = matching?.name ?: getApplication<Application>().getString(R.string.quality_manual)
+            }
         }
     }
 
-    fun releasePlayer() {
-        // ✅ Annuler la coroutine de position avant de libérer le player
+    /**
+     * Coroutine de synchronisation position/buffer (1x/s), annulée dans [onCleared].
+     */
+    private fun startPositionUpdates() {
         positionUpdateJob?.cancel()
-        positionUpdateJob = null
-        _exoPlayer?.let { player ->
-            player.removeListener(playerListener)
-            player.release()
+        positionUpdateJob = viewModelScope.launch {
+            while (true) {
+                _bufferedPosition.value = _player.bufferedPosition.coerceAtLeast(0L)
+                if (_player.isPlaying) {
+                    _currentPosition.value = _player.currentPosition.coerceAtLeast(0L)
+                    _duration.value = _player.duration.coerceAtLeast(0L)
+                }
+                delay(1000)
+            }
         }
-        _exoPlayer = null
-        trackSelector = null
-        currentUrl = null
     }
 
+    /**
+     * ⚠️ VITAL — Libère IMPÉRATIVEMENT le player quand le ViewModel est **définitivement**
+     * détruit (Activity `finish()`/back — PAS une simple rotation d'écran, qui ne détruit
+     * pas le ViewModel). Sans cet appel, ExoPlayer retient des ressources natives
+     * (Surface, decoders, threads de décodage) → fuite mémoire garantie en production
+     * et rejet possible lors de l'audit Play Store (Memory Leaks / Android Vitals).
+     */
     override fun onCleared() {
         super.onCleared()
-        releasePlayer()
+        positionUpdateJob?.cancel()
+        positionUpdateJob = null
+        _player.removeListener(playerListener)
+        _player.release()
     }
 
+    companion object {
+        /**
+         * Factory par défaut de l'ExoPlayer.
+         *
+         * ✅ SÉCURITÉ MÉMOIRE : reçoit explicitement un [Application] (JAMAIS une Activity)
+         * → aucune référence à un `Context` d'Activity n'est jamais retenue par le player,
+         * ce qui élimine tout risque de fuite mémoire même si l'Activity est détruite
+         * pendant que le ViewModel (et donc le player) continue de vivre.
+         */
+        @androidx.annotation.OptIn(UnstableApi::class)
+        fun createDefaultExoPlayer(application: Application): ExoPlayer {
+            val trackSelector = DefaultTrackSelector(application)
+
+            // Optimisation du Buffer pour un démarrage rapide (1.5s) et une stabilité accrue (Profil "Robuste")
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    15_000, // Min Buffer (15s) : Seuil critique avant rechargement agressif
+                    50_000, // Max Buffer (50s) : Capacité maximale pour absorber les coupures
+                    1_500,  // bufferForPlaybackMs : Démarrage rapide (1.5s) - Effet Zapping
+                    3_000   // bufferForPlaybackAfterRebufferMs : Reprise rapide après coupure (3s)
+                )
+                .build()
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build()
+
+            return ExoPlayer.Builder(application)
+                .setTrackSelector(trackSelector)
+                .setLoadControl(loadControl)
+                .setAudioAttributes(audioAttributes, true) // Activer gestion focus audio
+                .setHandleAudioBecomingNoisy(true) // Pause sur déconnexion écouteurs
+                .build()
+        }
+    }
 }

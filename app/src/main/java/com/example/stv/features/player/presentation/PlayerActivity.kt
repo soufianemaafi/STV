@@ -206,8 +206,10 @@ class PlayerActivity : ComponentActivity() {
                         is PlayerUiState.Ready -> {
                             val url = currentState.videoUrl
 
+                            // ✅ MVI : la construction du MediaItem + prepare() est déléguée
+                            // au ViewModel via une action, jamais appelée impérativement.
                             LaunchedEffect(url) {
-                                viewModel.initializePlayer(url)
+                                viewModel.onAction(PlayerUiAction.PreparePlayback(url))
                             }
 
                             VideoPlayer(
@@ -235,9 +237,9 @@ class PlayerActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
-        viewModel.releasePlayer()
-
-        // ✅ SÉCURITÉ : même traitement que onCreate() — validation stricte avant relance des ads
+        // ✅ Le player (propriété du ViewModel) n'est PAS libéré ici : seule l'URL
+        // change. `preparePlayback` (déclenché via PreparePlayback) réutilise
+        // l'instance existante — pas de recréation, pas de fuite mémoire.
         handleIncomingIntent(intent, isNewIntent = true)
     }
 
@@ -330,16 +332,17 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (viewModel.exoPlayer != null && viewModel.isReady()) {
-            viewModel.play()
+        // ✅ MVI : contrôle du player exclusivement via onAction (jamais d'accès direct)
+        if (viewModel.isReady()) {
+            viewModel.onAction(PlayerUiAction.Play)
         }
     }
 
     override fun onResume() {
         super.onResume()
         hideSystemUI()
-        if (!isInPipMode && viewModel.exoPlayer != null && viewModel.isReady()) {
-            viewModel.play()
+        if (!isInPipMode && viewModel.isReady()) {
+            viewModel.onAction(PlayerUiAction.Play)
         }
     }
 
@@ -347,16 +350,14 @@ class PlayerActivity : ComponentActivity() {
         super.onPause()
         if (isInPictureInPictureMode) {
             // Continue playing in PIP mode
-        } else if (viewModel.exoPlayer != null) {
-            viewModel.pause()
+        } else {
+            viewModel.onAction(PlayerUiAction.Pause)
         }
     }
 
     override fun onStop() {
         super.onStop()
-        if (viewModel.exoPlayer != null) {
-            viewModel.pause()
-        }
+        viewModel.onAction(PlayerUiAction.Pause)
     }
 
     override fun onUserLeaveHint() {
@@ -364,7 +365,7 @@ class PlayerActivity : ComponentActivity() {
         // ✅ PiP automatique UNIQUEMENT si le player est en lecture (pas pendant les ads, erreurs, etc.)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
             && viewModel.isReady()
-            && viewModel.exoPlayer?.isPlaying == true
+            && viewModel.isPlaying.value
         ) {
             enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().build())
         }
