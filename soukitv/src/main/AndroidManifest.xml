@@ -7,9 +7,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <queries>
+        <package android:name="com.stv.videoplayer" />
+        <package android:name="com.stv.videoplayer.dev" />
         <package android:name="com.example.stv" />
         <package android:name="com.example.stv.dev" />
-        <package android:name="com.example.stv.prod" />
     </queries>
 
     <application

@@ -44,6 +44,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
     var showInstallDialog by remember { mutableStateOf(false) }
 
+    // Identifiant officiel de STV sur le Play Store
+    val officialStvPackage = "com.stv.videoplayer"
+
     if (showInstallDialog) {
         AlertDialog(
             onDismissRequest = { showInstallDialog = false },
@@ -54,12 +57,16 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                     onClick = {
                         showInstallDialog = false
                         try {
-                            // Try to open Play Store
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.example.stv"))
+                            // Ouvre l'application Google Play Store
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$officialStvPackage")).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
                             context.startActivity(intent)
                         } catch (e: android.content.ActivityNotFoundException) {
-                            // Fallback to browser
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.example.stv"))
+                            // Fallback vers le navigateur web
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$officialStvPackage")).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
                             context.startActivity(intent)
                         }
                     }
@@ -158,59 +165,61 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         .padding(paddingValues),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    // Featured Banner Section
                     item {
                         FeaturedSection()
                     }
 
                     items(categories) { category ->
                         CategorySection(category = category, onChannelClick = { channel ->
-                            // ✅ Supporter à la fois le flavor dev (com.example.stv.dev) et prod (com.example.stv)
+                            // 🔍 Liste ordonnée des packages supportés (Nouveaux IDs officiels en priorité)
                             val stvPackageNames = listOf(
-                                "com.example.stv",      // Production
-                                "com.example.stv.dev",  // Debug/Dev flavor
-                                "com.example.stv.prod"  // Prod flavor
+                                "com.stv.videoplayer",      // Production Officielle
+                                "com.stv.videoplayer.dev",  // Flavor Dev / Debug
+                                "com.example.stv",          // Rétrocompatibilité
+                                "com.example.stv.dev"
                             )
 
-                            val isInstalled = stvPackageNames.any { packageName ->
+                            val installedPackage = stvPackageNames.firstOrNull { packageName ->
                                 try {
                                     context.packageManager.getPackageInfo(packageName, 0)
                                     true
-                            } catch (e: Exception) {
-                                false
-                            }
-                        }
-
-                        if (isInstalled) {
-                            try {
-                                // Trouver le package réellement installé
-                                val actualPackageName = stvPackageNames.firstOrNull { packageName ->
-                                    try {
-                                        context.packageManager.getPackageInfo(packageName, 0)
-                                        true
-                                    } catch (e: Exception) {
-                                        false
-                                    }
-                                } ?: "com.example.stv"
-
-                                val intent = Intent("com.example.stv.action.PLAY_STREAM").apply {
-                                    setPackage(actualPackageName)
-                                    putExtra("VIDEO_URL", channel.streamUrl)
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                } catch (e: Exception) {
+                                    false
                                 }
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Error launching STV Player: ${e.message}", Toast.LENGTH_LONG).show()
                             }
-                        } else {
-                            showInstallDialog = true
-                        }
-                    })
+
+                            if (installedPackage != null) {
+                                try {
+                                    // 🚀 Lancement Exclusif de STV avec URL et Titre
+                                    val intent = Intent("com.stv.videoplayer.action.PLAY_STREAM").apply {
+                                        // 🔒 Verrouille strictement sur STV
+                                        setPackage(installedPackage)
+
+                                        // Fournit l'URL à la fois en data et en extras pour compatibilité universelle
+                                        val uri = Uri.parse(channel.streamUrl)
+                                        setDataAndType(uri, "video/*")
+                                        putExtra("VIDEO_URL", channel.streamUrl)
+                                        putExtra("url", channel.streamUrl)
+
+                                        // 📺 Titre de la chaîne (capté par Detail 2 dans STV)
+                                        putExtra("title", channel.name)
+
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Error launching STV Player: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            } else {
+                                // STV absent -> Affiche le dialogue Play Store
+                                showInstallDialog = true
+                            }
+                        })
+                    }
                 }
             }
         }
     }
-}
 }
 
 @Composable
@@ -221,11 +230,10 @@ fun FeaturedSection() {
             .height(200.dp)
             .padding(16.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.Gray) // Placeholder
+            .background(Color.Gray)
     ) {
-        // Placeholder for featured content
-         AsyncImage(
-            model = "https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg", // Example
+        AsyncImage(
+            model = "https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg",
             contentDescription = "Featured",
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -298,17 +306,16 @@ fun ChannelItem(channel: Channel, onClick: () -> Unit) {
                 .aspectRatio(16f / 9f)
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(1.dp) // Border effect
+                .padding(1.dp)
         ) {
-             AsyncImage(
+            AsyncImage(
                 model = channel.logoUrl,
                 contentDescription = channel.name,
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.Crop // Or Fit depending on logos
+                contentScale = ContentScale.Crop
             )
-            // Overlay for better visibility if needed
             Box(
                 modifier = Modifier
                     .fillMaxSize()
