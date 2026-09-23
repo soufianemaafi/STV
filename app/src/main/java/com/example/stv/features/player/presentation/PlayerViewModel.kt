@@ -396,14 +396,28 @@ class PlayerViewModel @JvmOverloads constructor(
         fun createDefaultExoPlayer(application: Application): ExoPlayer {
             val trackSelector = DefaultTrackSelector(application)
 
-            // Optimisation du Buffer pour un démarrage rapide (1.5s) et une stabilité accrue (Profil "Robuste")
+            val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+                .setAllowCrossProtocolRedirects(true)
+                .setConnectTimeoutMs(8_000)
+                .setReadTimeoutMs(8_000)
+                .setUserAgent(
+                    "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 STV/1.0"
+                )
+
+            val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(httpDataSourceFactory)
+
+            val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(application)
+                .setEnableDecoderFallback(true)
+
+            // Optimisation du Buffer pour un démarrage ultra-rapide et une reprise plus tolérante
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    15_000, // Min Buffer (15s) : Seuil critique avant rechargement agressif
-                    50_000, // Max Buffer (50s) : Capacité maximale pour absorber les coupures
-                    1_500,  // bufferForPlaybackMs : Démarrage rapide (1.5s) - Effet Zapping
-                    3_000   // bufferForPlaybackAfterRebufferMs : Reprise rapide après coupure (3s)
+                    15_000, // minBufferMs
+                    50_000, // maxBufferMs
+                    800,    // bufferForPlaybackMs
+                    1_500   // bufferForPlaybackAfterRebufferMs
                 )
+                .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 
             val audioAttributes = AudioAttributes.Builder()
@@ -412,6 +426,8 @@ class PlayerViewModel @JvmOverloads constructor(
                 .build()
 
             return ExoPlayer.Builder(application)
+                .setRenderersFactory(renderersFactory)
+                .setMediaSourceFactory(mediaSourceFactory)
                 .setTrackSelector(trackSelector)
                 .setLoadControl(loadControl)
                 .setAudioAttributes(audioAttributes, true) // Activer gestion focus audio
