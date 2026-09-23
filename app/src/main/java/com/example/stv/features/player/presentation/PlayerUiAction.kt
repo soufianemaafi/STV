@@ -18,8 +18,15 @@ sealed class PlayerUiAction {
      * être affichées avant (état `LoadingAds`) ou si on passe direct à `Ready`.
      * @param videoUrl URL http/https validée.
      * @param skipAds Si true, saute l'affichage de la publicité.
+     * @param title Titre convivial du flux, si fourni par l'Intent.
+     * @param headers Headers HTTP optionnels à propager vers Media3.
      */
-    data class LoadVideo(val videoUrl: String, val skipAds: Boolean) : PlayerUiAction()
+    data class LoadVideo(
+        val videoUrl: String,
+        val skipAds: Boolean = false,
+        val title: String? = null,
+        val headers: Map<String, String> = emptyMap()
+    ) : PlayerUiAction()
 
     /** Relance proprement la vérification pub / AdBlocker via MVI. */
     data object RetryAdCheck : PlayerUiAction()

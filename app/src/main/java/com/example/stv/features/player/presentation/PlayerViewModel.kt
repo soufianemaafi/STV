@@ -6,14 +6,19 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.example.stv.R
 import com.example.stv.core.domain.model.VideoTrackInfo
@@ -91,6 +96,10 @@ class PlayerViewModel @JvmOverloads constructor(
     private val _currentTrackName = MutableStateFlow(getApplication<Application>().getString(R.string.quality_auto))
     val currentTrackName: StateFlow<String> = _currentTrackName.asStateFlow()
 
+    private val _currentTitle = MutableStateFlow<String?>(null)
+    @Suppress("unused")
+    val currentTitle: StateFlow<String?> = _currentTitle.asStateFlow()
+
     // ✅ Détection flux LIVE (HLS live, DASH live, etc.)
     private val _isLive = MutableStateFlow(false)
     val isLive: StateFlow<Boolean> = _isLive.asStateFlow()
@@ -166,6 +175,8 @@ class PlayerViewModel @JvmOverloads constructor(
         when (action) {
             is PlayerUiAction.LoadVideo -> {
                 currentUrl = action.videoUrl
+                _currentTitle.value = action.title?.trim()?.takeIf { it.isNotEmpty() }
+                pendingRequestHeaders = cleanHeaders(action.headers)
                 _uiState.value = if (action.skipAds) {
                     PlayerUiState.Ready(action.videoUrl)
                 } else {
@@ -224,7 +235,15 @@ class PlayerViewModel @JvmOverloads constructor(
         _errorMessage.value = null
 
         _player.playWhenReady = true
-        _player.setMediaItem(MediaItem.fromUri(url))
+        val mediaItemBuilder = MediaItem.Builder().setUri(url)
+        _currentTitle.value?.takeIf { it.isNotBlank() }?.let { title ->
+            mediaItemBuilder.setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(title)
+                    .build()
+            )
+        }
+        _player.setMediaItem(mediaItemBuilder.build())
         _player.prepare()
     }
 
@@ -379,11 +398,48 @@ class PlayerViewModel @JvmOverloads constructor(
         super.onCleared()
         positionUpdateJob?.cancel()
         positionUpdateJob = null
+        pendingRequestHeaders = emptyMap()
         _player.removeListener(playerListener)
         _player.release()
     }
 
     companion object {
+        @Volatile
+        private var pendingRequestHeaders: Map<String, String> = emptyMap()
+
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 STV/1.0"
+
+        private class HeaderAwareDataSourceFactory : DataSource.Factory {
+            override fun createDataSource(): DataSource {
+                val configuredFactory = DefaultHttpDataSource.Factory()
+                    .setAllowCrossProtocolRedirects(true)
+                    .setConnectTimeoutMs(8_000)
+                    .setReadTimeoutMs(8_000)
+                    .setUserAgent(USER_AGENT)
+
+                val headers = cleanHeaders(pendingRequestHeaders)
+                if (headers.isNotEmpty()) {
+                    configuredFactory.setDefaultRequestProperties(headers)
+                }
+
+                return configuredFactory.createDataSource()
+            }
+        }
+
+        private fun cleanHeaders(headers: Map<String, String>): Map<String, String> {
+            if (headers.isEmpty()) return emptyMap()
+
+            val cleaned = linkedMapOf<String, String>()
+            for ((rawKey, rawValue) in headers) {
+                val key = rawKey.trim().takeIf { it.isNotEmpty() } ?: continue
+                val value = rawValue.trim().replace("\r", " ").replace("\n", " ").takeIf { it.isNotEmpty() }
+                    ?: continue
+                cleaned[key] = value
+            }
+            return cleaned
+        }
+
         /**
          * Factory par défaut de l'ExoPlayer.
          *
@@ -396,17 +452,9 @@ class PlayerViewModel @JvmOverloads constructor(
         fun createDefaultExoPlayer(application: Application): ExoPlayer {
             val trackSelector = DefaultTrackSelector(application)
 
-            val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(8_000)
-                .setReadTimeoutMs(8_000)
-                .setUserAgent(
-                    "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 STV/1.0"
-                )
+            val mediaSourceFactory = DefaultMediaSourceFactory(HeaderAwareDataSourceFactory())
 
-            val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(httpDataSourceFactory)
-
-            val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(application)
+            val renderersFactory = DefaultRenderersFactory(application)
                 .setEnableDecoderFallback(true)
 
             // Optimisation du Buffer pour un démarrage ultra-rapide et une reprise plus tolérante

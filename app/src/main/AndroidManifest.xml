@@ -22,79 +22,60 @@
         <!-- AdMob App ID (résolu dynamiquement via manifestPlaceholders dans build.gradle.kts) -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="${admobAppId}"/>
+            android:value="${admobAppId}" />
 
+        <!-- Écran d'accueil / Launcher -->
         <activity
             android:name=".features.home.presentation.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:windowLightStatusBar="false"
-            android:theme="@style/Theme.STV">
+            android:theme="@style/Theme.STV"
+            android:windowLightStatusBar="false">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Lecteur Vidéo Principal (Strictement Paysage & Immersif) -->
         <activity
             android:name=".features.player.presentation.PlayerActivity"
-            android:screenOrientation="sensorLandscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
+            android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask"
-            android:excludeFromRecents="true"
+            android:screenOrientation="sensorLandscape"
             android:supportsPictureInPicture="true"
-            android:windowLightStatusBar="false"
-            android:theme="@style/Theme.STV">
+            android:theme="@style/Theme.STV"
+            android:windowLightStatusBar="false">
 
             <!--
                 ⚠️ SÉCURITÉ (Intent Hijacking / Intent Redirection) :
                 Ces intent-filters ne font que ROUTER l'intent vers PlayerActivity.
-                Ils n'accordent AUCUNE confiance au contenu (extras/data). Toute URL
-                est systématiquement revalidée au runtime par
+                Toute URL est systématiquement revalidée au runtime par
                 `com.example.stv.core.security.IntentSecurityManager` (schéma
-                http/https strict) avant d'être transmise au ViewModel — voir
-                PlayerActivity.handleIncomingIntent().
-
-                Note App Links : `android:autoVerify="true"` n'est utile que pour un
-                schéma https adossé à un `assetlinks.json` hébergé sur un domaine que
-                nous possédons. Notre app ne dispose pas d'un tel domaine associé ;
-                l'activer sans assetlinks.json n'apporterait aucune vérification
-                réelle. À activer si un App Link officiel (https://stv.example.com/...)
-                est mis en place.
+                http/https strict) avant d'être transmise au ViewModel.
             -->
 
-            <!-- Intent Filter 1 : Action personnalisée pour SoukiTV et vos apps catalogue -->
+            <!-- 1. Action personnalisée exclusive (Recommandée pour SoukiTV) -->
             <intent-filter>
                 <action android:name="com.example.stv.action.PLAY_STREAM" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
-            <!-- Intent Filter 2 : Deep Link interne (stv://play?url=...) — schéma privé, non vérifiable via App Links -->
+            <!-- 2. Deep Link personnalisé privé (ex: stv://play?url=...) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
-                    android:scheme="stv"
-                    android:host="play" />
+                    android:host="play"
+                    android:scheme="stv" />
             </intent-filter>
 
-            <!-- Intent Filter 3 : Fichiers vidéo HLS/DASH (comme VLC, MX Player) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:mimeType="application/vnd.apple.mpegurl" />
-                <data android:mimeType="application/x-mpegurl" />
-            </intent-filter>
-
-            <!-- Intent Filter 4 : Tous types de vidéo (schéma restreint à http/https uniquement) -->
+            <!-- 3. Tous types MIME Vidéo & Streaming (HLS + DASH + MP4/MKV) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -103,8 +84,27 @@
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:mimeType="video/*" />
+                <data android:mimeType="application/vnd.apple.mpegurl" />
+                <data android:mimeType="application/x-mpegurl" />
+                <data android:mimeType="application/dash+xml" />
+            </intent-filter>
+
+            <!-- 4. Détection par extension de fichier (si l'app émettrice n'a pas spécifié de MIME-type) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" android:host="*" />
+                <data android:scheme="https" android:host="*" />
+                <data android:pathPattern=".*\\.m3u8" />
+                <data android:pathPattern=".*\\.mpd" />
+                <data android:pathPattern=".*\\.mp4" />
+                <data android:pathPattern=".*\\.ts" />
+                <data android:pathPattern=".*\\.mkv" />
             </intent-filter>
         </activity>
+
     </application>
 
 </manifest>

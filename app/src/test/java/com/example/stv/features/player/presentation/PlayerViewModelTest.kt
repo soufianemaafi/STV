@@ -90,6 +90,25 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `LoadVideo transporte le titre et les headers`() {
+        val headers = mapOf(
+            "Referer" to "https://partner.example.com",
+            "User-Agent" to "CustomAgent/1.0"
+        )
+
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo(
+                videoUrl = "https://example.com/video.mp4",
+                title = "Canal+ HD",
+                headers = headers
+            )
+        )
+
+        assertEquals("Canal+ HD", viewModel.currentTitle.value)
+        assertEquals(PlayerUiState.LoadingAds("https://example.com/video.mp4"), viewModel.uiState.value)
+    }
+
+    @Test
     fun `RejectInvalidIntent passe en Error`() {
         viewModel.onAction(PlayerUiAction.RejectInvalidIntent("Lien invalide"))
         assertEquals(PlayerUiState.Error("Lien invalide"), viewModel.uiState.value)
