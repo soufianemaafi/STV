@@ -32,9 +32,8 @@ android {
             useSupportLibrary = true
         }
 
-        // ✅ IDs AdMob par défaut (test — fallback sécurisé)
+        // ✅ ID AdMob interstitiel par défaut (test — fallback sécurisé)
         buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
-        buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
         manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
     }
 
@@ -42,9 +41,8 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            // ✅ IDs de test AdMob pour le développement (NE PAS CHANGER)
+            // ✅ ID de test AdMob pour le développement (NE PAS CHANGER)
             buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
-            buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/6300978111\"")
             manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
         }
 
@@ -52,13 +50,11 @@ android {
             dimension = "environment"
             applicationId = "com.stv.videoplayer"
             // ✅ IDs PRODUCTION lus depuis local.properties (sécurisé, hors Git)
-            // Fallback sur IDs test si local.properties ne contient pas les clés
+            // Fallback sur l'ID test si local.properties ne contient pas la clé
             val prodInterstitialId = localProperties.getProperty("admob.interstitial.id", "ca-app-pub-3940256099942544/1033173712")
-            val prodBannerId = localProperties.getProperty("admob.banner.id", "ca-app-pub-3940256099942544/6300978111")
             val prodAppId = localProperties.getProperty("admob.app.id", "ca-app-pub-3940256099942544~3347511713")
 
             buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$prodInterstitialId\"")
-            buildConfigField("String", "ADMOB_BANNER_ID", "\"$prodBannerId\"")
             manifestPlaceholders["admobAppId"] = prodAppId
         }
     }
