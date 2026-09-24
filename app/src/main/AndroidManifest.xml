@@ -61,7 +61,6 @@
             <!-- Filtre 1 : Action personnalisée avec Données Vidéo (soukitv) -->
             <intent-filter>
                 <action android:name="com.stv.videoplayer.action.PLAY_STREAM" />
-                <action android:name="com.example.stv.action.PLAY_STREAM" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="http" />
                 <data android:scheme="https" />
@@ -74,7 +73,6 @@
             <!-- Filtre 2 : Action personnalisée sans type MIME obligatoire -->
             <intent-filter>
                 <action android:name="com.stv.videoplayer.action.PLAY_STREAM" />
-                <action android:name="com.example.stv.action.PLAY_STREAM" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 

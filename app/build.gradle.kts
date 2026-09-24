@@ -15,7 +15,7 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.stv"
+    namespace = "com.stv.videoplayer"
     compileSdk = 36
 
     // ✅ Ajouter les flavors AVANT defaultConfig
