@@ -79,8 +79,6 @@ fun STVNavGraph(
 
         // â”€â”€â”€â”€ Liste des vidÃ©os â”€â”€â”€â”€
         composable(Screen.Videos.route) {
-            // âœ… RafraÃ®chir les vidÃ©os Ã  chaque affichage (Ã©quivalent onResume)
-            videoListViewModel.refreshVideos()
 
             VideoListScreen(
                 viewModel = videoListViewModel,

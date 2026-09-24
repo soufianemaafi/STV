@@ -84,11 +84,13 @@ fun AddVideoScreen(
         }
     }
 
-    fun validateUrl(value: String) {
-        urlError = when (intentSecurityManager.validateVideoUrl(value)) {
+    fun validateUrl(value: String): IntentValidationResult {
+        val result = intentSecurityManager.validateVideoUrl(value)
+        urlError = when (result) {
             is IntentValidationResult.Valid -> ""
             is IntentValidationResult.Invalid -> invalidUrlMessage
         }
+        return result
     }
 
     Scaffold(
@@ -235,11 +237,11 @@ fun AddVideoScreen(
                     val cleanUrl = url.trim()
 
                     validateTitle(cleanTitle)
-                    validateUrl(cleanUrl)
+                    val urlValidationResult = validateUrl(cleanUrl)
 
                     val isTitleValid = cleanTitle.isNotEmpty() && cleanTitle.length >= 2 && cleanTitle.length <= 100
-                    val validatedUrl = when (val result = intentSecurityManager.validateVideoUrl(cleanUrl)) {
-                        is IntentValidationResult.Valid -> result.videoUrl
+                    val validatedUrl = when (urlValidationResult) {
+                        is IntentValidationResult.Valid -> urlValidationResult.videoUrl
                         is IntentValidationResult.Invalid -> null
                     }
                     val isUrlValid = validatedUrl != null
