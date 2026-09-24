@@ -3,6 +3,7 @@
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
+import com.stv.videoplayer.R
 import com.stv.videoplayer.core.domain.model.VideoItem
 import kotlinx.serialization.json.Json
 
@@ -20,6 +21,7 @@ import kotlinx.serialization.json.Json
 class VideoRepository(context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val defaultVideoTitle = context.getString(R.string.default_video_title)
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -51,7 +53,7 @@ class VideoRepository(context: Context) {
     private fun defaultVideos(): List<VideoItem> {
         return listOf(
             VideoItem(
-                title = "Big Buck Bunny",
+                title = defaultVideoTitle,
                 url = DEFAULT_VIDEO_URL
             )
         )

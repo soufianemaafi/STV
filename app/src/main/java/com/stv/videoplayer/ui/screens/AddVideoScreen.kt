@@ -1,6 +1,5 @@
 ﻿package com.stv.videoplayer.ui.screens
 
-import android.util.Patterns
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,6 +44,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stv.videoplayer.R
+import com.stv.videoplayer.core.security.IntentSecurityManager
+import com.stv.videoplayer.core.security.IntentValidationResult
 import com.stv.videoplayer.ui.theme.GreenSuccess
 import kotlinx.coroutines.launch
 
@@ -66,13 +67,13 @@ fun AddVideoScreen(
     var urlError by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val intentSecurityManager = remember { IntentSecurityManager() }
     val invalidMessage = stringResource(R.string.add_video_invalid)
+    val invalidUrlMessage = stringResource(R.string.add_video_invalid_url)
 
     val msgTitleEmpty = stringResource(R.string.validation_title_empty)
     val msgTitleShort = stringResource(R.string.validation_title_too_short)
     val msgTitleLong = stringResource(R.string.validation_title_too_long)
-    val msgUrlEmpty = stringResource(R.string.validation_url_empty)
-    val msgUrlInvalid = stringResource(R.string.validation_url_invalid)
 
     fun validateTitle(value: String) {
         titleError = when {
@@ -84,10 +85,9 @@ fun AddVideoScreen(
     }
 
     fun validateUrl(value: String) {
-        urlError = when {
-            value.isBlank() -> msgUrlEmpty
-            !Patterns.WEB_URL.matcher(value.trim()).matches() -> msgUrlInvalid
-            else -> ""
+        urlError = when (intentSecurityManager.validateVideoUrl(value)) {
+            is IntentValidationResult.Valid -> ""
+            is IntentValidationResult.Invalid -> invalidUrlMessage
         }
     }
 
@@ -238,10 +238,14 @@ fun AddVideoScreen(
                     validateUrl(cleanUrl)
 
                     val isTitleValid = cleanTitle.isNotEmpty() && cleanTitle.length >= 2 && cleanTitle.length <= 100
-                    val isUrlValid = cleanUrl.isNotEmpty() && Patterns.WEB_URL.matcher(cleanUrl).matches()
+                    val validatedUrl = when (val result = intentSecurityManager.validateVideoUrl(cleanUrl)) {
+                        is IntentValidationResult.Valid -> result.videoUrl
+                        is IntentValidationResult.Invalid -> null
+                    }
+                    val isUrlValid = validatedUrl != null
 
                     if (isTitleValid && isUrlValid) {
-                        onSave(cleanTitle, cleanUrl)
+                        onSave(cleanTitle, validatedUrl)
                     } else {
                         scope.launch {
                             snackbarHostState.showSnackbar(

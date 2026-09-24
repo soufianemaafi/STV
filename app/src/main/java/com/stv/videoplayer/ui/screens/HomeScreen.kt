@@ -1,7 +1,6 @@
 ﻿package com.stv.videoplayer.ui.screens
 
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,14 +39,17 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -59,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.stv.videoplayer.R
 import com.stv.videoplayer.ui.theme.BlackDrawer
 import com.stv.videoplayer.ui.theme.GrayLight
@@ -87,9 +90,17 @@ fun HomeScreen(
     val noInternetMessage = stringResource(R.string.no_internet_connection)
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     val termsOfServiceUrl = stringResource(R.string.terms_of_service_url)
+    val legalDisclaimerTitle = stringResource(R.string.legal_disclaimer_title)
+    val legalDisclaimerMessage = stringResource(R.string.legal_disclaimer_message)
+    val legalDisclaimerConfirm = stringResource(R.string.legal_disclaimer_acknowledge)
 
     var lastClickTime by remember { mutableLongStateOf(0L) }
     val debounceTime = 1000L
+    var showLegalDisclaimerDialog by remember { mutableStateOf(false) }
+
+    fun dismissLegalDisclaimerDialog() {
+        showLegalDisclaimerDialog = false
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -129,7 +140,7 @@ fun HomeScreen(
                         icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.privacy_policy_cd), tint = GrayLight) },
                         selected = false,
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl))
+                            val intent = Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
                             context.startActivity(intent)
                             scope.launch { drawerState.close() }
                         },
@@ -143,8 +154,21 @@ fun HomeScreen(
                         icon = { Icon(Icons.Filled.Description, contentDescription = stringResource(R.string.terms_of_service_cd), tint = GrayLight) },
                         selected = false,
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(termsOfServiceUrl))
+                            val intent = Intent(Intent.ACTION_VIEW, termsOfServiceUrl.toUri())
                             context.startActivity(intent)
+                            scope.launch { drawerState.close() }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent
+                        )
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.legal_disclaimer), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.legal_disclaimer), tint = GrayLight) },
+                        selected = false,
+                        onClick = {
+                            showLegalDisclaimerDialog = true
                             scope.launch { drawerState.close() }
                         },
                         colors = NavigationDrawerItemDefaults.colors(
@@ -277,6 +301,19 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showLegalDisclaimerDialog) {
+        AlertDialog(
+            onDismissRequest = { dismissLegalDisclaimerDialog() },
+            title = { Text(text = legalDisclaimerTitle) },
+            text = { Text(text = legalDisclaimerMessage) },
+            confirmButton = {
+                TextButton(onClick = { dismissLegalDisclaimerDialog() }) {
+                    Text(text = legalDisclaimerConfirm)
+                }
+            }
+        )
     }
 }
 

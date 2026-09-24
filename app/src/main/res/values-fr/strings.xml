@@ -50,10 +50,15 @@
     <string name="privacy_policy">Politique de confidentialité</string>
     <string name="terms_of_service">Conditions d\'utilisation</string>
     <!-- URLs non traduites — héritées de values/strings.xml -->
+    <string name="legal_disclaimer">Avis de non-responsabilité</string>
+    <string name="legal_disclaimer_title">Avertissement Légal</string>
+    <string name="legal_disclaimer_message">STV Player est un lecteur multimédia purement technique. L\'application ne fournit, n\'héberge et ne diffuse aucun flux vidéo ni contenu multimédia. Les utilisateurs sont seuls responsables des contenus qu\'ils ajoutent. STV Player n\'a aucune affiliation avec les fournisseurs de flux tiers et n\'approuve pas la lecture de contenus protégés sans autorisation.</string>
+    <string name="legal_disclaimer_acknowledge">Compris</string>
 
     <!-- Videos list & add form -->
     <string name="videos_button_label">Vidéos</string>
     <string name="videos_screen_title">Vidéos</string>
+    <string name="default_video_title">Démo : Big Buck Bunny (Creative Commons)</string>
     <string name="add_video_title">Ajouter un flux</string>
     <string name="add_video_header_title">Ajouter un nouveau flux</string>
     <string name="add_video_header_subtitle">Remplissez les champs ci-dessous pour ajouter un flux</string>
@@ -62,6 +67,7 @@
     <string name="add_video_save">Enregistrer</string>
     <string name="add_video_cancel">Annuler</string>
     <string name="add_video_invalid">Veuillez entrer un titre et une URL valides.</string>
+    <string name="add_video_invalid_url">Lien invalide. Seuls les protocoles http:// et https:// sont supportés.</string>
     <string name="add_video_title_valid">Titre valide</string>
     <string name="add_video_url_valid">URL valide</string>
     <string name="validation_title_empty">Le titre ne peut pas être vide</string>

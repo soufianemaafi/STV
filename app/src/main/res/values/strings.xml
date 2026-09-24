@@ -45,10 +45,15 @@
     <string name="terms_of_service">Terms of Service</string>
     <string name="privacy_policy_url" translatable="false">https://sites.google.com/view/stvplayerprivacy</string>
     <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/stvplayerterms</string>
+    <string name="legal_disclaimer" translatable="false">Legal Disclaimer</string>
+    <string name="legal_disclaimer_title" translatable="false">Legal Warning</string>
+    <string name="legal_disclaimer_message" translatable="false">STV Player is a purely technical media player. The application does not provide, host, or stream any video stream or multimedia content. Users are solely responsible for the content they add. STV Player has no affiliation with third-party stream providers and does not endorse the playback of copyrighted content without authorization.</string>
+    <string name="legal_disclaimer_acknowledge" translatable="false">Understood</string>
 
     <!-- Videos list & add form -->
     <string name="videos_button_label">Videos</string>
     <string name="videos_screen_title">Videos</string>
+    <string name="default_video_title" translatable="false">Demo: Big Buck Bunny (Creative Commons)</string>
     <string name="add_video_title">Add Stream</string>
     <string name="add_video_header_title">Add a new stream</string>
     <string name="add_video_header_subtitle">Fill in the fields below to add a stream</string>
@@ -57,6 +62,7 @@
     <string name="add_video_save">Save</string>
     <string name="add_video_cancel">Cancel</string>
     <string name="add_video_invalid">Please enter a valid title and URL.</string>
+    <string name="add_video_invalid_url" translatable="false">Invalid link. Only http:// and https:// protocols are supported.</string>
     <string name="add_video_title_valid">Title valid</string>
     <string name="add_video_url_valid">URL valid</string>
     <string name="validation_title_empty">Title cannot be empty</string>
