@@ -1,5 +1,4 @@
 import java.util.Properties
-import java.io.File
 
 plugins {
     alias(libs.plugins.android.application)
@@ -9,6 +8,13 @@ plugins {
 android {
     namespace = "com.example.soukitv"
     compileSdk = 36
+
+    // ✅ Charger les propriétés locales (keystore, etc.)
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localProperties.load(localPropertiesFile.inputStream())
+    }
 
     defaultConfig {
         applicationId = "com.example.soukitv"
@@ -23,26 +29,14 @@ android {
         }
     }
 
-    // Load signing config from local keystore.properties (same as STV)
-    val keystorePropertiesFile = rootProject.file("keystore.properties")
-    val keystoreProperties = Properties()
-    if (keystorePropertiesFile.exists()) {
-        keystoreProperties.load(keystorePropertiesFile.inputStream())
-    }
+    val properties = localProperties
 
     signingConfigs {
         create("release") {
-            val storeFilePath = keystoreProperties.getProperty("storeFile", "release.keystore")
-            val storePass = keystoreProperties.getProperty("storePassword", "android")
-            val keyAliasName = keystoreProperties.getProperty("keyAlias", "key0")
-            val keyPass = keystoreProperties.getProperty("keyPassword", "android")
-
-            if (storeFilePath.isNotBlank()) {
-                storeFile = File(rootProject.rootDir, storeFilePath)
-            }
-            storePassword = storePass
-            keyAlias = keyAliasName
-            keyPassword = keyPass
+            storeFile = rootProject.file("soukitv_release.keystore")
+            storePassword = properties.getProperty("KEYSTORE_SOUKI_PASSWORD")
+            keyAlias = properties.getProperty("KEYSTORE_SOUKI_ALIAS")
+            keyPassword = properties.getProperty("KEYSTORE_SOUKI_PASSWORD")
         }
     }
 
