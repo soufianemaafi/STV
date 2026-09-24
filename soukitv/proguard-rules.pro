@@ -4,3 +4,4 @@
 # You can edit the include path and order by changing the proguardFiles
 # directive in build.gradle.
 
+-keepclassmembers class com.example.soukitv.features.home.domain.model.Channel { *; }

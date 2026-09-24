@@ -1,17 +1,42 @@
 package com.example.soukitv.features.home.data
 
+import android.util.Log
+import com.example.soukitv.features.home.data.remote.ChannelApiService
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 class ChannelRepositoryImpl : ChannelRepository {
 
-    override fun getCategories(): Flow<List<Category>> = flow {
-        delay(1000)
+    private val apiService: ChannelApiService = Retrofit.Builder()
+        .baseUrl("https://raw.githubusercontent.com/")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(ChannelApiService::class.java)
 
+    override fun getCategories(): Flow<List<Category>> = flow {
+        val categories = try {
+            withContext(Dispatchers.IO) {
+                apiService.getChannels(REMOTE_CHANNELS_URL)
+            }.groupBy { it.category }
+                .map { (categoryName, channelList) ->
+                    Category(categoryName, channelList)
+                }
+        } catch (throwable: Exception) {
+            Log.w(TAG, "Remote catalogue unavailable, falling back to local channels", throwable)
+            localCategories()
+        }
+
+        emit(categories)
+    }
+
+    private fun localCategories(): List<Category> {
         val testUrl = "https://stream.skynewsarabia.com/hls/sna_720.m3u8"
         val channels = listOf(
             Channel("1", "France 24", "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/france-24-fr.png", testUrl, "News"),
@@ -36,12 +61,15 @@ class ChannelRepositoryImpl : ChannelRepository {
             Channel("20", "BFM DICI Haute-Provence", "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/bfm-tv-fr.png", "https://ncdn-live-bfm.pfd.sfr.net/shls/LIVE${'$'}BFM_DICI_HAUTEPROVENCE/index.m3u8?end=END&start=LIVE", "BFM News & Régions")
         )
 
-        emit(
-            channels.groupBy { it.category }
-                .map { (categoryName, channelList) ->
-                    Category(categoryName, channelList)
-                }
-        )
+        return channels.groupBy { it.category }
+            .map { (categoryName, channelList) ->
+                Category(categoryName, channelList)
+            }
+    }
+
+    companion object {
+        private const val TAG = "ChannelRepositoryImpl"
+        private const val REMOTE_CHANNELS_URL = "https://raw.githubusercontent.com/elcodefy/souki-chanels/refs/heads/main/channels.json"
     }
 }
 
