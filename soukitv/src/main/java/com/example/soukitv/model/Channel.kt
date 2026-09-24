@@ -1,4 +1,4 @@
-package com.example.soukitv.model
+package com.example.soukitv.features.home.domain.model
 
 data class Channel(
     val id: String,

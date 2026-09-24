@@ -1,8 +1,5 @@
 package com.example.soukitv.ui.home
 
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,59 +25,43 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.example.soukitv.model.Category
-import com.example.soukitv.model.Channel
+import com.example.soukitv.core.player.StvPlayerLauncher
+import com.example.soukitv.features.home.domain.model.Category
+import com.example.soukitv.features.home.domain.model.Channel
+import com.example.soukitv.features.home.presentation.HomeUiAction
+import com.example.soukitv.features.home.presentation.HomeUiState
+import com.example.soukitv.features.home.presentation.HomeViewModel
+import com.example.soukitv.features.home.presentation.HomeViewModelFactory
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
-    val categories by viewModel.categories.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val context = LocalContext.current
+fun HomeScreen(
+    viewModel: HomeViewModel = viewModel(
+        factory = HomeViewModelFactory(LocalContext.current.applicationContext)
+    )
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val currentState = uiState
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
+    var lastCategories by remember { mutableStateOf<List<Category>>(emptyList()) }
 
-    var showInstallDialog by remember { mutableStateOf(false) }
-
-    // Identifiant officiel de STV sur le Play Store
-    val officialStvPackage = "com.stv.videoplayer"
-
-    if (showInstallDialog) {
-        AlertDialog(
-            onDismissRequest = { showInstallDialog = false },
-            title = { Text(text = "STV Required") },
-            text = { Text(text = "The STV Player app is required to play this content. Please install it to continue.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showInstallDialog = false
-                        try {
-                            // Ouvre l'application Google Play Store
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$officialStvPackage")).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
-                        } catch (e: android.content.ActivityNotFoundException) {
-                            // Fallback vers le navigateur web
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$officialStvPackage")).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(intent)
-                        }
-                    }
-                ) {
-                    Text("Install STV")
-                }
-            },
-            dismissButton = {
-                Button(onClick = { showInstallDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
+    LaunchedEffect(currentState) {
+        if (currentState is HomeUiState.Success) {
+            lastCategories = currentState.categories
+        }
     }
+
+    val categories = when (val state = currentState) {
+        HomeUiState.Loading -> lastCategories
+        is HomeUiState.Success -> state.categories
+        is HomeUiState.Error -> lastCategories
+    }
+
+    val isLoading = currentState is HomeUiState.Loading && lastCategories.isEmpty()
+    val errorState = currentState as? HomeUiState.Error
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -144,79 +125,70 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         }
                     },
                     scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
                         scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
             }
         ) { paddingValues ->
-            if (isLoading) {
+            when {
+                isLoading -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    item {
-                        FeaturedSection()
-                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues),
+                        contentPadding = PaddingValues(bottom = 24.dp)
+                    ) {
+                        item {
+                            FeaturedSection()
+                        }
 
-                    items(categories) { category ->
-                        CategorySection(category = category, onChannelClick = { channel ->
-                            // 🔍 Liste ordonnée des packages supportés (Nouveaux IDs officiels en priorité)
-                            val stvPackageNames = listOf(
-                                "com.stv.videoplayer",      // Production Officielle
-                                "com.stv.videoplayer.dev",  // Flavor Dev / Debug
-                                "com.example.stv",          // Rétrocompatibilité
-                                "com.example.stv.dev"
-                            )
-
-                            val installedPackage = stvPackageNames.firstOrNull { packageName ->
-                                try {
-                                    context.packageManager.getPackageInfo(packageName, 0)
-                                    true
-                                } catch (e: Exception) {
-                                    false
-                                }
-                            }
-
-                            if (installedPackage != null) {
-                                try {
-                                    // 🚀 Lancement Exclusif de STV avec URL et Titre
-                                    val intent = Intent("com.stv.videoplayer.action.PLAY_STREAM").apply {
-                                        // 🔒 Verrouille strictement sur STV
-                                        setPackage(installedPackage)
-
-                                        // Fournit l'URL à la fois en data et en extras pour compatibilité universelle
-                                        val uri = Uri.parse(channel.streamUrl)
-                                        setDataAndType(uri, "video/*")
-                                        putExtra("VIDEO_URL", channel.streamUrl)
-                                        putExtra("url", channel.streamUrl)
-
-                                        // 📺 Titre de la chaîne (capté par Detail 2 dans STV)
-                                        putExtra("title", channel.name)
-
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Error launching STV Player: ${e.message}", Toast.LENGTH_LONG).show()
-                                }
-                            } else {
-                                // STV absent -> Affiche le dialogue Play Store
-                                showInstallDialog = true
-                            }
-                        })
+                        items(categories) { category ->
+                            CategorySection(category = category, onChannelClick = { channel ->
+                                viewModel.onAction(HomeUiAction.SelectChannel(channel))
+                            })
+                        }
                     }
                 }
+            }
+            if (errorState != null) {
+                val installRequired = errorState.message == StvPlayerLauncher.NOT_INSTALLED_MESSAGE
+                AlertDialog(
+                    onDismissRequest = { viewModel.onAction(HomeUiAction.DismissInstallDialog) },
+                    title = {
+                        Text(
+                            text = if (installRequired) "STV Required" else "Error"
+                        )
+                    },
+                    text = { Text(text = errorState.message) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (installRequired) {
+                                    viewModel.onAction(HomeUiAction.InstallStv)
+                                } else {
+                                    viewModel.onAction(HomeUiAction.Retry)
+                                }
+                            }
+                        ) {
+                            Text(text = if (installRequired) "Install STV" else "Retry")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = { viewModel.onAction(HomeUiAction.DismissInstallDialog) }) {
+                            Text(text = "Cancel")
+                        }
+                    }
+                )
             }
         }
     }
@@ -313,8 +285,8 @@ fun ChannelItem(channel: Channel, onClick: () -> Unit) {
                 contentDescription = channel.name,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.Crop
+                    .padding(8.dp),
+                contentScale = ContentScale.Fit
             )
             Box(
                 modifier = Modifier
