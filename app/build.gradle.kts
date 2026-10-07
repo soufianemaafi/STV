@@ -63,7 +63,7 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file("stv_release.keystore")
+            storeFile = rootProject.file("stv_release_secure.keystore")
             storePassword = properties.getProperty("KEYSTORE_STV_PASSWORD")
             keyAlias = properties.getProperty("KEYSTORE_STV_ALIAS")
             keyPassword = properties.getProperty("KEYSTORE_STV_PASSWORD")

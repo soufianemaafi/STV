@@ -8,6 +8,7 @@
     <application
         android:name=".STVApplication"
         android:allowBackup="true"
+        android:theme="@style/Theme.STV"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -29,7 +30,7 @@
             android:name=".features.home.presentation.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.STV"
+            android:theme="@style/Theme.STV.Splash"
             android:windowLightStatusBar="false">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -45,6 +46,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask"
+            android:taskAffinity=""
             android:screenOrientation="sensorLandscape"
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.STV"

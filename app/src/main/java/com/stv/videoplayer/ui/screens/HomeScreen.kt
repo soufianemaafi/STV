@@ -16,10 +16,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -137,7 +138,7 @@ fun HomeScreen(
                 ) {
                     NavigationDrawerItem(
                         label = { Text(stringResource(R.string.privacy_policy), color = WhitePrimary) },
-                        icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.privacy_policy_cd), tint = GrayLight) },
+                        icon = { Icon(Icons.Filled.Security, contentDescription = stringResource(R.string.privacy_policy_cd), tint = GrayLight) },
                         selected = false,
                         onClick = {
                             val intent = Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
@@ -151,7 +152,7 @@ fun HomeScreen(
 
                     NavigationDrawerItem(
                         label = { Text(stringResource(R.string.terms_of_service), color = WhitePrimary) },
-                        icon = { Icon(Icons.Filled.Description, contentDescription = stringResource(R.string.terms_of_service_cd), tint = GrayLight) },
+                        icon = { Icon(Icons.AutoMirrored.Filled.Article, contentDescription = stringResource(R.string.terms_of_service_cd), tint = GrayLight) },
                         selected = false,
                         onClick = {
                             val intent = Intent(Intent.ACTION_VIEW, termsOfServiceUrl.toUri())
@@ -165,7 +166,7 @@ fun HomeScreen(
 
                     NavigationDrawerItem(
                         label = { Text(stringResource(R.string.legal_disclaimer), color = WhitePrimary) },
-                        icon = { Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.legal_disclaimer), tint = GrayLight) },
+                        icon = { Icon(Icons.Filled.Shield, contentDescription = stringResource(R.string.legal_disclaimer), tint = GrayLight) },
                         selected = false,
                         onClick = {
                             showLegalDisclaimerDialog = true

@@ -64,7 +64,7 @@ class VideoRepository(context: Context) {
         private const val PREFS_NAME = "stv_videos"
         private const val PREFS_KEY = "videos_json"
         private const val DEFAULT_VIDEO_URL =
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
     }
 }
 

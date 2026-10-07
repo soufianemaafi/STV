@@ -53,8 +53,8 @@
     <string name="privacy_policy">Politique de confidentialité</string>
     <string name="terms_of_service">Conditions d\'utilisation</string>
     <!-- URLs non traduites — héritées de values/strings.xml -->
-    <string name="privacy_policy_url" translatable="false">https://sites.google.com/view/stvplayerprivacy</string>
-    <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/stvplayerterms</string>
+    <string name="privacy_policy_url" translatable="false">https://sites.google.com/view/soufcom-stv/privacy-policy</string>
+    <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/soufcom-stv/terms-of-service</string>
     <string name="legal_disclaimer">Avis de non-responsabilité</string>
     <string name="legal_disclaimer_title">Avertissement Légal</string>
     <string name="legal_disclaimer_message">STV Player est un lecteur multimédia purement technique. L\'application ne fournit, n\'héberge et ne diffuse aucun flux vidéo ni contenu multimédia. Les utilisateurs sont seuls responsables des contenus qu\'ils ajoutent. STV Player n\'a aucune affiliation avec les fournisseurs de flux tiers et n\'approuve pas la lecture de contenus protégés sans autorisation.</string>

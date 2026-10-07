@@ -24,6 +24,7 @@
 
     <!-- Couleurs STV (pour Material 3) - Synchronisées avec Color.kt -->
     <color name="stv_red">#FFC41E3A</color>
+    <color name="splash_background">#1A1A1A</color>
     <color name="stv_dark_background">#FF121212</color>
     <color name="stv_surface">#FF1A1A1A</color>
 
