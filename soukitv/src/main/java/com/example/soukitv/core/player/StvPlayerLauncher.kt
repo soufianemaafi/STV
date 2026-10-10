@@ -3,7 +3,7 @@ package com.example.soukitv.core.player
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import com.example.soukitv.features.home.domain.model.Channel
 
 class StvPlayerLauncher(private val context: Context) {
@@ -23,7 +23,7 @@ class StvPlayerLauncher(private val context: Context) {
         return try {
             val intent = Intent(PLAY_STREAM_ACTION).apply {
                 setPackage(installedPackage)
-                val uri = Uri.parse(channel.streamUrl)
+                val uri = channel.streamUrl.toUri()
                 setDataAndType(uri, "video/*")
                 putExtra(EXTRA_VIDEO_URL, channel.streamUrl)
                 putExtra(EXTRA_URL, channel.streamUrl)
@@ -38,14 +38,14 @@ class StvPlayerLauncher(private val context: Context) {
     }
 
     fun openPlayStore() {
-        val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse(PLAY_STORE_MARKET_URL)).apply {
+        val marketIntent = Intent(Intent.ACTION_VIEW, PLAY_STORE_MARKET_URL.toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
         try {
             context.startActivity(marketIntent)
         } catch (_: ActivityNotFoundException) {
-            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(PLAY_STORE_WEB_URL)).apply {
+            val webIntent = Intent(Intent.ACTION_VIEW, PLAY_STORE_WEB_URL.toUri()).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(webIntent)
@@ -59,15 +59,17 @@ class StvPlayerLauncher(private val context: Context) {
     }
 
     companion object {
-        const val PLAY_STREAM_ACTION = "com.stv.videoplayer.action.PLAY_STREAM"
+        const val PLAY_STREAM_ACTION = "com.soufcom.stv.action.PLAY_STREAM"
         const val EXTRA_VIDEO_URL = "VIDEO_URL"
         const val EXTRA_URL = "url"
         const val EXTRA_TITLE = "title"
         const val NOT_INSTALLED_MESSAGE = "STV Player is required to play this content."
 
-        private const val PLAY_STORE_MARKET_URL = "market://details?id=com.stv.videoplayer"
-        private const val PLAY_STORE_WEB_URL = "https://play.google.com/store/apps/details?id=com.stv.videoplayer"
+        private const val PLAY_STORE_MARKET_URL = "market://details?id=com.soufcom.stv"
+        private const val PLAY_STORE_WEB_URL = "https://play.google.com/store/apps/details?id=com.soufcom.stv"
         private val SUPPORTED_PACKAGES = listOf(
+            "com.soufcom.stv",
+            "com.soufcom.stv.dev",
             "com.stv.videoplayer",
             "com.stv.videoplayer.dev",
             "com.example.stv",

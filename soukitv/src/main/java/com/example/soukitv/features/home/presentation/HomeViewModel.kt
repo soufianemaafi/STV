@@ -25,7 +25,9 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
-    private var lastSuccessCategories: List<Category> = emptyList()
+    private var allCategories: List<Category> = emptyList()
+    private var selectedCategoryName: String? = null
+    private var searchQuery: String = ""
 
     init {
         loadChannels()
@@ -40,6 +42,19 @@ class HomeViewModel(
                 restoreSuccessState()
             }
             HomeUiAction.Retry -> loadChannels()
+            is HomeUiAction.SelectCategory -> {
+                selectedCategoryName = action.categoryName
+                refreshFilters()
+            }
+            is HomeUiAction.UpdateSearchQuery -> {
+                searchQuery = action.query
+                refreshFilters()
+            }
+            HomeUiAction.ClearFilters -> {
+                selectedCategoryName = null
+                searchQuery = ""
+                refreshFilters()
+            }
         }
     }
 
@@ -49,8 +64,11 @@ class HomeViewModel(
             _uiState.value = HomeUiState.Loading
             runCatching {
                 repository.getCategories().collect { categories ->
-                    lastSuccessCategories = categories
-                    _uiState.value = HomeUiState.Success(categories)
+                    allCategories = categories
+                    if (categories.none { it.name == selectedCategoryName }) {
+                        selectedCategoryName = null
+                    }
+                    publishSuccess()
                 }
             }.onFailure { throwable ->
                 _uiState.value = HomeUiState.Error(
@@ -75,10 +93,58 @@ class HomeViewModel(
     }
 
     private fun restoreSuccessState() {
-        _uiState.value = if (lastSuccessCategories.isNotEmpty()) {
-            HomeUiState.Success(lastSuccessCategories)
+        if (allCategories.isNotEmpty()) {
+            publishSuccess()
         } else {
-            HomeUiState.Loading
+            _uiState.value = HomeUiState.Loading
+        }
+    }
+
+    /** Recalcule les filtres uniquement si le catalogue est affiché (évite d'écraser Loading/Error). */
+    private fun refreshFilters() {
+        if (_uiState.value is HomeUiState.Success) publishSuccess()
+    }
+
+    private fun publishSuccess() {
+        _uiState.value = HomeUiState.Success(
+            allCategories = allCategories,
+            selectedCategoryName = selectedCategoryName,
+            searchQuery = searchQuery,
+            displayedCategories = computeDisplayedCategories(
+                allCategories = allCategories,
+                selectedCategoryName = selectedCategoryName,
+                query = searchQuery
+            )
+        )
+    }
+
+    companion object {
+        /**
+         * Filtre pur : restriction à la catégorie sélectionnée (si présente),
+         * puis recherche insensible à la casse sur le nom des chaînes (si non vide).
+         */
+        internal fun computeDisplayedCategories(
+            allCategories: List<Category>,
+            selectedCategoryName: String?,
+            query: String
+        ): List<Category> {
+            val normalizedQuery = query.trim()
+            return allCategories
+                .asSequence()
+                .filter { selectedCategoryName == null || it.name == selectedCategoryName }
+                .map { category ->
+                    if (normalizedQuery.isEmpty()) {
+                        category
+                    } else {
+                        category.copy(
+                            channels = category.channels.filter {
+                                it.name.contains(normalizedQuery, ignoreCase = true)
+                            }
+                        )
+                    }
+                }
+                .filter { normalizedQuery.isEmpty() || it.channels.isNotEmpty() }
+                .toList()
         }
     }
 }

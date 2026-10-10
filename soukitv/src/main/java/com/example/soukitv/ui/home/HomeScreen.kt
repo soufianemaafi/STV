@@ -1,26 +1,36 @@
 package com.example.soukitv.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -41,26 +51,21 @@ fun HomeScreen(
         factory = HomeViewModelFactory(LocalContext.current.applicationContext)
     )
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val currentState = uiState
+    val currentState = viewModel.uiState.collectAsState().value
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
-    var lastCategories by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var lastSuccess by remember { mutableStateOf<HomeUiState.Success?>(null) }
+    var isSearchVisible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(currentState) {
         if (currentState is HomeUiState.Success) {
-            lastCategories = currentState.categories
+            lastSuccess = currentState
         }
     }
 
-    val categories = when (val state = currentState) {
-        HomeUiState.Loading -> lastCategories
-        is HomeUiState.Success -> state.categories
-        is HomeUiState.Error -> lastCategories
-    }
-
-    val isLoading = currentState is HomeUiState.Loading && lastCategories.isEmpty()
+    // Le dernier catalogue connu reste affiché pendant Loading / Error.
+    val success = (currentState as? HomeUiState.Success) ?: lastSuccess
     val errorState = currentState as? HomeUiState.Error
 
     ModalNavigationDrawer(
@@ -116,11 +121,19 @@ fun HomeScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { /* TODO: Implement Search */ }) {
+                        IconButton(onClick = {
+                            isSearchVisible = !isSearchVisible
+                            // Fermer la recherche réinitialise la requête.
+                            if (!isSearchVisible) viewModel.onAction(HomeUiAction.UpdateSearchQuery(""))
+                        }) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
                                 contentDescription = "Search",
-                                tint = MaterialTheme.colorScheme.onBackground
+                                tint = if (isSearchVisible) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onBackground
+                                }
                             )
                         }
                     },
@@ -132,34 +145,57 @@ fun HomeScreen(
                 )
             }
         ) { paddingValues ->
-            when {
-                isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                AnimatedVisibility(visible = isSearchVisible) {
+                    SearchField(
+                        query = success?.searchQuery.orEmpty(),
+                        onQueryChange = { viewModel.onAction(HomeUiAction.UpdateSearchQuery(it)) },
+                        onClear = { viewModel.onAction(HomeUiAction.UpdateSearchQuery("")) }
+                    )
                 }
+
+                if (success != null) {
+                    CategoryFilterRow(
+                        categories = success.allCategories,
+                        selectedCategoryName = success.selectedCategoryName,
+                        onSelect = { viewModel.onAction(HomeUiAction.SelectCategory(it)) }
+                    )
                 }
-                else -> {
-                    LazyColumn(
+
+                when {
+                    success == null -> Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues),
-                        contentPadding = PaddingValues(bottom = 24.dp)
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        item {
-                            FeaturedSection()
-                        }
-
-                        items(categories) { category ->
-                            CategorySection(category = category, onChannelClick = { channel ->
-                                viewModel.onAction(HomeUiAction.SelectChannel(channel))
-                            })
+                        if (errorState == null) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         }
                     }
+
+                    success.selectedCategoryName != null || success.searchQuery.isNotBlank() -> ChannelGrid(
+                        modifier = Modifier.weight(1f),
+                        title = success.selectedCategoryName ?: "Résultats de recherche",
+                        channels = success.displayedCategories.flatMap { it.channels },
+                        onChannelClick = { viewModel.onAction(HomeUiAction.SelectChannel(it)) }
+                    )
+
+                    else -> CategoryOverview(
+                        modifier = Modifier.weight(1f),
+                        categories = success.displayedCategories,
+                        onSeeAll = { category ->
+                            viewModel.onAction(HomeUiAction.SelectCategory(category.name))
+                        },
+                        onChannelClick = { viewModel.onAction(HomeUiAction.SelectChannel(it)) }
+                    )
                 }
             }
+
             if (errorState != null) {
                 val installRequired = errorState.message == StvPlayerLauncher.NOT_INSTALLED_MESSAGE
                 AlertDialog(
@@ -188,6 +224,132 @@ fun HomeScreen(
                             Text(text = "Cancel")
                         }
                     }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .focusRequester(focusRequester),
+        singleLine = true,
+        shape = RoundedCornerShape(16.dp),
+        placeholder = { Text("Rechercher une chaîne") },
+        leadingIcon = {
+            Icon(imageVector = Icons.Filled.Search, contentDescription = null)
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = onClear) {
+                    Icon(imageVector = Icons.Filled.Close, contentDescription = "Effacer")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun CategoryFilterRow(
+    categories: List<Category>,
+    selectedCategoryName: String?,
+    onSelect: (String?) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            FilterChip(
+                selected = selectedCategoryName == null,
+                onClick = { onSelect(null) },
+                label = { Text("Tous") }
+            )
+        }
+        items(categories, key = { it.name }) { category ->
+            FilterChip(
+                selected = selectedCategoryName == category.name,
+                onClick = { onSelect(category.name) },
+                label = { Text(category.name) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryOverview(
+    modifier: Modifier,
+    categories: List<Category>,
+    onSeeAll: (Category) -> Unit,
+    onChannelClick: (Channel) -> Unit
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        item {
+            FeaturedSection()
+        }
+
+        items(categories, key = { it.name }) { category ->
+            CategorySection(
+                category = category,
+                onSeeAll = { onSeeAll(category) },
+                onChannelClick = onChannelClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChannelGrid(
+    modifier: Modifier,
+    title: String,
+    channels: List<Channel>,
+    onChannelClick: (Channel) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        if (channels.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    text = "Aucune chaîne trouvée",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            items(channels) { channel ->
+                ChannelItem(
+                    channel = channel,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onChannelClick(channel) }
                 )
             }
         }
@@ -232,7 +394,11 @@ fun FeaturedSection() {
 }
 
 @Composable
-fun CategorySection(category: Category, onChannelClick: (Channel) -> Unit) {
+fun CategorySection(
+    category: Category,
+    onSeeAll: () -> Unit,
+    onChannelClick: (Channel) -> Unit
+) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(
             modifier = Modifier
@@ -250,7 +416,9 @@ fun CategorySection(category: Category, onChannelClick: (Channel) -> Unit) {
                 text = "See All",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { /* TODO */ }
+                modifier = Modifier
+                    .clickable(onClick = onSeeAll)
+                    .padding(4.dp)
             )
         }
 
@@ -259,18 +427,23 @@ fun CategorySection(category: Category, onChannelClick: (Channel) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(category.channels) { channel ->
-                ChannelItem(channel = channel, onClick = { onChannelClick(channel) })
+                ChannelItem(
+                    channel = channel,
+                    onClick = { onChannelClick(channel) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun ChannelItem(channel: Channel, onClick: () -> Unit) {
+fun ChannelItem(
+    channel: Channel,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.width(160.dp)
+) {
     Column(
-        modifier = Modifier
-            .width(160.dp)
-            .clickable { onClick() }
+        modifier = modifier.clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
@@ -300,7 +473,8 @@ fun ChannelItem(channel: Channel, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
+

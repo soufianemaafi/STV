@@ -21,7 +21,7 @@ android {
     flavorDimensions.add("environment")
 
     defaultConfig {
-        applicationId = "com.stv.videoplayer"
+        applicationId = "com.soufcom.stv"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -48,7 +48,7 @@ android {
 
         create("prod") {
             dimension = "environment"
-            applicationId = "com.stv.videoplayer"
+            applicationId = "com.soufcom.stv"
             // ✅ IDs PRODUCTION lus depuis local.properties (sécurisé, hors Git)
             // Fallback sur l'ID test si local.properties ne contient pas la clé
             val prodInterstitialId = localProperties.getProperty("admob.interstitial.id", "ca-app-pub-3940256099942544/1033173712")
