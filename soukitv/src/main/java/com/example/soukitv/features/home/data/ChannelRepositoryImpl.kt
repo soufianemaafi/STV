@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.soukitv.features.home.data.remote.ChannelApiService
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
+import com.example.soukitv.features.home.domain.model.MatchItem
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -67,9 +68,66 @@ class ChannelRepositoryImpl : ChannelRepository {
             }
     }
 
+    /**
+     * Matchs du jour : récupérés depuis [REMOTE_MATCHES_URL] sur Dispatchers.IO.
+     * En cas d'échec réseau, bascule sur une liste de secours locale.
+     */
+    override fun getMatches(): Flow<List<MatchItem>> = flow {
+        val matches = try {
+            withContext(Dispatchers.IO) {
+                apiService.getMatches(REMOTE_MATCHES_URL)
+            }
+        } catch (throwable: Exception) {
+            Log.w(TAG, "Remote matches unavailable, falling back to local matches", throwable)
+            fallbackMatches()
+        }
+        emit(matches)
+    }
+
+    /** Matchs de secours (hors-ligne), libelles en arabe. */
+    private fun fallbackMatches(): List<MatchItem> {
+        val fallbackStream = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        return listOf(
+            MatchItem(
+                id = "match-1",
+                teamA = "ريال مدريد",
+                teamALogo = "https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/200px-Real_Madrid_CF.svg.png",
+                teamB = "برشلونة",
+                teamBLogo = "https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/200px-FC_Barcelona_%28crest%29.svg.png",
+                time = "21:00",
+                tournament = "دوري أبطال أوروبا",
+                channelName = "STV Sports 1",
+                streamUrl = fallbackStream
+            ),
+            MatchItem(
+                id = "match-2",
+                teamA = "مانشستر سيتي",
+                teamALogo = "https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/200px-Manchester_City_FC_badge.svg.png",
+                teamB = "ليفربول",
+                teamBLogo = "https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Liverpool_FC.svg/200px-Liverpool_FC.svg.png",
+                time = "18:30",
+                tournament = "الدوري الإنجليزي الممتاز",
+                channelName = "STV Sports 2",
+                streamUrl = fallbackStream
+            ),
+            MatchItem(
+                id = "match-3",
+                teamA = "الوداد الرياضي",
+                teamALogo = "https://upload.wikimedia.org/wikipedia/en/thumb/2/2e/Wydad_AC_logo.svg/200px-Wydad_AC_logo.svg.png",
+                teamB = "الرجاء الرياضي",
+                teamBLogo = "https://upload.wikimedia.org/wikipedia/en/thumb/5/5d/Raja_CA_Logo.svg/200px-Raja_CA_Logo.svg.png",
+                time = "20:00",
+                tournament = "البطولة الاحترافية إنوي",
+                channelName = "STV Sports 3",
+                streamUrl = fallbackStream
+            )
+        )
+    }
+
     companion object {
         private const val TAG = "ChannelRepositoryImpl"
         private const val REMOTE_CHANNELS_URL = "https://raw.githubusercontent.com/elcodefy/souki-chanels/refs/heads/main/channels.json"
+        private const val REMOTE_MATCHES_URL = "https://raw.githubusercontent.com/elcodefy/souki-chanels/refs/heads/main/matches.json"
     }
 }
 

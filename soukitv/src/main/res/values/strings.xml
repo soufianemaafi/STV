@@ -1,3 +1,20 @@
 <resources>
     <string name="app_name">SoukiTV</string>
+    <string name="tab_matches">Matchs</string>
+    <string name="tab_channels">Chaînes TV</string>
+    <string name="dialog_stv_required_title">STV Required</string>
+    <string name="dialog_error_title">Erreur</string>
+    <string name="action_install_stv">Installer STV</string>
+    <string name="action_retry">Réessayer</string>
+    <string name="action_cancel">Annuler</string>
+    <string name="action_back">Retour</string>
+    <string name="empty_matches_today">Aucun match programmé aujourd\'hui</string>
+    <string name="empty_channels">Aucune chaîne disponible</string>
+    <string name="match_versus">VS</string>
+    <string name="error_stv_not_installed">STV Player est requis pour lire ce contenu.</string>
+
+    <plurals name="channel_count">
+        <item quantity="one">%d chaîne</item>
+        <item quantity="other">%d chaînes</item>
+    </plurals>
 </resources>

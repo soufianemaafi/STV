@@ -9,11 +9,13 @@ import com.example.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.example.soukitv.features.home.data.ChannelRepositoryImpl
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
+import com.example.soukitv.features.home.domain.model.MatchItem
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
@@ -26,8 +28,11 @@ class HomeViewModel(
 
     private var loadJob: Job? = null
     private var allCategories: List<Category> = emptyList()
+    private var matches: List<MatchItem> = emptyList()
     private var selectedCategoryName: String? = null
     private var searchQuery: String = ""
+    private var currentTab: NavigationTab = NavigationTab.MATCHES
+    private var activeCategoryDetail: Category? = null
 
     init {
         loadChannels()
@@ -36,12 +41,38 @@ class HomeViewModel(
     fun onAction(action: HomeUiAction) {
         when (action) {
             is HomeUiAction.SelectChannel -> handleSelectChannel(action.channel)
+            is HomeUiAction.SelectMatch -> {
+                val matchChannel = Channel(
+                    id = action.match.id,
+                    name = "${action.match.teamA} vs ${action.match.teamB}",
+                    logoUrl = action.match.teamALogo,
+                    streamUrl = action.match.streamUrl,
+                    category = action.match.tournament
+                )
+                val result = stvPlayerLauncher.launchChannel(matchChannel)
+                if (result is LaunchResult.NotInstalled) {
+                    _uiState.value = HomeUiState.Error(StvPlayerLauncher.NOT_INSTALLED_MESSAGE)
+                }
+            }
             HomeUiAction.DismissInstallDialog -> restoreSuccessState()
             HomeUiAction.InstallStv -> {
                 stvPlayerLauncher.openPlayStore()
                 restoreSuccessState()
             }
             HomeUiAction.Retry -> loadChannels()
+            is HomeUiAction.SwitchTab -> {
+                currentTab = action.tab
+                activeCategoryDetail = null
+                refreshFilters()
+            }
+            is HomeUiAction.SelectCategoryDetail -> {
+                activeCategoryDetail = action.category
+                refreshFilters()
+            }
+            HomeUiAction.BackToCategoriesList -> {
+                activeCategoryDetail = null
+                refreshFilters()
+            }
             is HomeUiAction.SelectCategory -> {
                 selectedCategoryName = action.categoryName
                 refreshFilters()
@@ -63,13 +94,23 @@ class HomeViewModel(
         loadJob = viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
             runCatching {
-                repository.getCategories().collect { categories ->
-                    allCategories = categories
-                    if (categories.none { it.name == selectedCategoryName }) {
-                        selectedCategoryName = null
+                repository.getCategories()
+                    .combine(repository.getMatches()) { categories, todayMatches ->
+                        categories to todayMatches
                     }
-                    publishSuccess()
-                }
+                    .collect { (categories, todayMatches) ->
+                        allCategories = categories
+                        // Tri chronologique des matchs (format HH:mm).
+                        matches = todayMatches.sortedBy { it.time }
+                        // Re-resout la categorie ouverte sur le nouveau catalogue.
+                        activeCategoryDetail = activeCategoryDetail?.let { open ->
+                            categories.firstOrNull { it.name == open.name }
+                        }
+                        if (categories.none { it.name == selectedCategoryName }) {
+                            selectedCategoryName = null
+                        }
+                        publishSuccess()
+                    }
             }.onFailure { throwable ->
                 _uiState.value = HomeUiState.Error(
                     throwable.message ?: "Unable to load channels"
@@ -100,7 +141,7 @@ class HomeViewModel(
         }
     }
 
-    /** Recalcule les filtres uniquement si le catalogue est affiché (évite d'écraser Loading/Error). */
+    /** Recalcule les filtres uniquement si le catalogue est affiche (evite d'ecraser Loading/Error). */
     private fun refreshFilters() {
         if (_uiState.value is HomeUiState.Success) publishSuccess()
     }
@@ -114,14 +155,17 @@ class HomeViewModel(
                 allCategories = allCategories,
                 selectedCategoryName = selectedCategoryName,
                 query = searchQuery
-            )
+            ),
+            matches = matches,
+            currentTab = currentTab,
+            activeCategoryDetail = activeCategoryDetail
         )
     }
 
     companion object {
         /**
-         * Filtre pur : restriction à la catégorie sélectionnée (si présente),
-         * puis recherche insensible à la casse sur le nom des chaînes (si non vide).
+         * Filtre pur : restriction a la categorie selectionnee (si presente),
+         * puis recherche insensible a la casse sur le nom des chaines (si non vide).
          */
         internal fun computeDisplayedCategories(
             allCategories: List<Category>,
