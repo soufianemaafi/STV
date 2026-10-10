@@ -22,11 +22,31 @@ Le projet est un monorepo structuré en deux modules applicatifs strictement iso
 - **Contenu :** Zéro chaîne intégrée, zéro liste M3U en dur. Outil de lecture passif pur.
 - **Stack :** Media3 ExoPlayer, Clean Architecture (Package-by-Feature), MVI, AdMob (Interstitiel preloaded).
 
-### 1.2. Module `:soukitv` (La Vitrine — SoukiTV)
-- **Rôle :** Catalogue de chaînes TV et contenus VOD avec navigation fluide.
-- **Identifiant :** `com.example.soukitv` (ou identifiant de distribution directe).
-- **Stack :** Jetpack Compose, Material 3, MVVM, Coil, Kotlin Coroutines & StateFlow.
-- **Comportement :** Émetteur exclusif. N'embarque aucun lecteur vidéo lourd ; délègue 100% de la lecture à `:app`.
+### 1.2. Module `:soukitv` — L’Application Catalogue (Spécifications Élite & QA)
+- **Rôle :** Application catalogue de chaînes TV et contenus VOD distribuée hors Play Store.
+- **Identifiant :** `com.example.soukitv`.
+- **Architecture :** Clean Architecture (Package-by-Feature) :
+  * `features/home/domain/` : Modèles purs (`Channel`, `Category`) et interface `ChannelRepository`.
+  * `features/home/data/` : Implémentation Retrofit `ChannelRepositoryImpl` (catalogue JSON GitHub distant avec fallback local et cache hors-ligne).
+  * `core/player/` : `StvPlayerLauncher` (composant isolé gérant l'IPC et le contrat d'Intent vers STV).
+  * `features/home/presentation/` : MVI pur (`HomeViewModel`, `HomeUiState`, `HomeUiAction`).
+- **Pattern MVI :**
+  * `HomeUiState` : `Loading` (avec Shimmer skeleton), `Success(categories, filteredChannels, selectedCategory, searchQuery, favorites)`, `Error(message)`.
+  * `HomeUiAction` : `SelectChannel`, `SearchQuery`, `SelectCategory`, `ToggleFavorite`, `Retry`, `DismissInstallDialog`.
+  * L'UI (`HomeScreen.kt`) est PUREMENT déclarative : zéro calcul d'Intent, tout passe par `viewModel.onAction(...)`.
+- **Standards UI/UX (Material 3) :**
+  * Recherche en direct (`SearchBar` ou `DockedSearchBar` Material 3 filtrant instantanément les chaînes).
+  * Filtres rapides par univers (`FilterChip` scrollable : Tous, News, Maghreb, Égypte, Sports, etc.).
+  * Effet Shimmer (squelettes scintillants pour remplacer le CircularProgressIndicator).
+  * Thème sombre immersif ("Netflix-like" : `#141414`, `#1F1F1F`, accent `#E50914`).
+  * Persistance des Favoris : Sauvegarde locale des IDs de chaînes préférées pour les épingler en tête de liste.
+- **Stratégie de Tests Unitaires Obligatoire (JVM Pure) :**
+  * Tout nouveau composant doit avoir sa suite de tests sous `soukitv/src/test/java/` :
+    1. `HomeViewModelTest` : Validation des actions MVI (recherche en temps réel, filtres de catégories, bascule des favoris, transitions Loading -> Success).
+    2. `ChannelRepositoryImplTest` : Validation du parsing JSON distant et bascule transparente sur le fallback hors-ligne en cas d'erreur réseau.
+    3. `StvPlayerLauncherTest` : Validation de la priorité des packages (`com.soufcom.stv`) et du résultat `NotInstalled`.
+  * Règle de validation continue : Tout refactoring doit valider la compilation et les tests unitaires :
+    `.\\gradlew :soukitv:testDebugUnitTest :soukitv:assembleDebug`
 
 ---
 
