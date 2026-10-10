@@ -6,6 +6,8 @@ import com.example.soukitv.features.home.domain.model.Channel
 import com.example.soukitv.features.home.domain.model.MatchItem
 import com.example.soukitv.features.home.domain.model.toChannel
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
+import io.mockk.clearMocks
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +50,7 @@ class HomeViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        clearMocks(launcher)
     }
 
     @After
@@ -56,103 +59,14 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun initialState_showsAllCategoriesWithoutFilters() {
-        val state = viewModel().success()
-
-        assertEquals(catalogue, state.allCategories)
-        assertNull(state.selectedCategoryName)
-        assertEquals("", state.searchQuery)
-        assertEquals(catalogue, state.displayedCategories)
-    }
-
-    @Test
-    fun selectCategory_isolatesThatCategory() {
-        val viewModel = viewModel()
-
-        viewModel.onAction(HomeUiAction.SelectCategory("Sports"))
-
-        val state = viewModel.success()
-        assertEquals("Sports", state.selectedCategoryName)
-        assertEquals(listOf(sports), state.displayedCategories)
-        assertEquals(catalogue, state.allCategories)
-    }
-
-    @Test
-    fun selectCategoryNull_showsAllCategoriesAgain() {
-        val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SelectCategory("News"))
-
-        viewModel.onAction(HomeUiAction.SelectCategory(null))
-
-        val state = viewModel.success()
-        assertNull(state.selectedCategoryName)
-        assertEquals(catalogue, state.displayedCategories)
-    }
-
-    @Test
-    fun updateSearchQuery_filtersChannelsByNameIgnoringCase() {
-        val viewModel = viewModel()
-
-        viewModel.onAction(HomeUiAction.UpdateSearchQuery("EURO"))
-
-        val state = viewModel.success()
-        assertEquals("EURO", state.searchQuery)
-        assertEquals(1, state.displayedCategories.size)
-        assertEquals("Sports", state.displayedCategories.single().name)
-        assertEquals(
-            listOf("Eurosport"),
-            state.displayedCategories.single().channels.map { it.name }
-        )
-    }
-
-    @Test
-    fun updateSearchQuery_withoutMatch_returnsNoCategory() {
-        val viewModel = viewModel()
-
-        viewModel.onAction(HomeUiAction.UpdateSearchQuery("zzz"))
-
-        assertTrue(viewModel.success().displayedCategories.isEmpty())
-    }
-
-    @Test
-    fun updateSearchQuery_combinedWithSelectedCategory_restrictsToThatCategory() {
-        val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SelectCategory("News"))
-
-        viewModel.onAction(HomeUiAction.UpdateSearchQuery("al"))
-
-        val channels = viewModel.success().displayedCategories.single().channels
-        assertEquals(listOf("Al Jazeera"), channels.map { it.name })
-    }
-
-    @Test
-    fun clearFilters_resetsCategoryAndSearch() {
-        val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SelectCategory("Sports"))
-        viewModel.onAction(HomeUiAction.UpdateSearchQuery("red"))
-
-        viewModel.onAction(HomeUiAction.ClearFilters)
-
-        val state = viewModel.success()
-        assertNull(state.selectedCategoryName)
-        assertEquals("", state.searchQuery)
-        assertEquals(catalogue, state.displayedCategories)
-    }
-
-    @Test
-    fun matches_areExposedInSuccessState() {
+    fun initialState_transitionsToSuccessWithMatchesTabAndCategories() {
         val state = viewModel(matches = listOf(match)).success()
 
+        assertEquals(NavigationTab.MATCHES, state.currentTab)
+        assertEquals(catalogue, state.categories)
         assertEquals(listOf(match), state.matches)
-    }
-
-    @Test
-    fun selectMatch_launchesStvPlayerWithMatchAsChannel() {
-        val viewModel = viewModel(matches = listOf(match))
-
-        viewModel.onAction(HomeUiAction.SelectMatch(match))
-
-        verify { launcher.launchChannel(match.toChannel()) }
+        assertNull(state.activeCategoryDetail)
+        assertTrue(state.isDarkTheme)
     }
 
     @Test
@@ -168,15 +82,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun defaultTab_isMatches_andNoCategoryDetail() {
-        val state = viewModel().success()
-
-        assertEquals(NavigationTab.MATCHES, state.currentTab)
-        assertNull(state.activeCategoryDetail)
-    }
-
-    @Test
-    fun switchTab_togglesCurrentTab() {
+    fun switchTab_togglesBetweenChannelsAndMatches() {
         val viewModel = viewModel()
 
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
@@ -184,6 +90,41 @@ class HomeViewModelTest {
 
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.MATCHES))
         assertEquals(NavigationTab.MATCHES, viewModel.success().currentTab)
+    }
+
+    @Test
+    fun switchTab_resetsActiveCategoryDetail() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
+
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.MATCHES))
+
+        assertNull(viewModel.success().activeCategoryDetail)
+    }
+
+    @Test
+    fun selectCategoryDetail_entersLevelTwoWithSelectedCategory() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(sports))
+
+        assertEquals(sports, viewModel.success().activeCategoryDetail)
+        assertEquals(catalogue, viewModel.success().categories)
+    }
+
+    @Test
+    fun backToCategoriesList_returnsFromLevelTwoToLevelOne() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
+
+        viewModel.onAction(HomeUiAction.BackToCategoriesList)
+
+        val state = viewModel.success()
+        assertNull(state.activeCategoryDetail)
+        assertEquals(NavigationTab.CHANNELS, state.currentTab)
     }
 
     @Test
@@ -200,37 +141,40 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun switchTab_resetsActiveCategoryDetail() {
-        val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
-        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
+    fun selectMatch_launchesStvPlayerWithMatchAsChannel() {
+        every { launcher.launchChannel(any()) } returns StvPlayerLauncher.LaunchResult.Launched
+        val viewModel = viewModel(matches = listOf(match))
 
-        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.MATCHES))
+        viewModel.onAction(HomeUiAction.SelectMatch(match))
 
-        assertNull(viewModel.success().activeCategoryDetail)
+        verify { launcher.launchChannel(match.toChannel()) }
     }
 
     @Test
-    fun selectCategoryDetail_entersCategoryLevelTwo() {
-        val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+    fun selectMatch_setsErrorWhenStvIsNotInstalled() {
+        every { launcher.launchChannel(any()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
+        val viewModel = viewModel(matches = listOf(match))
 
-        viewModel.onAction(HomeUiAction.SelectCategoryDetail(sports))
+        viewModel.onAction(HomeUiAction.SelectMatch(match))
 
-        assertEquals(sports, viewModel.success().activeCategoryDetail)
+        assertEquals(
+            HomeUiState.Error(StvPlayerLauncher.NOT_INSTALLED_MESSAGE),
+            viewModel.uiState.value
+        )
     }
 
     @Test
-    fun backToCategoriesList_returnsToLevelOne() {
+    fun selectChannel_setsErrorWhenStvIsNotInstalled() {
+        every { launcher.launchChannel(any()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
+        val selectedChannel = sports.channels.first()
         val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
-        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
 
-        viewModel.onAction(HomeUiAction.BackToCategoriesList)
+        viewModel.onAction(HomeUiAction.SelectChannel(selectedChannel))
 
-        val state = viewModel.success()
-        assertNull(state.activeCategoryDetail)
-        assertEquals(NavigationTab.CHANNELS, state.currentTab)
+        assertEquals(
+            HomeUiState.Error(StvPlayerLauncher.NOT_INSTALLED_MESSAGE),
+            viewModel.uiState.value
+        )
     }
 
     private fun viewModel(
@@ -268,4 +212,3 @@ class HomeViewModelTest {
         streamUrl = "https://example.com/match.m3u8"
     )
 }
-

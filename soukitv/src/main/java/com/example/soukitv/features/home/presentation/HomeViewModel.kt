@@ -27,10 +27,8 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
-    private var allCategories: List<Category> = emptyList()
+    private var categories: List<Category> = emptyList()
     private var matches: List<MatchItem> = emptyList()
-    private var selectedCategoryName: String? = null
-    private var searchQuery: String = ""
     private var currentTab: NavigationTab = NavigationTab.MATCHES
     private var activeCategoryDetail: Category? = null
     private var isDarkTheme: Boolean = true
@@ -63,33 +61,20 @@ class HomeViewModel(
             HomeUiAction.Retry -> loadChannels()
             HomeUiAction.ToggleTheme -> {
                 isDarkTheme = !isDarkTheme
-                refreshFilters()
+                refreshState()
             }
             is HomeUiAction.SwitchTab -> {
                 currentTab = action.tab
                 activeCategoryDetail = null
-                refreshFilters()
+                refreshState()
             }
             is HomeUiAction.SelectCategoryDetail -> {
                 activeCategoryDetail = action.category
-                refreshFilters()
+                refreshState()
             }
             HomeUiAction.BackToCategoriesList -> {
                 activeCategoryDetail = null
-                refreshFilters()
-            }
-            is HomeUiAction.SelectCategory -> {
-                selectedCategoryName = action.categoryName
-                refreshFilters()
-            }
-            is HomeUiAction.UpdateSearchQuery -> {
-                searchQuery = action.query
-                refreshFilters()
-            }
-            HomeUiAction.ClearFilters -> {
-                selectedCategoryName = null
-                searchQuery = ""
-                refreshFilters()
+                refreshState()
             }
         }
     }
@@ -104,15 +89,12 @@ class HomeViewModel(
                         categories to todayMatches
                     }
                     .collect { (categories, todayMatches) ->
-                        allCategories = categories
+                        this@HomeViewModel.categories = categories
                         // Tri chronologique des matchs (format HH:mm).
                         matches = todayMatches.sortedBy { it.time }
                         // Re-resout la categorie ouverte sur le nouveau catalogue.
                         activeCategoryDetail = activeCategoryDetail?.let { open ->
                             categories.firstOrNull { it.name == open.name }
-                        }
-                        if (categories.none { it.name == selectedCategoryName }) {
-                            selectedCategoryName = null
                         }
                         publishSuccess()
                     }
@@ -139,63 +121,26 @@ class HomeViewModel(
     }
 
     private fun restoreSuccessState() {
-        if (allCategories.isNotEmpty()) {
+        if (categories.isNotEmpty()) {
             publishSuccess()
         } else {
             _uiState.value = HomeUiState.Loading
         }
     }
 
-    /** Recalcule les filtres uniquement si le catalogue est affiche (evite d'ecraser Loading/Error). */
-    private fun refreshFilters() {
+    /** Republie l'etat uniquement si le catalogue est affiche. */
+    private fun refreshState() {
         if (_uiState.value is HomeUiState.Success) publishSuccess()
     }
 
     private fun publishSuccess() {
         _uiState.value = HomeUiState.Success(
-            allCategories = allCategories,
-            selectedCategoryName = selectedCategoryName,
-            searchQuery = searchQuery,
-            displayedCategories = computeDisplayedCategories(
-                allCategories = allCategories,
-                selectedCategoryName = selectedCategoryName,
-                query = searchQuery
-            ),
-            matches = matches,
             currentTab = currentTab,
+            matches = matches,
+            categories = categories,
             activeCategoryDetail = activeCategoryDetail,
             isDarkTheme = isDarkTheme
         )
-    }
-
-    companion object {
-        /**
-         * Filtre pur : restriction a la categorie selectionnee (si presente),
-         * puis recherche insensible a la casse sur le nom des chaines (si non vide).
-         */
-        internal fun computeDisplayedCategories(
-            allCategories: List<Category>,
-            selectedCategoryName: String?,
-            query: String
-        ): List<Category> {
-            val normalizedQuery = query.trim()
-            return allCategories
-                .asSequence()
-                .filter { selectedCategoryName == null || it.name == selectedCategoryName }
-                .map { category ->
-                    if (normalizedQuery.isEmpty()) {
-                        category
-                    } else {
-                        category.copy(
-                            channels = category.channels.filter {
-                                it.name.contains(normalizedQuery, ignoreCase = true)
-                            }
-                        )
-                    }
-                }
-                .filter { normalizedQuery.isEmpty() || it.channels.isNotEmpty() }
-                .toList()
-        }
     }
 }
 

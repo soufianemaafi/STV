@@ -19,9 +19,5 @@ sealed interface HomeUiAction {
     data object InstallStv : HomeUiAction
     data object Retry : HomeUiAction
     data object ToggleTheme : HomeUiAction
-    /** null = afficher toutes les catégories. */
-    data class SelectCategory(val categoryName: String?) : HomeUiAction
-    data class UpdateSearchQuery(val query: String) : HomeUiAction
-    data object ClearFilters : HomeUiAction
 }
 

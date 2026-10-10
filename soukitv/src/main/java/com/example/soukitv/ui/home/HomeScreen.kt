@@ -149,7 +149,7 @@ fun HomeScreen(
 
                 success != null -> {
                     ChannelsTab(
-                        categories = success.allCategories,
+                        categories = success.categories,
                         activeCategory = success.activeCategoryDetail,
                         onCategoryClick = { category ->
                             viewModel.onAction(HomeUiAction.SelectCategoryDetail(category))
