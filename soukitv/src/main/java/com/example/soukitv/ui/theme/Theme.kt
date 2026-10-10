@@ -10,36 +10,26 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = RedPrimary,
-    onPrimary = WhiteText,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-    background = DarkBackground,
-    surface = DarkSurface,
-    onBackground = WhiteText,
-    onSurface = WhiteText
+    primary = SoukiRed,
+    background = SoukiDarkBackground,
+    surface = SoukiDarkSurface,
+    onBackground = Color.White,
+    onSurface = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = SoukiRed,
+    background = SoukiLightBackground,
+    surface = SoukiLightSurface,
+    onBackground = Color(0xFF1A1A1A),
+    onSurface = Color(0xFF1A1A1A)
 )
 
 @Composable
@@ -55,7 +45,7 @@ fun SoukiTVTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
-        else -> DarkColorScheme // Force Dark Theme for streaming app vibe
+        else -> LightColorScheme
     }
     val view = LocalView.current
     if (!view.isInEditMode) {

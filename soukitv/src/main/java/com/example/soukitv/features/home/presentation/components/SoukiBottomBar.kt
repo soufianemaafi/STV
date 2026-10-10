@@ -27,8 +27,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.soukitv.R
 import com.example.soukitv.features.home.presentation.NavigationTab
-import com.example.soukitv.ui.theme.GrayText
-import com.example.soukitv.ui.theme.RedPrimary
 
 @Composable
 fun SoukiBottomBar(
@@ -87,13 +85,21 @@ private fun RowScope.BottomTab(
                 imageVector = icon,
                 contentDescription = label,
                 modifier = Modifier.size(20.dp),
-                tint = if (selected) RedPrimary else GrayText
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (selected) RedPrimary else GrayText
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
         }
     }

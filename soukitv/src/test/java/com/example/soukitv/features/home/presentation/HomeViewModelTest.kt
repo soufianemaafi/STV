@@ -187,6 +187,19 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun toggleTheme_invertsDarkThemeState() {
+        val viewModel = viewModel()
+
+        assertTrue(viewModel.success().isDarkTheme)
+
+        viewModel.onAction(HomeUiAction.ToggleTheme)
+        assertEquals(false, viewModel.success().isDarkTheme)
+
+        viewModel.onAction(HomeUiAction.ToggleTheme)
+        assertTrue(viewModel.success().isDarkTheme)
+    }
+
+    @Test
     fun switchTab_resetsActiveCategoryDetail() {
         val viewModel = viewModel()
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))

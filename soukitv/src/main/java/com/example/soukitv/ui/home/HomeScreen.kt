@@ -1,12 +1,18 @@
 package com.example.soukitv.ui.home
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -83,7 +89,31 @@ fun HomeScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
-                )
+                ),
+                actions = {
+                    val isDarkTheme = success?.isDarkTheme ?: true
+                    IconButton(
+                        onClick = { viewModel.onAction(HomeUiAction.ToggleTheme) }
+                    ) {
+                        Crossfade(targetState = isDarkTheme, label = "theme_icon") { darkTheme ->
+                            Icon(
+                                imageVector = if (darkTheme) {
+                                    Icons.Default.LightMode
+                                } else {
+                                    Icons.Default.DarkMode
+                                },
+                                contentDescription = stringResource(
+                                    if (darkTheme) {
+                                        R.string.theme_light_mode
+                                    } else {
+                                        R.string.theme_dark_mode
+                                    }
+                                ),
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                }
             )
         },
         bottomBar = {

@@ -18,7 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -27,9 +26,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.soukitv.R
 import com.example.soukitv.features.home.domain.model.MatchItem
-import com.example.soukitv.ui.theme.DarkSurface
-import com.example.soukitv.ui.theme.GrayText
-import com.example.soukitv.ui.theme.RedPrimary
 
 @Composable
 fun MatchCard(
@@ -41,8 +37,8 @@ fun MatchCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DarkSurface, cardShape)
-            .border(1.dp, RedPrimary.copy(alpha = 0.6f), cardShape)
+            .background(MaterialTheme.colorScheme.surface, cardShape)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), cardShape)
             .clickable { onMatchClick(match) }
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -55,7 +51,7 @@ fun MatchCard(
             Text(
                 text = match.tournament,
                 style = MaterialTheme.typography.labelMedium,
-                color = GrayText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(end = 8.dp)
@@ -63,7 +59,7 @@ fun MatchCard(
             Text(
                 text = match.time,
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
 
@@ -79,7 +75,7 @@ fun MatchCard(
             Text(
                 text = stringResource(R.string.match_versus),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = RedPrimary,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 6.dp)
             )
             TeamBadge(

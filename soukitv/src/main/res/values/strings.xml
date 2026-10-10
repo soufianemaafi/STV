@@ -12,6 +12,8 @@
     <string name="empty_channels">Aucune chaîne disponible</string>
     <string name="match_versus">VS</string>
     <string name="error_stv_not_installed">STV Player est requis pour lire ce contenu.</string>
+    <string name="theme_light_mode">Activer le mode clair</string>
+    <string name="theme_dark_mode">Activer le mode sombre</string>
 
     <plurals name="channel_count">
         <item quantity="one">%d chaîne</item>

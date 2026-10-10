@@ -18,7 +18,9 @@ sealed interface HomeUiState {
         /** Onglet actif de la Bottom Navigation Bar. */
         val currentTab: NavigationTab = NavigationTab.MATCHES,
         /** null = Niveau 1 (liste des catégories) ; non-null = Niveau 2 (chaînes de la catégorie). */
-        val activeCategoryDetail: Category? = null
+        val activeCategoryDetail: Category? = null,
+        /** Thème actif de l'application. */
+        val isDarkTheme: Boolean = true
     ) : HomeUiState
 
     data class Error(val message: String) : HomeUiState

@@ -18,9 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import com.example.soukitv.R
 import com.example.soukitv.features.home.domain.model.Category
-import com.example.soukitv.ui.theme.DarkSurface
-import com.example.soukitv.ui.theme.GrayText
-import com.example.soukitv.ui.theme.RedPrimary
 
 @Composable
 fun CategoryCard(
@@ -33,8 +30,8 @@ fun CategoryCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DarkSurface, cardShape)
-            .border(1.dp, RedPrimary.copy(alpha = 0.6f), cardShape)
+            .background(MaterialTheme.colorScheme.surface, cardShape)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), cardShape)
             .clickable { onCategoryClick(category) }
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -42,14 +39,14 @@ fun CategoryCard(
         Text(
             text = category.name,
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onBackground,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             text = pluralStringResource(R.plurals.channel_count, channelCount, channelCount),
             style = MaterialTheme.typography.labelMedium,
-            color = GrayText
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

@@ -33,6 +33,7 @@ class HomeViewModel(
     private var searchQuery: String = ""
     private var currentTab: NavigationTab = NavigationTab.MATCHES
     private var activeCategoryDetail: Category? = null
+    private var isDarkTheme: Boolean = true
 
     init {
         loadChannels()
@@ -60,6 +61,10 @@ class HomeViewModel(
                 restoreSuccessState()
             }
             HomeUiAction.Retry -> loadChannels()
+            HomeUiAction.ToggleTheme -> {
+                isDarkTheme = !isDarkTheme
+                refreshFilters()
+            }
             is HomeUiAction.SwitchTab -> {
                 currentTab = action.tab
                 activeCategoryDetail = null
@@ -158,7 +163,8 @@ class HomeViewModel(
             ),
             matches = matches,
             currentTab = currentTab,
-            activeCategoryDetail = activeCategoryDetail
+            activeCategoryDetail = activeCategoryDetail,
+            isDarkTheme = isDarkTheme
         )
     }
 
