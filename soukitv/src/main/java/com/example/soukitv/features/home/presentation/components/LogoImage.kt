@@ -21,6 +21,7 @@ fun SoukiLogoImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(url)
             .addHeader("User-Agent", BROWSER_USER_AGENT)
+            .transformations(AutoCropTransparentTransformation())
             .crossfade(true)
             .build(),
         contentDescription = contentDescription,

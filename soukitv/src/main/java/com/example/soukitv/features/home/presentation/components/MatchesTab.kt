@@ -42,7 +42,7 @@ fun MatchesTab(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(matches, key = { it.id }) { match ->
+        items(matches, key = { it.id.orEmpty() }) { match ->
             MatchCard(match = match, onMatchClick = onMatchClick)
         }
     }

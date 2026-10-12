@@ -42,11 +42,11 @@ class HomeViewModel(
             is HomeUiAction.SelectChannel -> handleSelectChannel(action.channel)
             is HomeUiAction.SelectMatch -> {
                 val matchChannel = Channel(
-                    id = action.match.id,
-                    name = "${action.match.teamA} vs ${action.match.teamB}",
-                    logoUrl = action.match.teamALogo,
-                    streamUrl = action.match.streamUrl,
-                    category = action.match.tournament
+                    id = action.match.id.orEmpty(),
+                    name = "${action.match.teamA.orEmpty()} vs ${action.match.teamB.orEmpty()}",
+                    logoUrl = action.match.teamALogo.orEmpty(),
+                    streamUrl = action.match.streamUrl.orEmpty(),
+                    category = action.match.tournament.orEmpty()
                 )
                 val result = stvPlayerLauncher.launchChannel(matchChannel)
                 if (result is LaunchResult.NotInstalled) {
