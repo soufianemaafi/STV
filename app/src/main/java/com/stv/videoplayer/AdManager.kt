@@ -122,7 +122,8 @@ class AdManager private constructor(context: Context) {
         onAdShowed: () -> Unit,
         onAdDismissed: () -> Unit,
         onFailed: () -> Unit,
-        onNoNetwork: () -> Unit
+        onNoNetwork: () -> Unit,
+        isRequestActive: () -> Boolean = { true }
     ) {
         if (!NetworkUtils.isNetworkAvailable(appContext)) {
             Log.w(TAG, "No network.")
@@ -132,13 +133,18 @@ class AdManager private constructor(context: Context) {
 
         val cachedAd = takePreloadedInterstitial()
         if (cachedAd != null) {
+            if (!isRequestActive()) {
+                preloadInterstitial()
+                return
+            }
             Log.d(TAG, "Showing preloaded interstitial.")
             showInterstitial(
                 activity = activity,
                 ad = cachedAd,
                 onAdShowed = onAdShowed,
                 onAdDismissed = onAdDismissed,
-                onFailed = onFailed
+                onFailed = onFailed,
+                isRequestActive = isRequestActive
             )
             return
         }
@@ -161,12 +167,17 @@ class AdManager private constructor(context: Context) {
 
                 override fun onAdLoaded(ad: InterstitialAd) {
                     Log.d(TAG, "Ad loaded. Showing...")
+                    if (!isRequestActive()) {
+                        preloadInterstitial()
+                        return
+                    }
                     showInterstitial(
                         activity = activity,
                         ad = ad,
                         onAdShowed = onAdShowed,
                         onAdDismissed = onAdDismissed,
-                        onFailed = onFailed
+                        onFailed = onFailed,
+                        isRequestActive = isRequestActive
                     )
                 }
             }
@@ -178,8 +189,13 @@ class AdManager private constructor(context: Context) {
         ad: InterstitialAd,
         onAdShowed: () -> Unit,
         onAdDismissed: () -> Unit,
-        onFailed: () -> Unit
+        onFailed: () -> Unit,
+        isRequestActive: () -> Boolean
     ) {
+        if (!isRequestActive()) {
+            preloadInterstitial()
+            return
+        }
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdShowedFullScreenContent() {
                 Log.d(TAG, "Ad showing.")

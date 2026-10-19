@@ -25,7 +25,7 @@ class AdFlowController(
     private val tag = "AdFlowController"
     private val autoRetries = 3
     private val retryDelayMs = 2_000L
-    private val adLoadTimeoutMs = 7_000L
+    private val adLoadTimeoutMs = 10_000L
 
     suspend fun showAdIfNeeded(
         activity: Activity,
@@ -49,6 +49,7 @@ class AdFlowController(
             when (result) {
                 AdResult.AdDismissed -> return result
                 AdResult.NoNetwork -> return result
+                AdResult.SkippedByTimeout -> return result
                 AdResult.Failed -> {
                     if (attempt < autoRetries) {
                         delay(retryDelayMs)
@@ -73,7 +74,7 @@ class AdFlowController(
                 delay(adLoadTimeoutMs)
                 if (cont.isActive) {
                     Log.w(tag, "Ad load timeout (${adLoadTimeoutMs}ms); keeping playback retryable")
-                    cont.resume(AdResult.Failed)
+                    cont.resume(AdResult.SkippedByTimeout)
                 }
             }
 
@@ -99,7 +100,8 @@ class AdFlowController(
                     timeoutJob.cancel()
                     Log.d(tag, "No network")
                     if (cont.isActive) cont.resume(AdResult.NoNetwork)
-                }
+                },
+                isRequestActive = { cont.isActive }
             )
         }
     }
@@ -107,6 +109,7 @@ class AdFlowController(
     sealed class AdResult {
         data object AdDismissed : AdResult()
         data object SkippedByCooldown : AdResult()
+        data object SkippedByTimeout : AdResult()
         data object AdBlockerBlocked : AdResult()
         data object Failed : AdResult()
         data object NeedRetry : AdResult()

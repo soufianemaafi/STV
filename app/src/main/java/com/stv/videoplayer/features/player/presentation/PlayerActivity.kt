@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -180,7 +181,7 @@ class PlayerActivity : ComponentActivity() {
                         }
                         is PlayerUiState.LoadingAds -> {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = Color.Red)
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             }
                         }
                         is PlayerUiState.ShowingAd -> {
@@ -453,6 +454,7 @@ class PlayerActivity : ComponentActivity() {
             viewModel.setUiState(when (result) {
                 AdResult.AdDismissed -> PlayerUiState.Ready(url)
                 AdResult.SkippedByCooldown -> PlayerUiState.Ready(url)
+                AdResult.SkippedByTimeout -> PlayerUiState.Ready(url)
                 AdResult.NoNetwork -> PlayerUiState.NetworkError(url)
                 AdResult.AdBlockerBlocked -> PlayerUiState.AdBlockerBlocked(url)
                 AdResult.Failed -> PlayerUiState.NeedRetry(url)

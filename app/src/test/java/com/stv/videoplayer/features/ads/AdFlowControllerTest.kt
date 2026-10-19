@@ -5,10 +5,12 @@ import com.stv.videoplayer.AdManager
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -26,15 +28,30 @@ class AdFlowControllerTest {
     }
 
     @Test
-    fun `le cooldown court-circuite le chargement de pub`() = runTest {
-        val frequencyManager = AdFrequencyManager(cooldownMs = 30_000L, clock = { 1_000L })
+    fun `le cooldown nul autorise une nouvelle demande de pub`() = runTest {
+        val frequencyManager = AdFrequencyManager(clock = { 1_000L })
         frequencyManager.markAdShown(nowMs = 1_000L)
 
         val controller = AdFlowController(adManager, frequencyManager)
+
+        every {
+            adManager.loadAndShow(
+                activity = any(),
+                onAdShowed = any(),
+                onAdDismissed = any(),
+                onFailed = any(),
+                onNoNetwork = any(),
+                isRequestActive = any()
+            )
+        } answers {
+            arg<() -> Unit>(1)()
+            arg<() -> Unit>(2)()
+        }
+
         val result = controller.showAdIfNeeded(activity)
 
-        assertEquals(AdFlowController.AdResult.SkippedByCooldown, result)
-        verify(exactly = 0) { adManager.loadAndShow(any(), any(), any(), any(), any()) }
+        assertEquals(AdFlowController.AdResult.AdDismissed, result)
+        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -51,7 +68,8 @@ class AdFlowControllerTest {
                 onAdShowed = any(),
                 onAdDismissed = any(),
                 onFailed = any(),
-                onNoNetwork = any()
+                onNoNetwork = any(),
+                isRequestActive = any()
             )
         } answers {
             val onAdShowed = arg<() -> Unit>(1)
@@ -79,7 +97,8 @@ class AdFlowControllerTest {
                 onAdShowed = any(),
                 onAdDismissed = any(),
                 onFailed = any(),
-                onNoNetwork = any()
+                onNoNetwork = any(),
+                isRequestActive = any()
             )
         } answers {
             val onAdShowed = arg<() -> Unit>(1)
@@ -91,21 +110,23 @@ class AdFlowControllerTest {
         val result = controller.showAdIfNeeded(activity, bypassCooldown = true)
 
         assertEquals(AdFlowController.AdResult.AdDismissed, result)
-        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `un timeout de chargement reste retryable sans suspecter un adblocker`() = runTest {
-        val frequencyManager = AdFrequencyManager(cooldownMs = 30_000L, clock = { 1_000L })
+    fun `un timeout de chargement lance directement la video sans suspecter un adblocker`() = runTest {
+        val frequencyManager = AdFrequencyManager(clock = { 1_000L })
         val controller = AdFlowController(adManager, frequencyManager)
 
-        val result = controller.showAdIfNeeded(activity)
+        val result = async { controller.showAdIfNeeded(activity) }
 
-        advanceUntilIdle()
+        advanceTimeBy(9_999L)
+        assertFalse(result.isCompleted)
+        advanceTimeBy(1L)
 
-        assertEquals(AdFlowController.AdResult.NeedRetry, result)
+        assertEquals(AdFlowController.AdResult.SkippedByTimeout, result.await())
         assertTrue(!frequencyManager.isAdBlockerSuspected())
-        verify(exactly = 3) { adManager.loadAndShow(any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any()) }
     }
 }
 

@@ -7,16 +7,12 @@ import org.junit.Test
 class AdFrequencyManagerTest {
 
     @Test
-    fun `le cooldown est actif juste apres avoir affiche une pub`() {
-        var now = 1_000L
+    fun `le cooldown nul ne court-circuite pas une nouvelle demande`() {
+        val now = 1_000L
         val manager = AdFrequencyManager(clock = { now })
 
         manager.markAdShown()
 
-        assertTrue(manager.isCooldownActive())
-        assertTrue(manager.shouldSkipAd())
-
-        now = 31_000L
         assertFalse(manager.isCooldownActive())
         assertFalse(manager.shouldSkipAd())
     }
@@ -33,7 +29,7 @@ class AdFrequencyManagerTest {
         assertFalse(manager.shouldSkipAd())
 
         manager.clearAdBlockerSuspected()
-        assertTrue(manager.shouldSkipAd())
+        assertFalse(manager.shouldSkipAd())
     }
 }
 
