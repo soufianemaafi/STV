@@ -31,6 +31,7 @@ class HomeViewModel(
     private var matches: List<MatchItem> = emptyList()
     private var currentTab: NavigationTab = NavigationTab.MATCHES
     private var activeCategoryDetail: Category? = null
+    private var activeCountryDetail: String? = null
     private var isDarkTheme: Boolean = true
 
     init {
@@ -66,14 +67,24 @@ class HomeViewModel(
             is HomeUiAction.SwitchTab -> {
                 currentTab = action.tab
                 activeCategoryDetail = null
+                activeCountryDetail = null
                 refreshState()
             }
             is HomeUiAction.SelectCategoryDetail -> {
                 activeCategoryDetail = action.category
+                activeCountryDetail = null
                 refreshState()
             }
-            HomeUiAction.BackToCategoriesList -> {
-                activeCategoryDetail = null
+            is HomeUiAction.SelectCountry -> {
+                activeCountryDetail = action.country
+                refreshState()
+            }
+            HomeUiAction.NavigateBack -> {
+                if (activeCountryDetail != null) {
+                    activeCountryDetail = null
+                } else if (activeCategoryDetail != null) {
+                    activeCategoryDetail = null
+                }
                 refreshState()
             }
         }
@@ -95,6 +106,9 @@ class HomeViewModel(
                         // Re-resout la categorie ouverte sur le nouveau catalogue.
                         activeCategoryDetail = activeCategoryDetail?.let { open ->
                             categories.firstOrNull { it.name == open.name }
+                        }
+                        if (activeCountryDetail != null && activeCategoryDetail == null) {
+                            activeCountryDetail = null
                         }
                         publishSuccess()
                     }
@@ -139,6 +153,7 @@ class HomeViewModel(
             matches = matches,
             categories = categories,
             activeCategoryDetail = activeCategoryDetail,
+            activeCountryDetail = activeCountryDetail,
             isDarkTheme = isDarkTheme
         )
     }

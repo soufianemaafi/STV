@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Article
@@ -113,29 +114,30 @@ fun HomeScreen(
                 drawerContainerColor = BlackDrawer,
                 drawerShape = RectangleShape
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        "STV",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = WhitePrimary
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text(
+                            "STV",
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                            color = WhitePrimary
+                        )
+                    }
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp
                     )
-                }
 
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    thickness = 1.dp
-                )
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
                     NavigationDrawerItem(
                         label = { Text(stringResource(R.string.privacy_policy), color = WhitePrimary) },
                         icon = { Icon(Icons.Filled.Security, contentDescription = stringResource(R.string.privacy_policy_cd), tint = GrayLight) },
@@ -176,25 +178,28 @@ fun HomeScreen(
                             unselectedContainerColor = Color.Transparent
                         )
                     )
-                }
+                    }
 
-                HorizontalDivider(
-                    color = GrayMuted,
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
+                    Spacer(modifier = Modifier.weight(1f))
 
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.menu_quit), color = WhitePrimary) },
-                    icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = GrayLight) },
-                    selected = false,
-                    onClick = {
-                        (context as? ComponentActivity)?.finishAffinity()
-                    },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        unselectedContainerColor = Color.Transparent
+                    HorizontalDivider(
+                        color = GrayMuted,
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(vertical = 8.dp)
                     )
-                )
+
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.menu_quit), color = WhitePrimary) },
+                        icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = GrayLight) },
+                        selected = false,
+                        onClick = {
+                            (context as? ComponentActivity)?.finishAffinity()
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent
+                        )
+                    )
+                }
             }
         },
     ) {
@@ -348,26 +353,26 @@ private fun QuickActionsSection(
     Button(
         onClick = onVideosClick,
         modifier = modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+            .size(96.dp),
+        shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
     ) {
-        Icon(
-            imageVector = Icons.Filled.VideoLibrary,
-            contentDescription = stringResource(R.string.videos_button_label),
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = stringResource(R.string.videos_button_label),
-            color = MaterialTheme.colorScheme.onPrimary,
-            style = MaterialTheme.typography.labelLarge
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Filled.VideoLibrary,
+                contentDescription = stringResource(R.string.videos_button_label),
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                text = stringResource(R.string.videos_button_label),
+                color = MaterialTheme.colorScheme.onPrimary,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
     }
 }
 

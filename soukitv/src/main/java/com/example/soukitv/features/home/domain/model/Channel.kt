@@ -7,7 +7,8 @@ data class Channel(
     @SerializedName("name") val name: String,
     @SerializedName("logoUrl") val logoUrl: String,
     @SerializedName("streamUrl") val streamUrl: String,
-    @SerializedName("category") val category: String
+    @SerializedName("category") val category: String,
+    @SerializedName("country") val country: String? = null
 )
 
 

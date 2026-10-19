@@ -33,18 +33,31 @@ import com.example.soukitv.features.home.domain.model.Channel
 fun ChannelsTab(
     categories: List<Category>,
     activeCategory: Category?,
+    activeCountry: String?,
     onCategoryClick: (Category) -> Unit,
+    onCountryClick: (String) -> Unit,
     onBackClick: () -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
     if (activeCategory == null) {
         CategoriesGrid(categories = categories, onCategoryClick = onCategoryClick)
     } else {
-        ChannelsGrid(
-            category = activeCategory,
-            onBackClick = onBackClick,
-            onChannelClick = onChannelClick
-        )
+        val countries = activeCategory.channels.mapNotNull { it.country }.distinct()
+        if (countries.isNotEmpty() && activeCountry == null) {
+            CountriesGrid(
+                category = activeCategory,
+                countries = countries,
+                onBackClick = onBackClick,
+                onCountryClick = onCountryClick
+            )
+        } else {
+            ChannelsGrid(
+                category = activeCategory,
+                country = activeCountry,
+                onBackClick = onBackClick,
+                onChannelClick = onChannelClick
+            )
+        }
     }
 }
 
@@ -81,33 +94,41 @@ private fun CategoriesGrid(
 }
 
 @Composable
+private fun CountriesGrid(
+    category: Category,
+    countries: List<String>,
+    onBackClick: () -> Unit,
+    onCountryClick: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        BackHeader(title = category.name, onBackClick = onBackClick)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(countries, key = { it }) { country ->
+                CountryCard(
+                    country = country,
+                    channelCount = category.channels.count { it.country == country },
+                    onClick = { onCountryClick(country) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ChannelsGrid(
     category: Category,
+    country: String?,
     onBackClick: () -> Unit,
     onChannelClick: (Channel) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.action_back),
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            Text(
-                text = category.name,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        BackHeader(title = country ?: category.name, onBackClick = onBackClick)
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -116,10 +137,43 @@ private fun ChannelsGrid(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(category.channels, key = { it.id }) { channel ->
+            val channelsToShow = if (country != null) {
+                category.channels.filter { it.country == country }
+            } else {
+                category.channels
+            }
+            items(channelsToShow, key = { it.id }) { channel ->
                 ChannelTile(channel = channel, onChannelClick = onChannelClick)
             }
         }
+    }
+}
+
+@Composable
+private fun BackHeader(
+    title: String,
+    onBackClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBackClick) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.action_back),
+                tint = MaterialTheme.colorScheme.onBackground
+            )
+        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

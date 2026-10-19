@@ -25,6 +25,7 @@ class AdFlowController(
     private val tag = "AdFlowController"
     private val autoRetries = 3
     private val retryDelayMs = 2_000L
+    private val adLoadTimeoutMs = 7_000L
 
     suspend fun showAdIfNeeded(
         activity: Activity,
@@ -55,11 +56,12 @@ class AdFlowController(
                 }
                 AdResult.AdBlockerBlocked -> return result
                 AdResult.SkippedByCooldown -> return result
+                AdResult.NeedRetry -> return result
             }
         }
 
-        frequencyManager.markAdBlockerSuspected()
-        return AdResult.AdBlockerBlocked
+        Log.w(tag, "Ad unavailable after $autoRetries attempts -> retry required")
+        return AdResult.NeedRetry
     }
 
     private suspend fun tryOnce(
@@ -68,10 +70,9 @@ class AdFlowController(
     ): AdResult {
         return suspendCancellableCoroutine { cont ->
             val timeoutJob = CoroutineScope(cont.context).launch {
-                delay(10_000)
+                delay(adLoadTimeoutMs)
                 if (cont.isActive) {
-                    Log.w(tag, "Ad load timeout (10s)")
-                    frequencyManager.markAdBlockerSuspected()
+                    Log.w(tag, "Ad load timeout (${adLoadTimeoutMs}ms); keeping playback retryable")
                     cont.resume(AdResult.Failed)
                 }
             }
@@ -91,8 +92,7 @@ class AdFlowController(
                 },
                 onFailed = {
                     timeoutJob.cancel()
-                    frequencyManager.markAdBlockerSuspected()
-                    Log.d(tag, "Ad failed")
+                    Log.d(tag, "Ad load/show failed; keeping playback retryable")
                     if (cont.isActive) cont.resume(AdResult.Failed)
                 },
                 onNoNetwork = {
@@ -109,6 +109,7 @@ class AdFlowController(
         data object SkippedByCooldown : AdResult()
         data object AdBlockerBlocked : AdResult()
         data object Failed : AdResult()
+        data object NeedRetry : AdResult()
         data object NoNetwork : AdResult()
     }
 }

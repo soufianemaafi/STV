@@ -455,7 +455,8 @@ class PlayerActivity : ComponentActivity() {
                 AdResult.SkippedByCooldown -> PlayerUiState.Ready(url)
                 AdResult.NoNetwork -> PlayerUiState.NetworkError(url)
                 AdResult.AdBlockerBlocked -> PlayerUiState.AdBlockerBlocked(url)
-                AdResult.Failed -> PlayerUiState.AdBlockerBlocked(url)
+                AdResult.Failed -> PlayerUiState.NeedRetry(url)
+                AdResult.NeedRetry -> PlayerUiState.NeedRetry(url)
             })
         }
     }

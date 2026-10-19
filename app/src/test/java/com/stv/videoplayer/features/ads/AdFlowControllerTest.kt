@@ -6,6 +6,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -26,7 +27,7 @@ class AdFlowControllerTest {
 
     @Test
     fun `le cooldown court-circuite le chargement de pub`() = runTest {
-        val frequencyManager = AdFrequencyManager(cooldownMs = 90_000L, clock = { 1_000L })
+        val frequencyManager = AdFrequencyManager(cooldownMs = 30_000L, clock = { 1_000L })
         frequencyManager.markAdShown(nowMs = 1_000L)
 
         val controller = AdFlowController(adManager, frequencyManager)
@@ -39,7 +40,7 @@ class AdFlowControllerTest {
     @Test
     fun `une pub affichee met a jour le cooldown`() = runTest {
         val now = 1_000L
-        val frequencyManager = AdFrequencyManager(cooldownMs = 90_000L, clock = { now })
+        val frequencyManager = AdFrequencyManager(cooldownMs = 30_000L, clock = { now })
         val controller = AdFlowController(adManager, frequencyManager)
 
         verify(exactly = 1) { adManager.preloadInterstitial() }
@@ -68,7 +69,7 @@ class AdFlowControllerTest {
     @Test
     fun `le retry peut contourner le cooldown pour rechecker la pub`() = runTest {
         val now = 1_000L
-        val frequencyManager = AdFrequencyManager(cooldownMs = 90_000L, clock = { now })
+        val frequencyManager = AdFrequencyManager(cooldownMs = 30_000L, clock = { now })
         frequencyManager.markAdShown(nowMs = 1_000L)
         val controller = AdFlowController(adManager, frequencyManager)
 
@@ -91,6 +92,20 @@ class AdFlowControllerTest {
 
         assertEquals(AdFlowController.AdResult.AdDismissed, result)
         verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `un timeout de chargement reste retryable sans suspecter un adblocker`() = runTest {
+        val frequencyManager = AdFrequencyManager(cooldownMs = 30_000L, clock = { 1_000L })
+        val controller = AdFlowController(adManager, frequencyManager)
+
+        val result = controller.showAdIfNeeded(activity)
+
+        advanceUntilIdle()
+
+        assertEquals(AdFlowController.AdResult.NeedRetry, result)
+        assertTrue(!frequencyManager.isAdBlockerSuspected())
+        verify(exactly = 3) { adManager.loadAndShow(any(), any(), any(), any(), any()) }
     }
 }
 

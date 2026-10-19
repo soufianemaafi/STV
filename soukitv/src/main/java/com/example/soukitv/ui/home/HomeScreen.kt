@@ -51,10 +51,11 @@ fun HomeScreen(
 ) {
     val currentUiState by viewModel.uiState.collectAsState()
     val activeDetail = (currentUiState as? HomeUiState.Success)?.activeCategoryDetail
+    val activeCountry = (currentUiState as? HomeUiState.Success)?.activeCountryDetail
     val activeTab = (currentUiState as? HomeUiState.Success)?.currentTab
 
-    BackHandler(enabled = activeDetail != null) {
-        viewModel.onAction(HomeUiAction.BackToCategoriesList)
+    BackHandler(enabled = activeDetail != null || activeCountry != null) {
+        viewModel.onAction(HomeUiAction.NavigateBack)
     }
 
     BackHandler(enabled = activeTab == NavigationTab.CHANNELS && activeDetail == null) {
@@ -151,11 +152,15 @@ fun HomeScreen(
                     ChannelsTab(
                         categories = success.categories,
                         activeCategory = success.activeCategoryDetail,
+                        activeCountry = success.activeCountryDetail,
                         onCategoryClick = { category ->
                             viewModel.onAction(HomeUiAction.SelectCategoryDetail(category))
                         },
+                        onCountryClick = { country ->
+                            viewModel.onAction(HomeUiAction.SelectCountry(country))
+                        },
                         onBackClick = {
-                            viewModel.onAction(HomeUiAction.BackToCategoriesList)
+                            viewModel.onAction(HomeUiAction.NavigateBack)
                         },
                         onChannelClick = { channel ->
                             viewModel.onAction(HomeUiAction.SelectChannel(channel))

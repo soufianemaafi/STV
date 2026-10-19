@@ -33,15 +33,15 @@ class HomeViewModelTest {
     private val news = Category(
         name = "News",
         channels = listOf(
-            channel("1", "France 24", "News"),
-            channel("2", "Al Jazeera", "News")
+            channel("1", "France 24", "News", "France"),
+            channel("2", "Al Jazeera", "News", "Qatar")
         )
     )
     private val sports = Category(
         name = "Sports",
         channels = listOf(
-            channel("3", "Red Bull TV", "Sports"),
-            channel("4", "Eurosport", "Sports")
+            channel("3", "Red Bull TV", "Sports", "France"),
+            channel("4", "Eurosport", "Sports", "Allemagne")
         )
     )
     private val catalogue = listOf(news, sports)
@@ -97,10 +97,12 @@ class HomeViewModelTest {
         val viewModel = viewModel()
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
         viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
+        viewModel.onAction(HomeUiAction.SelectCountry("France"))
 
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.MATCHES))
 
         assertNull(viewModel.success().activeCategoryDetail)
+        assertNull(viewModel.success().activeCountryDetail)
     }
 
     @Test
@@ -115,16 +117,41 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun backToCategoriesList_returnsFromLevelTwoToLevelOne() {
+    fun navigateBack_returnsFromLevelTwoToLevelOne() {
         val viewModel = viewModel()
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
         viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
 
-        viewModel.onAction(HomeUiAction.BackToCategoriesList)
+        viewModel.onAction(HomeUiAction.NavigateBack)
 
         val state = viewModel.success()
         assertNull(state.activeCategoryDetail)
         assertEquals(NavigationTab.CHANNELS, state.currentTab)
+    }
+
+    @Test
+    fun selectCountry_entersLevelThreeWithSelectedCountry() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
+
+        viewModel.onAction(HomeUiAction.SelectCountry("France"))
+
+        assertEquals("France", viewModel.success().activeCountryDetail)
+        assertEquals(news, viewModel.success().activeCategoryDetail)
+    }
+
+    @Test
+    fun navigateBack_fromLevelThree_returnsToCountries() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
+        viewModel.onAction(HomeUiAction.SelectCountry("France"))
+
+        viewModel.onAction(HomeUiAction.NavigateBack)
+
+        assertNull(viewModel.success().activeCountryDetail)
+        assertEquals(news, viewModel.success().activeCategoryDetail)
     }
 
     @Test
@@ -192,12 +219,13 @@ class HomeViewModelTest {
         uiState.value as? HomeUiState.Success
             ?: error("Etat Success attendu, obtenu : ${uiState.value}")
 
-    private fun channel(id: String, name: String, category: String) = Channel(
+    private fun channel(id: String, name: String, category: String, country: String? = null) = Channel(
         id = id,
         name = name,
         logoUrl = "",
         streamUrl = "https://example.com/$id.m3u8",
-        category = category
+        category = category,
+        country = country
     )
 
     private fun matchAt(id: String, time: String) = MatchItem(

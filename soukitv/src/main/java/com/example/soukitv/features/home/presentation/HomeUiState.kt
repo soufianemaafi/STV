@@ -11,6 +11,7 @@ sealed interface HomeUiState {
         val matches: List<MatchItem> = emptyList(),
         val categories: List<Category> = emptyList(),
         val activeCategoryDetail: Category? = null,
+        val activeCountryDetail: String? = null,
         val isDarkTheme: Boolean = true
     ) : HomeUiState
 
