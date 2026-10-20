@@ -54,6 +54,7 @@ fun VideoPlayer(
     val bufferedPosition by viewModel.bufferedPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
     val isLive by viewModel.isLive.collectAsState()
+    val isSeekable by viewModel.isSeekable.collectAsState()
 
     // UI state
     var showQualityDialog by remember { mutableStateOf(false) }
@@ -133,6 +134,7 @@ fun VideoPlayer(
                     isVisible = areControlsVisible,
                     isPlaying = isPlaying,
                     isLive = isLive,
+                    isSeekable = isSeekable,
                     currentPosition = currentPosition,
                     bufferedPosition = bufferedPosition,
                     duration = duration,

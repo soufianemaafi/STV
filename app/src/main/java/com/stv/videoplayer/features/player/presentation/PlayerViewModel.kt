@@ -10,6 +10,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Timeline
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -104,6 +105,9 @@ class PlayerViewModel @JvmOverloads constructor(
     private val _isLive = MutableStateFlow(false)
     val isLive: StateFlow<Boolean> = _isLive.asStateFlow()
 
+    private val _isSeekable = MutableStateFlow(false)
+    val isSeekable: StateFlow<Boolean> = _isSeekable.asStateFlow()
+
     // State machine : null = pas encore initialisÃ© (attend une PlayerUiAction)
     private val _uiState = MutableStateFlow<PlayerUiState?>(null)
     val uiState: StateFlow<PlayerUiState?> = _uiState.asStateFlow()
@@ -130,6 +134,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     _isLoading.value = false
                     _duration.value = _player.duration.coerceAtLeast(0L)
                     _isLive.value = _player.isCurrentMediaItemLive
+                    updateSeekableState()
                 }
                 Player.STATE_ENDED -> {
                     _isLoading.value = false
@@ -141,6 +146,14 @@ class PlayerViewModel @JvmOverloads constructor(
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            updateSeekableState()
+        }
+
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            updateSeekableState()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -282,6 +295,12 @@ class PlayerViewModel @JvmOverloads constructor(
 
     private fun seekRewind() {
         seekTo((_player.currentPosition - 10_000).coerceAtLeast(0L))
+    }
+
+    private fun updateSeekableState() {
+        _isSeekable.value =
+            (_player.isCurrentMediaItemDynamic && _player.isCurrentMediaItemLive) ||
+                !_player.isCurrentMediaItemLive
     }
 
     private fun selectTrack(trackInfo: VideoTrackInfo) {

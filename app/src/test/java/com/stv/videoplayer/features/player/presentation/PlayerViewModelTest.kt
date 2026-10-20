@@ -239,6 +239,36 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `un Pure Live non dynamique masque les controles seekables`() {
+        every { mockPlayer.isCurrentMediaItemLive } returns true
+        every { mockPlayer.isCurrentMediaItemDynamic } returns false
+
+        listenerSlot.captured.onTimelineChanged(mockk(relaxed = true), 0)
+
+        assertFalse(viewModel.isSeekable.value)
+    }
+
+    @Test
+    fun `un Live DVR dynamique conserve les controles seekables`() {
+        every { mockPlayer.isCurrentMediaItemLive } returns true
+        every { mockPlayer.isCurrentMediaItemDynamic } returns true
+
+        listenerSlot.captured.onMediaItemTransition(null, 0)
+
+        assertTrue(viewModel.isSeekable.value)
+    }
+
+    @Test
+    fun `une VOD reste seekable`() {
+        every { mockPlayer.isCurrentMediaItemLive } returns false
+        every { mockPlayer.isCurrentMediaItemDynamic } returns false
+
+        listenerSlot.captured.onTimelineChanged(mockk(relaxed = true), 0)
+
+        assertTrue(viewModel.isSeekable.value)
+    }
+
+    @Test
     fun `onPlayerError renseigne errorMessage et desactive isLoading`() {
         // âœ… `PlaybackException.errorCode` est un champ Java final (pas une mÃ©thode
         // virtuelle) : on ne peut pas le mocker via `every {}` â€” on construit donc

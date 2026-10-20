@@ -43,6 +43,7 @@ fun PlayerControls(
     isVisible: Boolean,
     isPlaying: Boolean,
     isLive: Boolean = false,
+    isSeekable: Boolean = false,
     currentPosition: Long,
     bufferedPosition: Long,
     duration: Long,
@@ -129,7 +130,7 @@ fun PlayerControls(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // âœ… Rewind/Forward masquÃ©s pour les flux LIVE (pas de sens de seek)
-                        if (!isLive) {
+                        if (isSeekable) {
                             // Rewind -10s
                             IconButton(onClick = onRewindClick) {
                                 Icon(
@@ -151,7 +152,7 @@ fun PlayerControls(
                             )
                         }
 
-                        if (!isLive) {
+                        if (isSeekable) {
                             // Forward +10s
                             IconButton(onClick = onForwardClick) {
                                 Icon(
@@ -164,94 +165,47 @@ fun PlayerControls(
                         }
 
 
-                        // Aspect Ratio (Redimensionnement)
-                        IconButton(onClick = onResizeClick) {
-                            Icon(
-                                imageVector = Icons.Filled.AspectRatio,
-                                contentDescription = stringResource(R.string.format_content_description),
-                                tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                        if (isSeekable || !isLive) {
+                            // Aspect Ratio (Redimensionnement)
+                            IconButton(onClick = onResizeClick) {
+                                Icon(
+                                    imageVector = Icons.Filled.AspectRatio,
+                                    contentDescription = stringResource(R.string.format_content_description),
+                                    tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
 
-                        // Picture in Picture (PiP)
-                        IconButton(onClick = onPipClick) {
-                            Icon(
-                                imageVector = Icons.Filled.PictureInPicture,
-                                contentDescription = stringResource(R.string.pip_button),
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                            // Picture in Picture (PiP)
+                            IconButton(onClick = onPipClick) {
+                                Icon(
+                                    imageVector = Icons.Filled.PictureInPicture,
+                                    contentDescription = stringResource(R.string.pip_button),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
 
-                        // Settings (QualitÃ©)
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Settings,
-                                contentDescription = stringResource(R.string.quality_content_description),
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            // Settings (Qualité)
+                            IconButton(onClick = onSettingsClick) {
+                                Icon(
+                                    imageVector = Icons.Filled.Settings,
+                                    contentDescription = stringResource(R.string.quality_content_description),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
 
-                // âœ… Seekbar : toujours visible comme indicateur visuel
-                // - LIVE : lecture seule (pas de thumb, pas de drag, pas de temps)
-                // - VOD : interactive (drag + temps affichÃ©)
-                Spacer(modifier = Modifier.height(4.dp))
+                if (isSeekable) {
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isLive) {
-                        // â”€â”€ LIVE : barre de progression en lecture seule (mÃªme style visuel que VOD) â”€â”€
-                        Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                            // Barre de buffer (arriÃ¨re-plan) â€” mÃªme style que VOD
-                            LinearProgressIndicator(
-                                progress = { if (duration > 0) bufferedPosition.toFloat() / duration.toFloat() else 0f },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(3.dp),
-                                color = Color.White.copy(alpha = 0.5f),
-                                trackColor = Color.White.copy(alpha = 0.2f),
-                            )
-
-                            // Slider en lecture seule â€” thumb rÃ©duit en hauteur, track rÃ©duite 3dp
-                            Slider(
-                                value = currentPosition.toFloat(),
-                                onValueChange = { /* Lecture seule */ },
-                                enabled = false,
-                                valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                                thumb = {
-                                    SliderDefaults.Thumb(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        modifier = Modifier.graphicsLayer(scaleY = 0.7f),
-                                        colors = SliderDefaults.colors(disabledThumbColor = Color.Red),
-                                        enabled = false
-                                    )
-                                },
-                                track = { sliderState ->
-                                    SliderDefaults.Track(
-                                        sliderState = sliderState,
-                                        modifier = Modifier.height(3.dp),
-                                        colors = SliderDefaults.colors(
-                                            disabledActiveTrackColor = Color.Red,
-                                            disabledInactiveTrackColor = Color.Transparent
-                                        )
-                                    )
-                                },
-                                colors = SliderDefaults.colors(
-                                    disabledThumbColor = Color.Red,
-                                    disabledActiveTrackColor = Color.Red,
-                                    disabledInactiveTrackColor = Color.Transparent
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    } else {
-                        // â”€â”€ VOD : barre interactive avec drag + temps â”€â”€
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         var isDragging by remember { mutableStateOf(false) }
                         var dragPosition by remember { mutableFloatStateOf(0f) }
 
