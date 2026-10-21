@@ -248,7 +248,13 @@ class PlayerViewModel @JvmOverloads constructor(
         _errorMessage.value = null
 
         _player.playWhenReady = true
-        val mediaItemBuilder = MediaItem.Builder().setUri(url)
+        val mediaItemBuilder = MediaItem.Builder()
+            .setUri(url)
+            .setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder()
+                    .setTargetOffsetMs(30_000L)
+                    .build()
+            )
         _currentTitle.value?.takeIf { it.isNotBlank() }?.let { title ->
             mediaItemBuilder.setMediaMetadata(
                 MediaMetadata.Builder()
