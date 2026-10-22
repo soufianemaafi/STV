@@ -1,5 +1,6 @@
 ﻿package com.stv.videoplayer.features.player.presentation
 
+import com.stv.videoplayer.core.domain.model.StreamSource
 import com.stv.videoplayer.core.domain.model.VideoTrackInfo
 
 /**
@@ -25,8 +26,15 @@ sealed class PlayerUiAction {
         val videoUrl: String,
         val skipAds: Boolean = false,
         val title: String? = null,
-        val headers: Map<String, String> = emptyMap()
+        val headers: Map<String, String> = emptyMap(),
+        val sources: List<StreamSource> = emptyList()
     ) : PlayerUiAction()
+
+    /**
+     * Bascule vers une autre source (serveur / qualité) d'un match en conservant
+     * la position de lecture courante.
+     */
+    data class SwitchSource(val sourceUrl: String, val qualityIndex: Int) : PlayerUiAction()
 
     /** Relance proprement la vÃ©rification pub / AdBlocker via MVI. */
     data object RetryAdCheck : PlayerUiAction()

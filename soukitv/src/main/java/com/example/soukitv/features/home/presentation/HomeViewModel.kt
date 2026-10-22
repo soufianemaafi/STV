@@ -42,14 +42,7 @@ class HomeViewModel(
         when (action) {
             is HomeUiAction.SelectChannel -> handleSelectChannel(action.channel)
             is HomeUiAction.SelectMatch -> {
-                val matchChannel = Channel(
-                    id = action.match.id.orEmpty(),
-                    name = "${action.match.teamA.orEmpty()} vs ${action.match.teamB.orEmpty()}",
-                    logoUrl = action.match.teamALogo.orEmpty(),
-                    streamUrl = action.match.streamUrl.orEmpty(),
-                    category = action.match.tournament.orEmpty()
-                )
-                val result = stvPlayerLauncher.launchChannel(matchChannel)
+                val result = stvPlayerLauncher.launchMatch(action.match)
                 if (result is LaunchResult.NotInstalled) {
                     _uiState.value = HomeUiState.Error(StvPlayerLauncher.NOT_INSTALLED_MESSAGE)
                 }

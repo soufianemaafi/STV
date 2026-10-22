@@ -5,10 +5,29 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
 import com.example.soukitv.features.home.domain.model.Channel
+import com.example.soukitv.features.home.domain.model.MatchItem
+import com.example.soukitv.features.home.domain.model.StreamSource
+import com.example.soukitv.features.home.domain.model.toChannel
+import com.google.gson.Gson
 
 class StvPlayerLauncher(private val context: Context) {
 
-    fun launchChannel(channel: Channel): LaunchResult {
+    fun launchChannel(channel: Channel): LaunchResult = launch(channel, sources = null)
+
+    /**
+     * Lance un match. Si [MatchItem.sources] n'est pas vide, la liste est sérialisée en JSON
+     * (extra `sources_json`) et la première source devient l'URL par défaut (`VIDEO_URL`).
+     */
+    fun launchMatch(match: MatchItem): LaunchResult {
+        val sources = match.sources
+            ?.filter { it.url.isNotBlank() }
+            ?.takeIf { it.isNotEmpty() }
+        val baseChannel = match.toChannel()
+        val channel = if (sources != null) baseChannel.copy(streamUrl = sources.first().url) else baseChannel
+        return launch(channel, sources)
+    }
+
+    private fun launch(channel: Channel, sources: List<StreamSource>?): LaunchResult {
         val installedPackage = SUPPORTED_PACKAGES.firstOrNull { packageName ->
             try {
                 context.packageManager.getPackageInfo(packageName, 0)
@@ -28,6 +47,9 @@ class StvPlayerLauncher(private val context: Context) {
                 putExtra(EXTRA_VIDEO_URL, channel.streamUrl)
                 putExtra(EXTRA_URL, channel.streamUrl)
                 putExtra(EXTRA_TITLE, channel.name)
+                if (!sources.isNullOrEmpty()) {
+                    putExtra(EXTRA_SOURCES_JSON, Gson().toJson(sources))
+                }
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
@@ -63,6 +85,7 @@ class StvPlayerLauncher(private val context: Context) {
         const val EXTRA_VIDEO_URL = "VIDEO_URL"
         const val EXTRA_URL = "url"
         const val EXTRA_TITLE = "title"
+        const val EXTRA_SOURCES_JSON = "sources_json"
         const val NOT_INSTALLED_MESSAGE = "STV Player is required to play this content."
 
         private const val PLAY_STORE_MARKET_URL = "market://details?id=com.soufcom.stv"

@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.stv.videoplayer.R
+import com.stv.videoplayer.core.domain.model.StreamSource
 import com.stv.videoplayer.core.domain.model.VideoTrackInfo
 import java.util.Locale
 import kotlinx.coroutines.Job
@@ -114,6 +115,13 @@ class PlayerViewModel @JvmOverloads constructor(
 
     private var currentUrl: String? = null
 
+    // Multi-sources (matchs uniquement) : liste vide pour les chaînes classiques.
+    private val _availableSources = MutableStateFlow<List<StreamSource>>(emptyList())
+    val availableSources: StateFlow<List<StreamSource>> = _availableSources.asStateFlow()
+
+    private val _currentSourceIndex = MutableStateFlow(0)
+    val currentSourceIndex: StateFlow<Int> = _currentSourceIndex.asStateFlow()
+
     // âœ… DerniÃ¨re hauteur vidÃ©o connue (via onVideoSizeChanged), utilisÃ©e pour afficher
     // "Auto (1080p)" sans dÃ©pendre de `ExoPlayer.videoFormat` (spÃ©cifique Ã  la classe
     // concrÃ¨te) â€” garde `_player` typÃ© [Player] uniquement (interface pure, testable).
@@ -190,6 +198,8 @@ class PlayerViewModel @JvmOverloads constructor(
                 currentUrl = action.videoUrl
                 _currentTitle.value = action.title?.trim()?.takeIf { it.isNotEmpty() }
                 pendingRequestHeaders = cleanHeaders(action.headers)
+                _availableSources.value = action.sources
+                _currentSourceIndex.value = 0
                 _uiState.value = if (action.skipAds) {
                     PlayerUiState.Ready(action.videoUrl)
                 } else {
@@ -208,6 +218,7 @@ class PlayerViewModel @JvmOverloads constructor(
             is PlayerUiAction.SeekForward -> seekForward()
             is PlayerUiAction.SeekRewind -> seekRewind()
             is PlayerUiAction.SelectTrack -> selectTrack(action.trackInfo)
+            is PlayerUiAction.SwitchSource -> switchSource(action.sourceUrl, action.qualityIndex)
         }
     }
 
@@ -248,11 +259,16 @@ class PlayerViewModel @JvmOverloads constructor(
         _errorMessage.value = null
 
         _player.playWhenReady = true
+        _player.setMediaItem(buildMediaItem(url))
+        _player.prepare()
+    }
+
+    private fun buildMediaItem(url: String): MediaItem {
         val mediaItemBuilder = MediaItem.Builder()
             .setUri(url)
             .setLiveConfiguration(
                 MediaItem.LiveConfiguration.Builder()
-                    .setTargetOffsetMs(30_000L)
+                    .setTargetOffsetMs(30_000L) // 30 secondes de buffer
                     .build()
             )
         _currentTitle.value?.takeIf { it.isNotBlank() }?.let { title ->
@@ -262,8 +278,37 @@ class PlayerViewModel @JvmOverloads constructor(
                     .build()
             )
         }
-        _player.setMediaItem(mediaItemBuilder.build())
+        return mediaItemBuilder.build()
+    }
+
+    /** Bascule vers une nouvelle source live et la charge comme un flux neuf. */
+    private fun switchSource(sourceUrl: String, qualityIndex: Int) {
+        val sources = _availableSources.value
+        val source = sources.getOrNull(qualityIndex)
+        if (source == null || source.url != sourceUrl) return
+        if (qualityIndex == _currentSourceIndex.value) return
+
+        _currentSourceIndex.value = qualityIndex
+        _isLoading.value = true
+        _errorMessage.value = null
+        currentUrl = sourceUrl
+        _uiState.value = (_uiState.value as? PlayerUiState.Ready)?.copy(
+            videoUrl = sourceUrl,
+            currentSourceIndex = qualityIndex
+        ) ?: _uiState.value
+
+        val mediaItem = MediaItem.Builder()
+            .setUri(sourceUrl)
+            .setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder()
+                    .setTargetOffsetMs(30_000L) // 30 secondes de buffer
+                    .build()
+            )
+            .build()
+
+        _player.setMediaItem(mediaItem)
         _player.prepare()
+        _player.playWhenReady = true
     }
 
     private fun retryAdCheck() {

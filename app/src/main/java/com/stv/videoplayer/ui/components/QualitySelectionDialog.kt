@@ -45,6 +45,13 @@ fun QualitySelectionDialog(
                             .padding(vertical = 12.dp, horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = { onTrackSelected(track) },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
                         Text(
                             text = if (track.group == null && currentTrackName.startsWith("Auto")) currentTrackName else track.name,
                             style = MaterialTheme.typography.bodyLarge,

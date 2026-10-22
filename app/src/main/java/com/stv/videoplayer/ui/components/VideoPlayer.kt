@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,6 +56,8 @@ fun VideoPlayer(
     val duration by viewModel.duration.collectAsState()
     val isLive by viewModel.isLive.collectAsState()
     val isSeekable by viewModel.isSeekable.collectAsState()
+    val availableSources by viewModel.availableSources.collectAsState()
+    val currentSourceIndex by viewModel.currentSourceIndex.collectAsState()
 
     // UI state
     var showQualityDialog by remember { mutableStateOf(false) }
@@ -165,7 +168,13 @@ fun VideoPlayer(
                         showQualityDialog = true
                         areControlsVisible = true
                     },
-                    onSeek = { viewModel.onAction(PlayerUiAction.SeekTo(it)) }
+                    onSeek = { viewModel.onAction(PlayerUiAction.SeekTo(it)) },
+                    sources = availableSources,
+                    currentSourceIndex = currentSourceIndex,
+                    onSourceClick = { source, index ->
+                        viewModel.onAction(PlayerUiAction.SwitchSource(source.url, index))
+                        areControlsVisible = true
+                    }
                 )
             }
 
@@ -184,7 +193,7 @@ fun VideoPlayer(
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    color = Color.Red
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }

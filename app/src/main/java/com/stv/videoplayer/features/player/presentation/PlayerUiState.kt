@@ -11,7 +11,10 @@
 sealed class PlayerUiState {
     data class LoadingAds(val videoUrl: String, val forceAdCheck: Boolean = false) : PlayerUiState()
     data class ShowingAd(val videoUrl: String) : PlayerUiState()
-    data class Ready(val videoUrl: String) : PlayerUiState()
+    data class Ready(
+        val videoUrl: String,
+        val currentSourceIndex: Int = 0
+    ) : PlayerUiState()
     data class Error(val message: String) : PlayerUiState()
 
     /** Blocage suspectÃ© cÃ´tÃ© pub / AdBlocker â€” conserve l'UI existante avec RÃ©essayer. */

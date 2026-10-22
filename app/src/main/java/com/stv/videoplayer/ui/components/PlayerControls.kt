@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import com.stv.videoplayer.R
+import com.stv.videoplayer.core.domain.model.StreamSource
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -55,7 +56,10 @@ fun PlayerControls(
     onResizeClick: () -> Unit,
     onPipClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    onSeek: (Long) -> Unit
+    onSeek: (Long) -> Unit,
+    sources: List<StreamSource> = emptyList(),
+    currentSourceIndex: Int = 0,
+    onSourceClick: (StreamSource, Int) -> Unit = { _, _ -> }
 ) {
     AnimatedVisibility(
         visible = isVisible,
@@ -67,29 +71,56 @@ fun PlayerControls(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.4f))
         ) {
-            // Bouton Retour en haut Ã  gauche
-            IconButton(
-                onClick = onBackClick,
+            // Retour et sélecteur de sources sur une seule ligne en haut à gauche.
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(16.dp)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.back_button),
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back_button),
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                // Sélecteur de sources (matchs uniquement), à droite du bouton Retour.
+                if (sources.size > 1) {
+                    sources.forEachIndexed { index, source ->
+                        val selected = index == currentSourceIndex
+                        Surface(
+                            onClick = { onSourceClick(source, index) },
+                            shape = CircleShape,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                            } else {
+                                Color.Black.copy(alpha = 0.55f)
+                            },
+                            contentColor = Color.White
+                        ) {
+                            Text(
+                                text = source.quality,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                fontSize = 12.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
             }
 
-            // âœ… Badge LIVE en haut Ã  droite (visible uniquement pour les flux en direct)
             if (isLive) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(16.dp),
                     shape = RoundedCornerShape(4.dp),
-                    color = Color.Red,
+                    color = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White
                 ) {
                     Row(
@@ -171,7 +202,11 @@ fun PlayerControls(
                                 Icon(
                                     imageVector = Icons.Filled.AspectRatio,
                                     contentDescription = stringResource(R.string.format_content_description),
-                                    tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) Color.Red else Color.White,
+                                    tint = if (resizeMode == AspectRatioFrameLayout.RESIZE_MODE_FILL) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        Color.White
+                                    },
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -242,7 +277,9 @@ fun PlayerControls(
                                     SliderDefaults.Thumb(
                                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                         modifier = Modifier.graphicsLayer(scaleY = 0.7f),
-                                        colors = SliderDefaults.colors(thumbColor = Color.Red)
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = MaterialTheme.colorScheme.primary
+                                        )
                                     )
                                 },
                                 track = { sliderState ->
@@ -250,15 +287,15 @@ fun PlayerControls(
                                         sliderState = sliderState,
                                         modifier = Modifier.height(3.dp),
                                         colors = SliderDefaults.colors(
-                                            activeTrackColor = Color.Red,
-                                            inactiveTrackColor = Color.Transparent
+                                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                                            inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                                         )
                                     )
                                 },
                                 colors = SliderDefaults.colors(
-                                    thumbColor = Color.Red,
-                                    activeTrackColor = Color.Red,
-                                    inactiveTrackColor = Color.Transparent
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )

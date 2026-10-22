@@ -50,6 +50,7 @@ import com.stv.videoplayer.R
 import com.stv.videoplayer.features.ads.AdFlowController
 import com.stv.videoplayer.features.ads.AdFlowController.AdResult
 import com.stv.videoplayer.features.ads.AdFrequencyManager
+import com.stv.videoplayer.core.domain.model.StreamSourceParser
 import com.stv.videoplayer.core.security.IntentSecurityManager
 import com.stv.videoplayer.core.security.IntentValidationResult
 import com.stv.videoplayer.ui.components.BlockedScreen
@@ -271,7 +272,8 @@ class PlayerActivity : ComponentActivity() {
                         videoUrl = result.videoUrl,
                         skipAds = skipAds,
                         title = playbackMetadata.title,
-                        headers = playbackMetadata.headers
+                        headers = playbackMetadata.headers,
+                        sources = StreamSourceParser.parse(readIntentTextExtra(intent, "sources_json"))
                     )
                 )
             }

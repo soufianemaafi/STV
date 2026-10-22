@@ -168,18 +168,18 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun selectMatch_launchesStvPlayerWithMatchAsChannel() {
-        every { launcher.launchChannel(any()) } returns StvPlayerLauncher.LaunchResult.Launched
+    fun selectMatch_launchesStvPlayerWithMatch() {
+        every { launcher.launchMatch(any()) } returns StvPlayerLauncher.LaunchResult.Launched
         val viewModel = viewModel(matches = listOf(match))
 
         viewModel.onAction(HomeUiAction.SelectMatch(match))
 
-        verify { launcher.launchChannel(match.toChannel()) }
+        verify { launcher.launchMatch(match) }
     }
 
     @Test
     fun selectMatch_setsErrorWhenStvIsNotInstalled() {
-        every { launcher.launchChannel(any()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
+        every { launcher.launchMatch(any()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
         val viewModel = viewModel(matches = listOf(match))
 
         viewModel.onAction(HomeUiAction.SelectMatch(match))
