@@ -53,6 +53,7 @@ import com.stv.videoplayer.features.ads.AdFrequencyManager
 import com.stv.videoplayer.core.domain.model.StreamSourceParser
 import com.stv.videoplayer.core.security.IntentSecurityManager
 import com.stv.videoplayer.core.security.IntentValidationResult
+import com.stv.videoplayer.player.HeaderExtractor
 import com.stv.videoplayer.ui.components.BlockedScreen
 import com.stv.videoplayer.ui.components.ErrorScreen
 import com.stv.videoplayer.ui.components.VideoPlayer
@@ -294,7 +295,7 @@ class PlayerActivity : ComponentActivity() {
     private fun extractIncomingPlaybackMetadata(intent: Intent): IncomingPlaybackMetadata {
         return IncomingPlaybackMetadata(
             title = extractIncomingTitle(intent),
-            headers = extractIncomingHeaders(intent)
+            headers = HeaderExtractor.extract(intent)
         )
     }
 
@@ -303,57 +304,6 @@ class PlayerActivity : ComponentActivity() {
             readIntentTextExtra(intent, "title"),
             readIntentTextExtra(intent, Intent.EXTRA_TITLE)
         )
-    }
-
-    private fun extractIncomingHeaders(intent: Intent): Map<String, String> {
-        val result = linkedMapOf<String, String>()
-
-        val extras = try {
-            intent.extras
-        } catch (_: Exception) {
-            null
-        }
-
-        try {
-            when (val rawHeaders = readBundleValue(extras, "headers")) {
-                is Bundle -> {
-                    rawHeaders.keySet().forEach { key ->
-                        putCleanHeader(result, key, readBundleValue(rawHeaders, key)?.toString())
-                    }
-                }
-                is Map<*, *> -> {
-                    rawHeaders.forEach { (key, value) ->
-                        putCleanHeader(result, key?.toString(), value?.toString())
-                    }
-                }
-                is Array<*> -> {
-                    rawHeaders.forEach { item ->
-                        parseHeaderEntry(item?.toString())?.let { (key, value) ->
-                            putCleanHeader(result, key, value)
-                        }
-                    }
-                }
-                is Iterable<*> -> {
-                    rawHeaders.forEach { item ->
-                        parseHeaderEntry(item?.toString())?.let { (key, value) ->
-                            putCleanHeader(result, key, value)
-                        }
-                    }
-                }
-                is String -> {
-                    parseHeaderEntry(rawHeaders)?.let { (key, value) ->
-                        putCleanHeader(result, key, value)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(tag, "Impossible d'extraire les headers HTTP depuis l'Intent", e)
-        }
-
-        putCleanHeader(result, "Referer", readIntentTextExtra(intent, "referer"))
-        putCleanHeader(result, "Referer", readIntentTextExtra(intent, "Referer"))
-
-        return result.toMap()
     }
 
     private fun readIntentTextExtra(intent: Intent, key: String): String? {
@@ -377,52 +327,6 @@ class PlayerActivity : ComponentActivity() {
 
     private fun firstNonBlankText(vararg candidates: String?): String? {
         return candidates.firstOrNull { !it.isNullOrBlank() }?.trim()
-    }
-
-    private fun parseHeaderEntry(raw: String?): Pair<String, String>? {
-        val safeRaw = raw?.replace("\r", " ")?.replace("\n", " ")?.trim().orEmpty()
-        if (safeRaw.isBlank()) return null
-
-        val separatorIndex = when {
-            safeRaw.contains('=') -> safeRaw.indexOf('=')
-            safeRaw.contains(':') -> safeRaw.indexOf(':')
-            else -> -1
-        }
-
-        if (separatorIndex <= 0 || separatorIndex >= safeRaw.lastIndex) return null
-
-        val key = safeRaw.substring(0, separatorIndex).trim()
-        val value = safeRaw.substring(separatorIndex + 1).trim()
-        if (key.isBlank() || value.isBlank()) return null
-
-        return key to value
-    }
-
-    private fun putCleanHeader(target: MutableMap<String, String>, rawKey: String?, rawValue: String?) {
-        val key = canonicalizeHeaderName(rawKey)
-        val value = cleanHeaderValue(rawValue)
-        if (key != null && value != null) {
-            target[key] = value
-        }
-    }
-
-    private fun canonicalizeHeaderName(rawKey: String?): String? {
-        val safeKey = rawKey?.replace("\r", " ")?.replace("\n", " ")?.trim().orEmpty()
-        if (safeKey.isBlank()) return null
-
-        return when (safeKey.lowercase()) {
-            "referer" -> "Referer"
-            "user-agent" -> "User-Agent"
-            else -> safeKey
-        }
-    }
-
-    private fun cleanHeaderValue(rawValue: String?): String? {
-        return rawValue
-            ?.replace("\r", " ")
-            ?.replace("\n", " ")
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {

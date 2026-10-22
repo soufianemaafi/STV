@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import com.stv.videoplayer.core.domain.model.StreamSource
 import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
@@ -153,6 +154,125 @@ class PlayerViewModelTest {
     }
 
     // ==================== onAction â€” Play / Pause / Seek ====================
+
+    // ==================== Headers HTTP : flux par instance via MediaItem ====================
+
+    private val partnerHeaders = mapOf("Referer" to "https://partner.example.com", "X-Token" to "abc")
+
+    private fun capturedMediaItems(expectedCalls: Int): List<MediaItem> {
+        val items = mutableListOf<MediaItem>()
+        verify(exactly = expectedCalls) { mockPlayer.setMediaItem(capture(items)) }
+        return items
+    }
+
+    @Test
+    fun `les headers de LoadVideo sont injectes dans le RequestMetadata du MediaItem`() {
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true, headers = partnerHeaders)
+        )
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/a.m3u8"))
+
+        val item = capturedMediaItems(1).single()
+        assertNotNull(item.requestMetadata.extras)
+    }
+
+    @Test
+    fun `sans header le MediaItem ne porte aucun extra de requete`() {
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true))
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/a.m3u8"))
+
+        assertNull(capturedMediaItems(1).single().requestMetadata.extras)
+    }
+
+    @Test
+    fun `les headers d'une session ne fuitent pas vers la session suivante`() {
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true, headers = partnerHeaders)
+        )
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/a.m3u8"))
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/b.m3u8", skipAds = true))
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/b.m3u8"))
+
+        val items = capturedMediaItems(2)
+        assertNotNull(items[0].requestMetadata.extras)
+        assertNull(items[1].requestMetadata.extras)
+    }
+
+    @Test
+    fun `deux ViewModels ne partagent aucun header`() {
+        val otherPlayer = mockk<Player>(relaxed = true)
+        every { otherPlayer.playbackState } returns Player.STATE_IDLE
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+        val otherViewModel = PlayerViewModel(application) { otherPlayer }
+
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true, headers = partnerHeaders)
+        )
+        otherViewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/a.m3u8"))
+
+        val otherItems = mutableListOf<MediaItem>()
+        verify(exactly = 1) { otherPlayer.setMediaItem(capture(otherItems)) }
+        assertNull(otherItems.single().requestMetadata.extras)
+    }
+
+    @Test
+    fun `la meme URL avec des headers differents est repreparee`() {
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true, headers = partnerHeaders)
+        )
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/a.m3u8"))
+
+        every { mockPlayer.playbackState } returns Player.STATE_READY
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo(
+                "https://example.com/a.m3u8",
+                skipAds = true,
+                headers = mapOf("X-Token" to "other")
+            )
+        )
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/a.m3u8"))
+
+        capturedMediaItems(2)
+    }
+
+    @Test
+    fun `SwitchSource conserve les headers de la session`() {
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+        val sources = listOf(
+            StreamSource("HD", "https://example.com/hd.m3u8"),
+            StreamSource("SD", "https://example.com/sd.m3u8")
+        )
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo(
+                "https://example.com/hd.m3u8",
+                skipAds = true,
+                headers = partnerHeaders,
+                sources = sources
+            )
+        )
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/hd.m3u8"))
+
+        viewModel.onAction(PlayerUiAction.SwitchSource("https://example.com/sd.m3u8", 1))
+
+        val items = capturedMediaItems(2)
+        assertNotNull(items[1].requestMetadata.extras)
+    }
+
+    @Test
+    fun `aucun etat statique de headers n'existe plus dans PlayerViewModel`() {
+        val staticHeaderFields = PlayerViewModel::class.java.declaredFields
+            .filter { java.lang.reflect.Modifier.isStatic(it.modifiers) }
+            .filter { it.name.contains("header", ignoreCase = true) }
+
+        assertTrue("Etat statique de headers detecte : $staticHeaderFields", staticHeaderFields.isEmpty())
+    }
 
     @Test
     fun `Play appelle player play`() {
