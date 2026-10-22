@@ -39,6 +39,14 @@
     <string name="welcome_message">Welcome to STV</string>
     <string name="tagline_message">Watch your favorite videos streaming</string>
     <string name="menu_quit">Quit</string>
+    <string name="menu_contact_us">Contact Us</string>
+    <string name="menu_rate_us">Rate Us</string>
+    <string name="menu_share_app">Share App</string>
+    <string name="share_app_message">Discover STV Player, the best video player: https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
+    <string name="action_quit">Quit</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_back">Back</string>
 
     <!-- Privacy Policy & Terms of Service -->
     <string name="privacy_policy">Privacy Policy</string>

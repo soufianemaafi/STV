@@ -117,9 +117,10 @@ Toute instance de production doit maintenir les optimisations suivantes dans `cr
 ## 6. Monétisation (AdMob) & Gestion de la Fréquence
 
 1. **Format :** Publicité Interstitielle Plein Écran (`InterstitialAd`).
-2. **Boucle de Pre-loading :** L'interstitiel doit être chargé en tâche de fond dès le démarrage et automatiquement rechargé dès qu'une pub se termine ou échoue (`onAdDismissedFullScreenContent` / `onAdFailedToLoad`).
-3. **Anti-Zapping Cooldown :** Un délai de grâce de 90 secondes (`AdFrequencyManager`) est strictement appliqué. Si l'utilisateur zappe avant 90s, la pub est ignorée (SKIP) et la vidéo démarre immédiatement.
-4. **Anti-AdBlock :** Si un bloqueur est détecté, émettre `PlayerUiState.AdBlockerBlocked` et présenter l'écran dédié (`BlockedScreen`) avec l'action MVI `RetryAdCheck`.
+2. **Fréquence des publicités :** Le cooldown anti-zapping est de 0 seconde (`AdFrequencyManager`). Chaque lancement de vidéo déclenche donc une nouvelle demande de publicité. La fréquence globale est pilotée à distance via le dashboard AdMob.
+3. **Tolérance UX :** Lors du chargement d'une vidéo, l'attente de la publicité est limitée à 10 secondes. Si la publicité n'est pas prête après ce délai, elle est ignorée (`Skip`) et la vidéo démarre immédiatement afin de ne pas bloquer l'utilisateur.
+4. **Détection Anti-AdBlock :** Un AdBlocker est considéré comme suspect lorsqu'AdMob renvoie strictement `AdRequest.ERROR_CODE_NETWORK_ERROR`. Dans ce cas, émettre `PlayerUiState.AdBlockerBlocked` et présenter l'écran dédié (`BlockedScreen`) avec l'action MVI `RetryAdCheck`.
+5. **Anti-spam du préchargement :** L'interstitiel est préchargé en tâche de fond dès le démarrage et rechargé après une fermeture ou un échec (`onAdDismissedFullScreenContent` / `onAdFailedToLoad`). Après un échec de préchargement, appliquer un backoff de 5 secondes et limiter à 3 tentatives consécutives maximum.
 
 ---
 

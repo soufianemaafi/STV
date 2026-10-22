@@ -1,8 +1,9 @@
 ﻿package com.stv.videoplayer.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,7 +31,9 @@ fun QualitySelectionDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = stringResource(R.string.quality_dialog_title)) },
         text = {
-            LazyColumn {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
                 items(tracks) { track ->
                     val isSelected = if (track.group == null) {
                         currentTrackName.startsWith("Auto")
@@ -40,9 +43,9 @@ fun QualitySelectionDialog(
 
                     Row(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
                             .clickable { onTrackSelected(track) }
-                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                            .padding(vertical = 0.dp, horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(

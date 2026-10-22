@@ -101,6 +101,14 @@ class AdFlowController(
                     Log.d(tag, "No network")
                     if (cont.isActive) cont.resume(AdResult.NoNetwork)
                 },
+                onNetworkError = {
+                    timeoutJob.cancel()
+                    if (cont.isActive) {
+                        frequencyManager.markAdBlockerSuspected()
+                        Log.w(tag, "AdMob network error -> ad blocker suspected")
+                        cont.resume(AdResult.AdBlockerBlocked)
+                    }
+                },
                 isRequestActive = { cont.isActive }
             )
         }

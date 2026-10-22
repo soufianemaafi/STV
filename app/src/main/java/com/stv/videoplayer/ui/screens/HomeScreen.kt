@@ -1,5 +1,6 @@
 ﻿package com.stv.videoplayer.ui.screens
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
@@ -19,9 +20,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -95,6 +99,7 @@ fun HomeScreen(
     val legalDisclaimerTitle = stringResource(R.string.legal_disclaimer_title)
     val legalDisclaimerMessage = stringResource(R.string.legal_disclaimer_message)
     val legalDisclaimerConfirm = stringResource(R.string.legal_disclaimer_acknowledge)
+    val shareAppMessage = stringResource(R.string.share_app_message)
 
     var lastClickTime by remember { mutableLongStateOf(0L) }
     val debounceTime = 1000L
@@ -138,6 +143,80 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
                     ) {
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.menu_share_app), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.menu_share_app), tint = GrayLight) },
+                        selected = false,
+                        onClick = {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, shareAppMessage)
+                            }
+                            try {
+                                context.startActivity(Intent.createChooser(shareIntent, null))
+                            } catch (_: ActivityNotFoundException) {
+                                // Aucun composant de partage installé : ne pas interrompre l'application.
+                            }
+                            scope.launch { drawerState.close() }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent
+                        )
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.menu_rate_us), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.menu_rate_us), tint = GrayLight) },
+                        selected = false,
+                        onClick = {
+                            val marketIntent = Intent(
+                                Intent.ACTION_VIEW,
+                                "market://details?id=com.soufcom.stv".toUri()
+                            )
+                            try {
+                                context.startActivity(marketIntent)
+                            } catch (_: ActivityNotFoundException) {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        "https://play.google.com/store/apps/details?id=com.soufcom.stv".toUri()
+                                    )
+                                )
+                            }
+                            scope.launch { drawerState.close() }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent
+                        )
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.menu_contact_us), color = WhitePrimary) },
+                        icon = { Icon(Icons.Filled.Email, contentDescription = stringResource(R.string.menu_contact_us), tint = GrayLight) },
+                        selected = false,
+                        onClick = {
+                            val intent = Intent(
+                                Intent.ACTION_SENDTO,
+                                "mailto:soufcomdev@gmail.com?subject=Support%20-%20STV%20Player".toUri()
+                            )
+                            try {
+                                context.startActivity(intent)
+                            } catch (_: ActivityNotFoundException) {
+                                // Aucun client e-mail installé : ne pas interrompre l'application.
+                            }
+                            scope.launch { drawerState.close() }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent
+                        )
+                    )
+
+                    HorizontalDivider(
+                        color = GrayMuted,
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+
                     NavigationDrawerItem(
                         label = { Text(stringResource(R.string.privacy_policy), color = WhitePrimary) },
                         icon = { Icon(Icons.Filled.Security, contentDescription = stringResource(R.string.privacy_policy_cd), tint = GrayLight) },
@@ -189,8 +268,8 @@ fun HomeScreen(
                     )
 
                     NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.menu_quit), color = WhitePrimary) },
-                        icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.menu_quit), tint = GrayLight) },
+                        label = { Text(stringResource(R.string.action_quit), color = WhitePrimary) },
+                        icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = stringResource(R.string.action_quit), tint = GrayLight) },
                         selected = false,
                         onClick = {
                             (context as? ComponentActivity)?.finishAffinity()
@@ -353,7 +432,7 @@ private fun QuickActionsSection(
     Button(
         onClick = onVideosClick,
         modifier = modifier
-            .size(96.dp),
+            .size(88.dp),
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary

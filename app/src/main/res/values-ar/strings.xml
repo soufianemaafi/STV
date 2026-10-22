@@ -1,0 +1,117 @@
+<resources>
+    <!-- الترجمة العربية — STV Player -->
+    <string name="app_name" translatable="false">STV</string>
+
+    <!-- الشاشة الرئيسية -->
+    <string name="menu_content_description">القائمة</string>
+    <string name="stream_url_label">رابط البث</string>
+    <string name="url_empty_error">لا يمكن أن يكون الرابط فارغًا</string>
+    <string name="play_stream_button">تشغيل البث</string>
+    <string name="launch_error_prefix">خطأ في التشغيل: %1$s</string>
+
+    <!-- مشغل الفيديو -->
+    <string name="url_not_provided">لم يتم تقديم الرابط</string>
+    <string name="error_url_missing">رابط البث مفقود</string>
+    <string name="error_url_invalid_scheme">مخطط غير صالح: يُسمح فقط بـ http:// و https://</string>
+    <string name="error_url_too_long">الرابط طويل جدًا (الحد الأقصى 2048 حرفًا)</string>
+    <string name="error_url_invalid_format">تنسيق الرابط غير صالح</string>
+    <string name="error_intent_security_rejected">لا يمكن فتح هذا الرابط لأسباب أمنية.</string>
+    <string name="format_content_description">التنسيق</string>
+    <string name="quality_content_description">الجودة</string>
+    <string name="close_button">إغلاق</string>
+    <string name="quality_dialog_title">جودة الفيديو</string>
+
+    <!-- نموذج المشغل -->
+    <string name="playback_error_prefix">خطأ في التشغيل: %1$s</string>
+    <string name="quality_auto">تلقائي</string>
+    <string name="quality_unknown">غير معروفة</string>
+    <string name="quality_auto_with_resolution" translatable="false">تلقائي (%1$dp)</string>
+    <string name="quality_manual">يدوي</string>
+
+    <string name="no_internet_connection">لا يوجد اتصال بالإنترنت. يُرجى التحقق من الشبكة.</string>
+
+    <!-- أخطاء المشغل -->
+    <string name="error_network">مشكلة في اتصال الإنترنت. تحقق من الشبكة.</string>
+    <string name="error_content_not_found">هذا المحتوى غير متاح حاليًا.</string>
+    <string name="error_decoder">تنسيق الفيديو غير مدعوم على جهازك.</string>
+    <string name="error_unknown">حدث خطأ: %1$s</string>
+
+    <!-- الشاشة الرئيسية -->
+    <string name="welcome_message">مرحبًا بك في STV</string>
+    <string name="tagline_message">شاهد مقاطع الفيديو المفضلة لديك عبر البث</string>
+    <string name="menu_quit">خروج</string>
+    <string name="menu_contact_us">اتصل بنا</string>
+    <string name="menu_rate_us">قيم التطبيق</string>
+    <string name="menu_share_app">مشاركة التطبيق</string>
+    <string name="share_app_message">اكتشف STV Player، أفضل مشغل فيديو: https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
+    <string name="action_quit">خروج</string>
+    <string name="action_retry">إعادة المحاولة</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_back">رجوع</string>
+
+    <!-- سياسة الخصوصية وشروط الخدمة -->
+    <string name="privacy_policy">سياسة الخصوصية</string>
+    <string name="terms_of_service">شروط الاستخدام</string>
+    <string name="privacy_policy_url" translatable="false">https://sites.google.com/view/soufcom-stv/privacy-policy</string>
+    <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/soufcom-stv/terms-of-service</string>
+    <string name="legal_disclaimer">إخلاء المسؤولية القانوني</string>
+    <string name="legal_disclaimer_title">تحذير قانوني</string>
+    <string name="legal_disclaimer_message">STV Player مشغل وسائط تقني بحت. لا يوفر التطبيق أي بث فيديو أو محتوى متعدد الوسائط، ولا يستضيفه أو ينقله. يتحمل المستخدمون وحدهم مسؤولية المحتوى الذي يضيفونه. لا يرتبط STV Player بأي مزودي بث من جهات خارجية، ولا يؤيد تشغيل المحتوى المحمي بحقوق الطبع والنشر دون تصريح.</string>
+    <string name="legal_disclaimer_acknowledge">فهمت</string>
+
+    <!-- قائمة الفيديو ونموذج الإضافة -->
+    <string name="videos_button_label">مقاطع الفيديو</string>
+    <string name="videos_screen_title">مقاطع الفيديو</string>
+    <string name="default_video_title">تجريبي: Big Buck Bunny (المشاع الإبداعي)</string>
+    <string name="add_video_title">إضافة بث</string>
+    <string name="add_video_header_title">إضافة بث جديد</string>
+    <string name="add_video_header_subtitle">املأ الحقول أدناه لإضافة بث</string>
+    <string name="add_video_label_title">العنوان</string>
+    <string name="add_video_label_url">الرابط</string>
+    <string name="add_video_save">حفظ</string>
+    <string name="add_video_cancel">إلغاء</string>
+    <string name="add_video_invalid">يُرجى إدخال عنوان ورابط صالحين.</string>
+    <string name="add_video_invalid_url">رابط غير صالح. لا تُدعم إلا بروتوكولات http:// و https://.</string>
+    <string name="add_video_title_valid">العنوان صالح</string>
+    <string name="add_video_url_valid">الرابط صالح</string>
+    <string name="validation_title_empty">لا يمكن أن يكون العنوان فارغًا</string>
+    <string name="validation_title_too_short">يجب أن يحتوي العنوان على حرفين على الأقل</string>
+    <string name="validation_title_too_long">يجب ألا يتجاوز العنوان 100 حرف</string>
+    <string name="validation_url_empty">لا يمكن أن يكون الرابط فارغًا</string>
+    <string name="validation_url_invalid">الرابط غير صالح</string>
+    <string name="no_videos_placeholder">لم تتم إضافة أي بث.</string>
+
+    <!-- النصوص البديلة وواجهة المستخدم -->
+    <string name="search_placeholder">البحث عن فيديو…</string>
+    <string name="title_placeholder">مثال: BBC News</string>
+    <string name="url_placeholder" translatable="false">https://example.com/stream.m3u8</string>
+    <string name="back_button">رجوع</string>
+    <string name="clear_button">مسح</string>
+    <string name="delete_button">حذف</string>
+    <string name="delete_confirm_title">حذف البث</string>
+    <string name="delete_confirm_message">هل أنت متأكد من رغبتك في حذف &quot;%1$s&quot;؟</string>
+    <string name="delete_confirm_yes">حذف</string>
+    <string name="delete_confirm_no">إلغاء</string>
+    <string name="add_stream_button">إضافة بث</string>
+    <string name="videos_button">مقاطع الفيديو</string>
+    <string name="privacy_policy_cd">سياسة الخصوصية</string>
+    <string name="terms_of_service_cd">شروط الخدمة</string>
+
+    <!-- عناصر التحكم في المشغل -->
+    <string name="rewind_10s">إرجاع 10 ثوانٍ</string>
+    <string name="forward_10s">تقديم 10 ثوانٍ</string>
+    <string name="pause_button">إيقاف مؤقت</string>
+    <string name="pip_button">صورة داخل صورة</string>
+    <string name="live_badge" translatable="false">LIVE</string>
+    <string name="live_badge_cd">بث مباشر</string>
+    <string name="access_denied">تم رفض الوصول</string>
+    <string name="this_app_not_authorized">غير مصرح لهذا التطبيق بتشغيل STV Player.</string>
+    <string name="ad_load_failed_title">تعذر تحميل المحتوى</string>
+    <string name="ad_load_failed_message">تعذر تحميل المحتوى.\nتحقق من اتصالك أو عطّل أي مانع للإعلانات، ثم حاول مرة أخرى.</string>
+    <string name="no_network_title">لا يوجد اتصال</string>
+    <string name="no_network_message">يلزم اتصال بالإنترنت لتحميل المحتوى.\nتحقق من الشبكة وحاول مرة أخرى.</string>
+    <string name="retry_button">إعادة المحاولة</string>
+    <string name="no_results_for">لا توجد نتائج لـ</string>
+</resources>
+
+

@@ -46,6 +46,14 @@
     <string name="welcome_message">Bienvenue sur STV</string>
     <string name="tagline_message">Regardez vos vidéos en streaming préférées</string>
     <string name="menu_quit">Quitter</string>
+    <string name="menu_contact_us">Nous contacter</string>
+    <string name="menu_rate_us">Noter l\'application</string>
+    <string name="menu_share_app">Partager l\'application</string>
+    <string name="share_app_message">Découvre STV Player, le meilleur lecteur vidéo : https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
+    <string name="action_quit">Quitter</string>
+    <string name="action_retry">Réessayer</string>
+    <string name="action_cancel">Annuler</string>
+    <string name="action_back">Retour</string>
     <string name="title_placeholder">Ex. BBC News</string>
     <string name="url_placeholder">https://example.com/stream.m3u8</string>
 

@@ -10,6 +10,11 @@ import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Singleton pour la gestion des publicitÃ©s AdMob.
@@ -18,21 +23,36 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
  * - preloadInterstitial() : charge en arriÃ¨re-plan une pub prÃªte Ã  Ãªtre affichÃ©e
  * - loadAndShow() : consomme une pub prÃ©chargÃ©e ou charge/affiche Ã  la demande
  * - RÃ©sultat : onAdDismissed (pub fermÃ©e), onFailed (Ã©chec), onNoNetwork (pas de rÃ©seau)
- * - PAS de compteur. PAS de dÃ©tection adblock.
+ * - Le cooldown et la dÃ©tection AdBlock sont orchestrÃ©s par AdFlowController.
  * - Le player ne dÃ©marre que si onAdDismissed est appelÃ©.
  * - Si la pub Ã©choue, l'appelant (`AdFlowController`) gÃ¨re le retry ou le blocage.
  */
-class AdManager private constructor(context: Context) {
+class AdManager private constructor(
+    context: Context,
+    private val preloadScope: CoroutineScope,
+    private val preloadRetryDelayMs: Long
+) {
 
     companion object {
+        private const val PRELOAD_RETRY_DELAY_MS = 5_000L
+        private const val MAX_PRELOAD_RETRIES = 3
+
         @Volatile
         private var INSTANCE: AdManager? = null
 
-        fun initialize(context: Context) {
+        fun initialize(
+            context: Context,
+            preloadScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            preloadRetryDelayMs: Long = PRELOAD_RETRY_DELAY_MS
+        ) {
             if (INSTANCE == null) {
                 synchronized(this) {
                     if (INSTANCE == null) {
-                        INSTANCE = AdManager(context.applicationContext)
+                        INSTANCE = AdManager(
+                            context = context.applicationContext,
+                            preloadScope = preloadScope,
+                            preloadRetryDelayMs = preloadRetryDelayMs
+                        )
                     }
                 }
             }
@@ -46,7 +66,7 @@ class AdManager private constructor(context: Context) {
 
     private val appContext = context.applicationContext
     private val TAG = "AdManager"
-    private val AD_UNIT_ID = com.stv.videoplayer.BuildConfig.ADMOB_INTERSTITIAL_ID
+    private val AD_UNIT_ID = BuildConfig.ADMOB_INTERSTITIAL_ID
     private val preloadLock = Any()
 
     @Volatile
@@ -54,6 +74,11 @@ class AdManager private constructor(context: Context) {
 
     @Volatile
     private var isPreloading = false
+
+    @Volatile
+    private var isPreloadRetryScheduled = false
+
+    private var preloadRetryCount = 0
 
     init {
         preloadInterstitial()
@@ -63,13 +88,20 @@ class AdManager private constructor(context: Context) {
      * Lance le prÃ©chargement d'une interstitielle si aucune pub n'est dÃ©jÃ  prÃªte.
      */
     fun preloadInterstitial() {
+        preloadInterstitial(resetRetryBudget = true)
+    }
+
+    private fun preloadInterstitial(resetRetryBudget: Boolean) {
         if (!NetworkUtils.isNetworkAvailable(appContext)) {
             Log.d(TAG, "Preload skipped: no network")
             return
         }
 
         synchronized(preloadLock) {
-            if (preloadedInterstitial != null || isPreloading) {
+            if (resetRetryBudget) {
+                preloadRetryCount = 0
+            }
+            if (preloadedInterstitial != null || isPreloading || isPreloadRetryScheduled) {
                 return
             }
             isPreloading = true
@@ -86,7 +118,7 @@ class AdManager private constructor(context: Context) {
                     synchronized(preloadLock) {
                         isPreloading = false
                     }
-                    preloadInterstitial()
+                    schedulePreloadRetry()
                 }
 
                 override fun onAdLoaded(ad: InterstitialAd) {
@@ -94,10 +126,36 @@ class AdManager private constructor(context: Context) {
                     synchronized(preloadLock) {
                         preloadedInterstitial = ad
                         isPreloading = false
+                        preloadRetryCount = 0
                     }
                 }
             }
         )
+    }
+
+    /**
+     * Reprogramme un seul préchargement après un échec.
+     * Aucun appel récursif immédiat : un no-fill ou une panne réseau persistante
+     * ne peut donc plus provoquer une boucle de requêtes sans fin.
+     */
+    private fun schedulePreloadRetry() {
+        synchronized(preloadLock) {
+            if (isPreloadRetryScheduled || preloadedInterstitial != null) return
+            if (preloadRetryCount >= MAX_PRELOAD_RETRIES) {
+                Log.w(TAG, "Preload retry limit reached; waiting for the next explicit preload")
+                return
+            }
+            preloadRetryCount++
+            isPreloadRetryScheduled = true
+        }
+
+        preloadScope.launch {
+            delay(preloadRetryDelayMs)
+            synchronized(preloadLock) {
+                isPreloadRetryScheduled = false
+            }
+            preloadInterstitial(resetRetryBudget = false)
+        }
     }
 
     private fun takePreloadedInterstitial(): InterstitialAd? {
@@ -123,7 +181,8 @@ class AdManager private constructor(context: Context) {
         onAdDismissed: () -> Unit,
         onFailed: () -> Unit,
         onNoNetwork: () -> Unit,
-        isRequestActive: () -> Boolean = { true }
+        isRequestActive: () -> Boolean = { true },
+        onNetworkError: () -> Unit = {}
     ) {
         if (!NetworkUtils.isNetworkAvailable(appContext)) {
             Log.w(TAG, "No network.")
@@ -157,7 +216,9 @@ class AdManager private constructor(context: Context) {
             object : InterstitialAdLoadCallback() {
                 override fun onAdFailedToLoad(adError: LoadAdError) {
                     Log.d(TAG, "Ad failed to load: $adError")
-                    if (!NetworkUtils.isNetworkAvailable(appContext) || adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
+                    if (adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
+                        onNetworkError()
+                    } else if (!NetworkUtils.isNetworkAvailable(appContext)) {
                         onNoNetwork()
                     } else {
                         onFailed()
@@ -217,5 +278,6 @@ class AdManager private constructor(context: Context) {
 
         ad.show(activity)
     }
+
 }
 
