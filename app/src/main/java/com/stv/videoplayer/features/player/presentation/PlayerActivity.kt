@@ -1,6 +1,7 @@
 ﻿package com.stv.videoplayer.features.player.presentation
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -54,6 +55,7 @@ import com.stv.videoplayer.core.domain.model.StreamSourceParser
 import com.stv.videoplayer.core.security.IntentSecurityManager
 import com.stv.videoplayer.core.security.IntentValidationResult
 import com.stv.videoplayer.player.HeaderExtractor
+import com.stv.videoplayer.security.PermissionHelper
 import com.stv.videoplayer.ui.components.BlockedScreen
 import com.stv.videoplayer.ui.components.ErrorScreen
 import com.stv.videoplayer.ui.components.VideoPlayer
@@ -73,11 +75,13 @@ class PlayerActivity : ComponentActivity() {
     private val viewModel: PlayerViewModel by viewModels()
     private lateinit var adManager: AdManager
     private lateinit var adsController: AdFlowController
+    private val permissionHelper by lazy { PermissionHelper(this) }
     // âœ… SÃ©curitÃ© : valide TOUT intent entrant avant de le transmettre au ViewModel
     // (protection Intent Hijacking / Intent Redirection â€” voir core.security.IntentSecurityManager)
     private val intentSecurityManager = IntentSecurityManager()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         super.onCreate(savedInstanceState)
 
         // âœ… Gestion du bouton Retour (Android 13+ : onBackPressedDispatcher)
@@ -88,7 +92,6 @@ class PlayerActivity : ComponentActivity() {
         })
 
         // âœ… SÃ‰CURITÃ‰ : VÃ©rifier l'appelant avant de continuer
-        val permissionHelper = com.stv.videoplayer.security.PermissionHelper(this)
         val callerPackage = callingActivity?.packageName
 
         if (!permissionHelper.isCallerAuthorizedForPlayer(callerPackage)) {
@@ -263,7 +266,14 @@ class PlayerActivity : ComponentActivity() {
      * gÃ©nÃ©rique) â€” jamais de crash.
      */
     private fun handleIncomingIntent(intent: Intent) {
-        val skipAds = intent.getBooleanExtra("SKIP_ADS", false)
+        // SKIP_ADS modifie la politique de monétisation : un Intent VIEW externe ou un
+        // appelant non authentifié ne peut jamais désactiver les publicités.
+        val callerPackage = callingActivity?.packageName
+        val allowSensitiveExtras = permissionHelper.isCallerAuthorizedForSensitiveExtras(callerPackage)
+        val skipAds = allowSensitiveExtras && intent.getBooleanExtra("SKIP_ADS", false)
+        if (!allowSensitiveExtras && intent.hasExtra("SKIP_ADS")) {
+            Log.w(tag, "Ignoring SKIP_ADS from unauthenticated caller: $callerPackage")
+        }
         val playbackMetadata = extractIncomingPlaybackMetadata(intent)
 
         when (val result = intentSecurityManager.validateIncomingIntent(intent)) {
