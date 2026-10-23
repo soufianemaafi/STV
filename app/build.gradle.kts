@@ -24,8 +24,8 @@ android {
         applicationId = "com.soufcom.stv"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -50,9 +50,9 @@ android {
             dimension = "environment"
             applicationId = "com.soufcom.stv"
             // ✅ IDs PRODUCTION lus depuis local.properties (sécurisé, hors Git)
-            // Fallback sur l'ID test si local.properties ne contient pas la clé
-            val prodInterstitialId = localProperties.getProperty("admob.interstitial.id", "ca-app-pub-3940256099942544/1033173712")
-            val prodAppId = localProperties.getProperty("admob.app.id", "ca-app-pub-3940256099942544~3347511713")
+            // Les fallbacks restent cohérents avec la release si local.properties est absent.
+            val prodInterstitialId = localProperties.getProperty("admob.interstitial.id", "ca-app-pub-1974619913659838/9009800285")
+            val prodAppId = localProperties.getProperty("admob.app.id", "ca-app-pub-1974619913659838~9640355671")
 
             buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$prodInterstitialId\"")
             manifestPlaceholders["admobAppId"] = prodAppId
