@@ -3,7 +3,9 @@ package com.stv.videoplayer.player
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import java.util.Locale
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -42,6 +44,34 @@ object MediaItemHeaders {
  * Remplace l'ancien `DataSource.Factory` qui lisait une variable statique partagée
  * (`pendingRequestHeaders`) : les headers d'une session ne peuvent plus fuiter vers une autre.
  */
+/**
+ * Determine le MIME type HLS a forcer sur un [MediaItem].
+ *
+ * Sans extension explicite (ex. `https://cdn/live?token=...`), Media3 retombe sur le sniffing
+ * progressif et echoue sur un flux HLS. Fonction pure (JVM) : aucune dependance Android.
+ */
+object HlsMimeResolver {
+
+    private val HLS_MIME_TYPES = setOf(
+        "application/x-mpegurl",
+        "application/vnd.apple.mpegurl",
+        "audio/mpegurl",
+        "audio/x-mpegurl"
+    )
+
+    /** `true` si le chemin de l'URL (query et fragment retires) se termine par `.m3u8`. */
+    fun isHlsUrl(url: String): Boolean =
+        url.substringBefore('#').substringBefore('?').trimEnd('/').lowercase(Locale.ROOT).endsWith(".m3u8")
+
+    /** `true` si [mimeType] designe un flux HLS (parametres retires, insensible a la casse). */
+    fun isHlsMimeType(mimeType: String?): Boolean =
+        mimeType?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT) in HLS_MIME_TYPES
+
+    /** [MimeTypes.APPLICATION_M3U8] si l'URL ou le MIME de l'Intent indique du HLS, sinon `null`. */
+    fun resolve(url: String, intentMimeType: String? = null): String? =
+        if (isHlsUrl(url) || isHlsMimeType(intentMimeType)) MimeTypes.APPLICATION_M3U8 else null
+}
+
 @OptIn(UnstableApi::class)
 class HeaderAwareMediaSourceFactory : MediaSource.Factory {
 

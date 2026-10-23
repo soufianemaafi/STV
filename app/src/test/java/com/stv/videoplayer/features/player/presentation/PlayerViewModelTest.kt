@@ -2,9 +2,11 @@
 
 import android.app.Application
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.stv.videoplayer.core.domain.model.StreamSource
+import com.stv.videoplayer.player.HlsMimeResolver
 import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
@@ -12,6 +14,7 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -41,12 +44,13 @@ class PlayerViewModelTest {
     private lateinit var mockPlayer: Player
     private lateinit var listenerSlot: CapturingSlot<Player.Listener>
     private lateinit var viewModel: PlayerViewModel
+    private val testDispatcher: TestDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
         // âœ… PlayerViewModel utilise viewModelScope (Dispatchers.Main) pour la coroutine
         // de mise Ã  jour de position â€” indispensable en test JVM pur.
-        Dispatchers.setMain(StandardTestDispatcher())
+        Dispatchers.setMain(testDispatcher)
 
         application = mockk(relaxed = true)
         mockPlayer = mockk(relaxed = true)
@@ -394,15 +398,198 @@ class PlayerViewModelTest {
         // virtuelle) : on ne peut pas le mocker via `every {}` â€” on construit donc
         // une vraie instance (aucune dÃ©pendance Android runtime nÃ©cessaire ici).
         val error = PlaybackException(
-            "network error",
+            "bad status",
             null,
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
         )
 
         listenerSlot.captured.onPlayerError(error)
 
         assertFalse(viewModel.isLoading.value)
         assertNotNull(viewModel.errorMessage.value)
+    }
+
+    // ==================== Lot critique : zapping propre (F1) ====================
+
+    @Test
+    fun `LoadVideo coupe immediatement le flux precedent`() {
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true))
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/b.m3u8", skipAds = true))
+
+        // 1 appel par LoadVideo (A puis B) : le flux de A est coupe avant B.
+        verify(exactly = 2) { mockPlayer.stop() }
+        verify(exactly = 2) { mockPlayer.clearMediaItems() }
+    }
+
+    @Test
+    fun `une PreparePlayback perimee d'une ancienne chaine est ignoree et n'herite pas des headers`() {
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true, headers = partnerHeaders)
+        )
+        // Zapping ultra-rapide : B arrive avant que PreparePlayback(A) ne soit traitee.
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/b.m3u8", skipAds = true))
+
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/a.m3u8"))
+        verify(exactly = 0) { mockPlayer.setMediaItem(any<MediaItem>()) }
+
+        viewModel.onAction(PlayerUiAction.PreparePlayback("https://example.com/b.m3u8"))
+        assertNull(capturedMediaItems(1).single().requestMetadata.extras)
+    }
+
+    @Test
+    fun `PreparePlayback avec headers explicites utilise exactement ces headers`() {
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/b.m3u8", skipAds = true))
+
+        viewModel.onAction(
+            PlayerUiAction.PreparePlayback("https://example.com/b.m3u8", headers = partnerHeaders)
+        )
+
+        assertNotNull(capturedMediaItems(1).single().requestMetadata.extras)
+    }
+
+    @Test
+    fun `la re-emission du meme Intent ne coupe pas un flux en cours`() {
+        every { mockPlayer.playbackState } returns Player.STATE_READY
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true))
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/a.m3u8", skipAds = true))
+
+        verify(exactly = 1) { mockPlayer.stop() }
+    }
+
+    // ==================== Lot critique : auto-recovery (F2) ====================
+
+    @Test
+    fun `BEHIND_LIVE_WINDOW rattrape le direct sans afficher d'erreur`() {
+        val error = PlaybackException(
+            "behind live window",
+            null,
+            PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+        )
+
+        listenerSlot.captured.onPlayerError(error)
+
+        verify(exactly = 1) { mockPlayer.seekToDefaultPosition() }
+        verify(exactly = 1) { mockPlayer.prepare() }
+        assertNull(viewModel.errorMessage.value)
+    }
+
+    @Test
+    fun `une erreur reseau est reessayee avec backoff exponentiel puis devient definitive apres 3 essais`() {
+        val error = PlaybackException(
+            "network",
+            null,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+        )
+
+        // Essai 1 : backoff 1500 ms
+        listenerSlot.captured.onPlayerError(error)
+        assertNull(viewModel.errorMessage.value)
+        verify(exactly = 0) { mockPlayer.prepare() }
+        testDispatcher.scheduler.advanceTimeBy(1_500L); testDispatcher.scheduler.runCurrent()
+        verify(exactly = 1) { mockPlayer.prepare() }
+
+        // Essai 2 : backoff 3000 ms
+        listenerSlot.captured.onPlayerError(error)
+        testDispatcher.scheduler.advanceTimeBy(2_999L); testDispatcher.scheduler.runCurrent()
+        verify(exactly = 1) { mockPlayer.prepare() }
+        testDispatcher.scheduler.advanceTimeBy(1L); testDispatcher.scheduler.runCurrent()
+        verify(exactly = 2) { mockPlayer.prepare() }
+
+        // Essai 3 : backoff 4500 ms
+        listenerSlot.captured.onPlayerError(error)
+        testDispatcher.scheduler.advanceTimeBy(4_500L); testDispatcher.scheduler.runCurrent()
+        verify(exactly = 3) { mockPlayer.prepare() }
+
+        // 4e erreur : retryCount >= 3 -> erreur definitive
+        listenerSlot.captured.onPlayerError(error)
+        assertNotNull(viewModel.errorMessage.value)
+        assertFalse(viewModel.isLoading.value)
+    }
+
+    @Test
+    fun `STATE_READY remet le compteur de retry a zero`() {
+        every { mockPlayer.duration } returns 1_000L
+        val error = PlaybackException(
+            "network",
+            null,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+        )
+
+        repeat(3) {
+            listenerSlot.captured.onPlayerError(error)
+        }
+        listenerSlot.captured.onPlaybackStateChanged(Player.STATE_READY)
+
+        listenerSlot.captured.onPlayerError(error)
+        assertNull("Le compteur doit etre reparti de 0", viewModel.errorMessage.value)
+    }
+
+    @Test
+    fun `un nouveau LoadVideo annule le retry reseau en attente`() {
+        val error = PlaybackException(
+            "network",
+            null,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+        )
+        listenerSlot.captured.onPlayerError(error)
+
+        viewModel.onAction(PlayerUiAction.LoadVideo("https://example.com/b.m3u8", skipAds = true))
+        testDispatcher.scheduler.advanceTimeBy(10_000L); testDispatcher.scheduler.runCurrent()
+
+        verify(exactly = 0) { mockPlayer.prepare() }
+    }
+
+    // ==================== Lot critique : MIME HLS ====================
+
+    @Test
+    fun `HlsMimeResolver force le MIME HLS pour une URL m3u8 avec query et fragment`() {
+        assertEquals(
+            MimeTypes.APPLICATION_M3U8,
+            HlsMimeResolver.resolve("https://example.com/live.M3U8?token=abc#x")
+        )
+    }
+
+    @Test
+    fun `HlsMimeResolver applique le MIME HLS de l'Intent meme sans extension`() {
+        assertEquals(
+            MimeTypes.APPLICATION_M3U8,
+            HlsMimeResolver.resolve("https://example.com/live?id=1", "application/vnd.apple.mpegurl; charset=utf-8")
+        )
+    }
+
+    @Test
+    fun `HlsMimeResolver ne force rien pour un mp4`() {
+        assertNull(HlsMimeResolver.resolve("https://example.com/video.mp4?x=.m3u8"))
+        assertNull(HlsMimeResolver.resolve("https://example.com/video.mp4", "video/mp4"))
+    }
+
+    // ==================== Lot critique : pause en arriere-plan (F4) ====================
+
+    @Test
+    fun `Background met en pause hors Picture-in-Picture`() {
+        viewModel.onAction(PlayerUiAction.Background(isInPictureInPicture = false))
+        verify(exactly = 1) { mockPlayer.pause() }
+    }
+
+    @Test
+    fun `Background ne met pas en pause en Picture-in-Picture`() {
+        viewModel.onAction(PlayerUiAction.Background(isInPictureInPicture = true))
+        verify(exactly = 0) { mockPlayer.pause() }
+    }
+
+    @Test
+    fun `Foreground reprend uniquement si la lecture etait active`() {
+        every { mockPlayer.playWhenReady } returns true
+        viewModel.onAction(PlayerUiAction.Background(isInPictureInPicture = false))
+        viewModel.onAction(PlayerUiAction.Foreground)
+        verify(exactly = 1) { mockPlayer.play() }
+
+        every { mockPlayer.playWhenReady } returns false
+        viewModel.onAction(PlayerUiAction.Background(isInPictureInPicture = false))
+        viewModel.onAction(PlayerUiAction.Foreground)
+        verify(exactly = 1) { mockPlayer.play() }
     }
 
     // ==================== isReady() ====================

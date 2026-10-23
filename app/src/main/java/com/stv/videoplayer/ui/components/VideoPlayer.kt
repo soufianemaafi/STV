@@ -1,6 +1,10 @@
 ﻿package com.stv.videoplayer.ui.components
 
 import androidx.annotation.OptIn
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -24,6 +29,16 @@ import androidx.media3.ui.PlayerView
 import com.stv.videoplayer.features.player.presentation.PlayerUiAction
 import com.stv.videoplayer.features.player.presentation.PlayerViewModel
 import kotlinx.coroutines.delay
+
+/** Remonte la chaîne de `ContextWrapper` jusqu'à l'[Activity] hôte. */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+private fun Activity.isInPictureInPictureCompat(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode
 
 /**
  * Composable principal du player vidÃ©o.
@@ -89,6 +104,8 @@ fun VideoPlayer(
             )
         } else {
             val lifecycleOwner = LocalLifecycleOwner.current
+            val activity = LocalContext.current.findActivity()
+            val isInPipModeState by rememberUpdatedState(isInPipMode)
             val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
 
             AndroidView(
@@ -114,8 +131,17 @@ fun VideoPlayer(
             DisposableEffect(lifecycleOwner, viewModel.player) {
                 val observer = LifecycleEventObserver { _, event ->
                     when (event) {
-                        Lifecycle.Event.ON_START -> playerViewRef.value?.player = viewModel.player
-                        Lifecycle.Event.ON_STOP -> playerViewRef.value?.player = null
+                        Lifecycle.Event.ON_START -> {
+                            playerViewRef.value?.player = viewModel.player
+                            // Reprise uniquement si la lecture était active avant ON_STOP.
+                            viewModel.onAction(PlayerUiAction.Foreground)
+                        }
+                        Lifecycle.Event.ON_STOP -> {
+                            playerViewRef.value?.player = null
+                            // Pause en arrière-plan, sauf Picture-in-Picture.
+                            val inPip = isInPipModeState || activity?.isInPictureInPictureCompat() == true
+                            viewModel.onAction(PlayerUiAction.Background(isInPictureInPicture = inPip))
+                        }
                         else -> Unit
                     }
                 }

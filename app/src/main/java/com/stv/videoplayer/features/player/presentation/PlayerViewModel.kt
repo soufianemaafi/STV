@@ -22,6 +22,7 @@ import com.stv.videoplayer.R
 import com.stv.videoplayer.core.domain.model.StreamSource
 import com.stv.videoplayer.core.domain.model.VideoTrackInfo
 import com.stv.videoplayer.player.HeaderAwareMediaSourceFactory
+import com.stv.videoplayer.player.HlsMimeResolver
 import com.stv.videoplayer.player.MediaItemHeaders
 import java.util.Locale
 import kotlinx.coroutines.Job
@@ -118,6 +119,25 @@ class PlayerViewModel @JvmOverloads constructor(
     // consommes qu'a travers le MediaItem (RequestMetadata.extras) construit par buildMediaItem().
     private var currentHeaders: Map<String, String> = emptyMap()
 
+    /**
+     * Session de lecture IMMUTABLE : l'URL et ses headers/MIME sont indissociables. Une action
+     * `PreparePlayback` ne peut donc jamais appliquer les headers d'une autre chaine.
+     */
+    private data class PlaybackSession(
+        val url: String,
+        val headers: Map<String, String>,
+        val mimeType: String?
+    )
+
+    private var currentSession: PlaybackSession? = null
+
+    // Auto-recovery reseau : compteur remis a 0 en STATE_READY, job annule a chaque nouvelle session.
+    private var networkRetryCount = 0
+    private var retryJob: Job? = null
+
+    // Lecture active au moment du passage en arriere-plan (reprise en ON_START).
+    private var resumeOnForeground = false
+
     // URL + headers du dernier MediaItem reellement prepare (idempotence de preparePlayback).
     private var preparedUrl: String? = null
     private var preparedHeaders: Map<String, String> = emptyMap()
@@ -146,6 +166,7 @@ class PlayerViewModel @JvmOverloads constructor(
             when (playbackState) {
                 Player.STATE_BUFFERING -> _isLoading.value = true
                 Player.STATE_READY -> {
+                    networkRetryCount = 0
                     _isLoading.value = false
                     _duration.value = _player.duration.coerceAtLeast(0L)
                     _isLive.value = _player.isCurrentMediaItemLive
@@ -172,6 +193,28 @@ class PlayerViewModel @JvmOverloads constructor(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            // 1) Retard sur le direct HLS/DASH : on rattrape le live, sans erreur visible.
+            if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                _errorMessage.value = null
+                _isLoading.value = true
+                _player.seekToDefaultPosition()
+                _player.prepare()
+                return
+            }
+            // 2) Erreur reseau recuperable : retry avec backoff exponentiel (max 3).
+            if (isRecoverableNetworkError(error) && networkRetryCount < MAX_NETWORK_RETRIES) {
+                networkRetryCount++
+                val attempt = networkRetryCount
+                _errorMessage.value = null
+                _isLoading.value = true
+                retryJob?.cancel()
+                retryJob = viewModelScope.launch {
+                    delay(RETRY_BACKOFF_BASE_MS * attempt)
+                    _player.prepare()
+                }
+                return
+            }
+            // 3) Erreur definitive.
             _isLoading.value = false
             _errorMessage.value = getUserFriendlyErrorMessage(error)
         }
@@ -201,23 +244,20 @@ class PlayerViewModel @JvmOverloads constructor(
      */
     fun onAction(action: PlayerUiAction) {
         when (action) {
-            is PlayerUiAction.LoadVideo -> {
-                currentUrl = action.videoUrl
-                _currentTitle.value = action.title?.trim()?.takeIf { it.isNotEmpty() }
-                currentHeaders = action.headers
-                _availableSources.value = action.sources
-                _currentSourceIndex.value = 0
-                _uiState.value = if (action.skipAds) {
-                    PlayerUiState.Ready(action.videoUrl)
-                } else {
-                    PlayerUiState.LoadingAds(action.videoUrl)
-                }
-            }
+            is PlayerUiAction.LoadVideo -> loadVideo(action)
             is PlayerUiAction.RetryAdCheck -> retryAdCheck()
             is PlayerUiAction.RejectInvalidIntent -> {
                 _uiState.value = PlayerUiState.Error(action.userMessage)
             }
-            is PlayerUiAction.PreparePlayback -> preparePlayback(action.videoUrl)
+            is PlayerUiAction.PreparePlayback -> preparePlayback(action.videoUrl, action.headers)
+            is PlayerUiAction.Background -> {
+                resumeOnForeground = _player.playWhenReady
+                if (!action.isInPictureInPicture) _player.pause()
+            }
+            is PlayerUiAction.Foreground -> {
+                if (resumeOnForeground) _player.play()
+                resumeOnForeground = false
+            }
             is PlayerUiAction.Play -> _player.play()
             is PlayerUiAction.Pause -> _player.pause()
             is PlayerUiAction.TogglePlayPause -> togglePlayPause()
@@ -253,41 +293,101 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    private fun isRecoverableNetworkError(error: PlaybackException): Boolean =
+        when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> true
+            else -> false
+        }
+
     /**
-     * Construit le [MediaItem] et lance la prÃ©paration du player : `setMediaItem` + `prepare()`.
-     * N'est appelÃ© qu'une seule fois par URL (idempotent) â€” une rotation d'Ã©cran ne
-     * relance donc jamais la prÃ©paration puisque le ViewModel (et `currentUrl`) survit.
+     * Démarre une nouvelle session : coupe IMMÉDIATEMENT le flux précédent (zapping propre),
+     * annule tout retry en attente et fige url + headers dans une [PlaybackSession] immuable.
      */
-    private fun preparePlayback(url: String) {
+    private fun loadVideo(action: PlayerUiAction.LoadVideo) {
+        val newSession = PlaybackSession(action.videoUrl, action.headers, action.mimeType)
+
+        // Ré-émission du même Intent (ex. recréation de l'Activity à la rotation) : le flux
+        // en cours est conservé, on ne le coupe pas.
+        val isRedelivery = newSession == currentSession &&
+            _uiState.value != null &&
+            _player.playbackState != Player.STATE_IDLE
+
+        if (!isRedelivery) {
+            retryJob?.cancel()
+            retryJob = null
+            networkRetryCount = 0
+            resumeOnForeground = false
+            _player.stop()
+            _player.clearMediaItems()
+            preparedUrl = null
+            preparedHeaders = emptyMap()
+            _errorMessage.value = null
+            _isLoading.value = true
+            _isPlaying.value = false
+            _currentPosition.value = 0L
+            _duration.value = 0L
+        }
+
+        currentSession = newSession
+        currentUrl = action.videoUrl
+        _currentTitle.value = action.title?.trim()?.takeIf { it.isNotEmpty() }
+        _availableSources.value = action.sources
+        _currentSourceIndex.value = 0
+        _uiState.value = if (action.skipAds) {
+            PlayerUiState.Ready(action.videoUrl)
+        } else {
+            PlayerUiState.LoadingAds(action.videoUrl)
+        }
+    }
+
+    /**
+     * Construit le [MediaItem] et lance la préparation du player : `setMediaItem` + `prepare()`.
+     * Idempotent par (URL, headers). Une action dont l'URL ne correspond plus à la session
+     * courante est périmée (zapping rapide) et ignorée : elle ne peut jamais hériter des
+     * headers d'une autre chaîne.
+     */
+    private fun preparePlayback(url: String, explicitHeaders: Map<String, String>?) {
+        val session = currentSession
+        if (session != null && session.url != url) return
+
+        val headers = explicitHeaders ?: session?.headers ?: emptyMap()
         if (preparedUrl == url &&
-            preparedHeaders == currentHeaders &&
+            preparedHeaders == headers &&
             _player.playbackState != Player.STATE_IDLE
         ) return
 
         currentUrl = url
         preparedUrl = url
-        preparedHeaders = currentHeaders
+        preparedHeaders = headers
         _isLoading.value = true
         _errorMessage.value = null
 
         _player.playWhenReady = true
-        _player.setMediaItem(buildMediaItem(url))
+        _player.setMediaItem(buildMediaItem(url, headers, session?.mimeType))
         _player.prepare()
     }
 
     /**
-     * Construit le [MediaItem] de la session courante. Les headers HTTP sont injectes dans
+     * Construit le [MediaItem] d'une session. Les headers HTTP sont injectes dans
      * `RequestMetadata.extras` et relus par `HeaderAwareMediaSourceFactory` : aucun etat global.
+     * Le MIME HLS est forcé quand l'URL (hors query) finit par `.m3u8` ou que l'Intent l'indique.
      */
-    private fun buildMediaItem(url: String): MediaItem {
+    private fun buildMediaItem(
+        url: String,
+        headers: Map<String, String>,
+        intentMimeType: String?
+    ): MediaItem {
         val mediaItemBuilder = MediaItem.Builder()
             .setUri(url)
             .setLiveConfiguration(
                 MediaItem.LiveConfiguration.Builder()
-                    .setTargetOffsetMs(30_000L) // 30 secondes de buffer
+                    .setTargetOffsetMs(30_000L) // latence cible par rapport au bord du direct
                     .build()
             )
-        MediaItemHeaders.write(mediaItemBuilder, currentHeaders)
+        HlsMimeResolver.resolve(url, intentMimeType)?.let { mediaItemBuilder.setMimeType(it) }
+        MediaItemHeaders.write(mediaItemBuilder, headers)
         _currentTitle.value?.takeIf { it.isNotBlank() }?.let { title ->
             mediaItemBuilder.setMediaMetadata(
                 MediaMetadata.Builder()
@@ -305,19 +405,24 @@ class PlayerViewModel @JvmOverloads constructor(
         if (source == null || source.url != sourceUrl) return
         if (qualityIndex == _currentSourceIndex.value) return
 
+        val session = currentSession
+        val headers = session?.headers ?: emptyMap()
+        retryJob?.cancel()
+        networkRetryCount = 0
         _currentSourceIndex.value = qualityIndex
         _isLoading.value = true
         _errorMessage.value = null
         currentUrl = sourceUrl
+        currentSession = PlaybackSession(sourceUrl, headers, session?.mimeType)
         preparedUrl = sourceUrl
-        preparedHeaders = currentHeaders
+        preparedHeaders = headers
         _uiState.value = (_uiState.value as? PlayerUiState.Ready)?.copy(
             videoUrl = sourceUrl,
             currentSourceIndex = qualityIndex
         ) ?: _uiState.value
 
         // Meme chemin que preparePlayback : les headers de la session suivent la nouvelle source.
-        _player.setMediaItem(buildMediaItem(sourceUrl))
+        _player.setMediaItem(buildMediaItem(sourceUrl, headers, session?.mimeType))
         _player.prepare()
         _player.playWhenReady = true
     }
@@ -479,12 +584,18 @@ class PlayerViewModel @JvmOverloads constructor(
         super.onCleared()
         positionUpdateJob?.cancel()
         positionUpdateJob = null
-        currentHeaders = emptyMap()
+        retryJob?.cancel()
+        retryJob = null
+        currentSession = null
         _player.removeListener(playerListener)
         _player.release()
     }
 
     companion object {
+
+        private const val MAX_NETWORK_RETRIES = 3
+        private const val RETRY_BACKOFF_BASE_MS = 1_500L
+
 
         /**
          * Factory par dÃ©faut de l'ExoPlayer.

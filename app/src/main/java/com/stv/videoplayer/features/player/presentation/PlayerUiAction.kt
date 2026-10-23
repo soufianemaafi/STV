@@ -27,7 +27,9 @@ sealed class PlayerUiAction {
         val skipAds: Boolean = false,
         val title: String? = null,
         val headers: Map<String, String> = emptyMap(),
-        val sources: List<StreamSource> = emptyList()
+        val sources: List<StreamSource> = emptyList(),
+        /** MIME type fourni par l'Intent (ex. HLS), optionnel. */
+        val mimeType: String? = null
     ) : PlayerUiAction()
 
     /**
@@ -51,7 +53,20 @@ sealed class PlayerUiAction {
      * Construit le `MediaItem` et lance rÃ©ellement la lecture (`setMediaItem` + `prepare()`).
      * DispatchÃ© une fois l'Ã©tat `Ready` atteint (ads terminÃ©es ou `skipAds=true`).
      */
-    data class PreparePlayback(val videoUrl: String) : PlayerUiAction()
+    data class PreparePlayback(
+        val videoUrl: String,
+        /**
+         * Headers liés à CETTE URL. `null` = utiliser ceux de la session courante, mais
+         * uniquement si [videoUrl] en est bien l'URL (sinon l'action est périmée et ignorée).
+         */
+        val headers: Map<String, String>? = null
+    ) : PlayerUiAction()
+
+    /** L'écran n'est plus visible (`ON_STOP`) : pause, sauf en Picture-in-Picture. */
+    data class Background(val isInPictureInPicture: Boolean) : PlayerUiAction()
+
+    /** L'écran est de nouveau visible (`ON_START`) : reprend si la lecture était active. */
+    data object Foreground : PlayerUiAction()
 
     /** Reprend la lecture (`player.play()`). */
     data object Play : PlayerUiAction()

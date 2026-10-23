@@ -296,7 +296,8 @@ class PlayerActivity : ComponentActivity() {
                         skipAds = skipAds,
                         title = playbackMetadata.title,
                         headers = playbackMetadata.headers,
-                        sources = StreamSourceParser.parse(readIntentTextExtra(intent, "sources_json"))
+                        sources = StreamSourceParser.parse(readIntentTextExtra(intent, "sources_json")),
+                        mimeType = intent.type
                     )
                 )
             }
