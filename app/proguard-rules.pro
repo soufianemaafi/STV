@@ -49,3 +49,13 @@
 -keep class com.google.android.gms.ads.interstitial.InterstitialAd { *; }
 -keep class com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback { *; }
 -dontwarn com.google.android.gms.ads.**
+
+# -----------------------------
+# Sécurité : suppression des logs non critiques en Release (Log.e conservé)
+# -----------------------------
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+}

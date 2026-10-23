@@ -266,6 +266,18 @@ class PlayerActivity : ComponentActivity() {
      * gÃ©nÃ©rique) â€” jamais de crash.
      */
     private fun handleIncomingIntent(intent: Intent) {
+        try {
+            processIncomingIntent(intent)
+        } catch (e: Exception) {
+            // Intent corrompu (BadParcelableException, extras inattendus...) : rejet propre, jamais de crash.
+            Log.e(tag, "Intent entrant illisible", e)
+            viewModel.onAction(
+                PlayerUiAction.RejectInvalidIntent(getString(R.string.error_intent_security_rejected))
+            )
+        }
+    }
+
+    private fun processIncomingIntent(intent: Intent) {
         // SKIP_ADS modifie la politique de monétisation : un Intent VIEW externe ou un
         // appelant non authentifié ne peut jamais désactiver les publicités.
         val callerPackage = callingActivity?.packageName

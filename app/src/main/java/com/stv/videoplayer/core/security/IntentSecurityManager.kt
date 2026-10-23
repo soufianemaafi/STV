@@ -85,6 +85,11 @@ class IntentSecurityManager {
             return IntentValidationResult.Invalid("URL trop longue")
         }
 
+        if (safeUrl.any { it.isWhitespace() || it.isISOControl() }) {
+            Log.w(TAG, "URL rejected: whitespace or control characters")
+            return IntentValidationResult.Invalid("Caracteres interdits dans l'URL")
+        }
+
         val scheme = extractScheme(safeUrl)
         if (scheme == null || scheme !in ALLOWED_SCHEMES) {
             Log.w(TAG, "URL rejetÃ©e : schÃ©ma non autorisÃ© ('$scheme')")
@@ -95,6 +100,20 @@ class IntentSecurityManager {
         if (afterScheme.isBlank() || afterScheme.startsWith("/")) {
             Log.w(TAG, "URL rejetÃ©e : hÃ´te manquant")
             return IntentValidationResult.Invalid("HÃ´te manquant dans l'URL")
+        }
+
+        // L'userinfo HTTP est autorisé : http://user:password@host/path.
+        // Seule la portion après le dernier '@' représente l'autorité de l'hôte.
+        val authority = afterScheme.substringBefore('/').substringBefore('?').substringBefore('#')
+        val hostPort = authority.substringAfterLast('@')
+        val host = if (hostPort.startsWith('[')) {
+            hostPort.substringAfter('[').substringBefore(']')
+        } else {
+            hostPort.substringBefore(':')
+        }
+        if (authority.isBlank() || host.isBlank()) {
+            Log.w(TAG, "URL rejetée : autorité invalide")
+            return IntentValidationResult.Invalid("Hôte invalide dans l'URL")
         }
 
         return IntentValidationResult.Valid(safeUrl)

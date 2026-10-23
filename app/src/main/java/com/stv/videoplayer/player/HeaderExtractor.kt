@@ -30,6 +30,18 @@ object HeaderExtractor {
     private const val TOKEN_SPECIAL_CHARS = "!#\$%&'*+-.^_`|~"
     private const val TAG = "HeaderExtractor"
 
+    /** Nombre maximal de headers retenus (anti-DoS). */
+    const val MAX_HEADERS = 16
+
+    /** Longueur maximale d'une valeur de header (anti-DoS). */
+    const val MAX_VALUE_LENGTH = 4096
+
+    /** Headers interdits : jamais transmis depuis un Intent externe. */
+    private val FORBIDDEN_HEADERS = setOf(
+        "host", "content-length", "transfer-encoding", "connection", "upgrade", "te",
+        "trailer", "expect", "proxy-authorization", "proxy-connection", "keep-alive"
+    )
+
     /** Extrait les headers d'un Intent (lecture des extras protégée contre les extras corrompus). */
     fun extract(intent: Intent?): Map<String, String> {
         val extras = try {
@@ -107,9 +119,14 @@ object HeaderExtractor {
         rawValue: String?
     ) {
         val name = cleanName(rawName) ?: return
+        val key = name.lowercase(Locale.ROOT)
+        // Headers interdits (smuggling / desynchronisation) : rejet silencieux.
+        if (key in FORBIDDEN_HEADERS) return
         val value = cleanValue(rawValue) ?: return
-        // Clé insensible à la casse : `referer` et `Referer` désignent le même header (le dernier gagne).
-        target[name.lowercase(Locale.ROOT)] = name to value
+        if (value.length > MAX_VALUE_LENGTH) return
+        // Limite anti-DoS : le remplacement d'un header deja present reste autorise.
+        if (key !in target && target.size >= MAX_HEADERS) return
+        target[key] = name to value
     }
 
     /**

@@ -147,6 +147,49 @@ class HeaderExtractorTest {
         assertTrue(HeaderExtractor.parse(Any()).isEmpty())
     }
 
+    @Test
+    fun `les headers interdits sont rejetes silencieusement quelle que soit la casse`() {
+        val forbidden = listOf(
+            "host", "content-length", "transfer-encoding", "connection", "upgrade", "te",
+            "trailer", "expect", "proxy-authorization", "proxy-connection", "keep-alive"
+        )
+        val input = linkedMapOf<String, String>()
+        forbidden.forEachIndexed { i, name ->
+            input[if (i % 2 == 0) name.uppercase() else name] = "x"
+        }
+        input["X-Ok"] = "1"
+
+        assertEquals(mapOf("X-Ok" to "1"), HeaderExtractor.parse(input))
+    }
+
+    @Test
+    fun `un header interdit au format tableau est rejete`() {
+        val result = HeaderExtractor.parse(arrayOf("Host: evil.com", "Transfer-Encoding: chunked", "X-Ok: 1"))
+
+        assertEquals(mapOf("X-Ok" to "1"), result)
+    }
+
+    @Test
+    fun `le nombre de headers est limite a 16`() {
+        val input = linkedMapOf<String, String>()
+        repeat(40) { input["X-H$it"] = "v" }
+
+        val result = HeaderExtractor.parse(input)
+
+        assertEquals(HeaderExtractor.MAX_HEADERS, result.size)
+        assertEquals(16, result.size)
+        assertTrue(result.containsKey("X-H0"))
+    }
+
+    @Test
+    fun `une valeur depassant 4096 caracteres est rejetee et 4096 est acceptee`() {
+        val result = HeaderExtractor.parse(
+            mapOf("X-Long" to "a".repeat(4097), "X-Max" to "b".repeat(4096))
+        )
+
+        assertEquals(mapOf("X-Max" to "b".repeat(4096)), result)
+    }
+
     // ==================== Bundle / Intent ====================
 
     @Test

@@ -27,6 +27,34 @@ class IntentSecurityManagerTest {
     // ==================== validateVideoUrl â€” Rejets (Intent Redirection) ====================
 
     @Test
+    fun `URL avec userinfo HTTP est acceptee`() {
+        assertTrue(manager.validateVideoUrl("http://user:password@host.example/live.m3u8") is IntentValidationResult.Valid)
+    }
+
+    @Test
+    fun `URL avec userinfo mais hote vide est rejetee`() {
+        assertTrue(manager.validateVideoUrl("http://user:password@/live.m3u8") is IntentValidationResult.Invalid)
+    }
+
+    @Test
+    fun `URL avec espace ou caractere de controle est rejetee`() {
+        assertTrue(manager.validateVideoUrl("http://host.com/a b.m3u8") is IntentValidationResult.Invalid)
+        assertTrue(manager.validateVideoUrl("http://host.com/a\u0007.m3u8") is IntentValidationResult.Invalid)
+    }
+
+    @Test
+    fun `arobase dans le chemin ou la query reste accepte`() {
+        assertTrue(manager.validateVideoUrl("https://host.com/path/@x?u=a@b") is IntentValidationResult.Valid)
+    }
+
+    @Test
+    fun `espaces accidentels en debut et fin sont ignores`() {
+        val result = manager.validateVideoUrl("  https://host.com/live.m3u8  ")
+
+        assertEquals(IntentValidationResult.Valid("https://host.com/live.m3u8"), result)
+    }
+
+    @Test
     fun `URL file est rejetee`() {
         val result = manager.validateVideoUrl("file:///sdcard/secret.mp4")
         assertTrue(result is IntentValidationResult.Invalid)
