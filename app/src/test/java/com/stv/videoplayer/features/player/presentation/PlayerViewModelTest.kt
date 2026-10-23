@@ -270,6 +270,93 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `les retries epuises basculent automatiquement de la source 0 a la source 1`() {
+        val sources = listOf(
+            StreamSource("Primaire", "https://example.com/primary.m3u8"),
+            StreamSource("Secours", "https://example.com/backup.m3u8")
+        )
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo(
+                videoUrl = sources[0].url,
+                skipAds = true,
+                sources = sources
+            )
+        )
+        val error = PlaybackException(
+            "network",
+            null,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+        )
+
+        // Trois retries sont autorisés ; l'erreur suivante déclenche le failover.
+        repeat(4) { listenerSlot.captured.onPlayerError(error) }
+
+        assertEquals(1, viewModel.currentSourceIndex.value)
+        assertEquals(
+            PlayerUiState.Ready(sources[1].url, currentSourceIndex = 1),
+            viewModel.uiState.value
+        )
+        assertNull(viewModel.errorMessage.value)
+    }
+
+    @Test
+    fun `une erreur de manifest malforme bascule de la source 0 a la source 1`() {
+        val sources = listOf(
+            StreamSource("Primaire", "https://example.com/primary.m3u8"),
+            StreamSource("Secours", "https://example.com/backup.m3u8")
+        )
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo(
+                videoUrl = sources[0].url,
+                skipAds = true,
+                sources = sources
+            )
+        )
+
+        listenerSlot.captured.onPlayerError(
+            PlaybackException(
+                "malformed manifest",
+                null,
+                PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED
+            )
+        )
+
+        assertEquals(1, viewModel.currentSourceIndex.value)
+        assertEquals(
+            PlayerUiState.Ready(sources[1].url, currentSourceIndex = 1),
+            viewModel.uiState.value
+        )
+        assertNull(viewModel.errorMessage.value)
+    }
+
+    @Test
+    fun `l'erreur finale est affichee quand la derniere source echoue`() {
+        val sources = listOf(
+            StreamSource("Primaire", "https://example.com/primary.m3u8"),
+            StreamSource("Secours", "https://example.com/backup.m3u8")
+        )
+        viewModel.onAction(
+            PlayerUiAction.LoadVideo(
+                videoUrl = sources[0].url,
+                skipAds = true,
+                sources = sources
+            )
+        )
+        viewModel.onAction(PlayerUiAction.SwitchSource(sources[1].url, qualityIndex = 1))
+        val error = PlaybackException(
+            "network",
+            null,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+        )
+
+        repeat(4) { listenerSlot.captured.onPlayerError(error) }
+
+        assertEquals(1, viewModel.currentSourceIndex.value)
+        assertNotNull(viewModel.errorMessage.value)
+        assertFalse(viewModel.isLoading.value)
+    }
+
+    @Test
     fun `aucun etat statique de headers n'existe plus dans PlayerViewModel`() {
         val staticHeaderFields = PlayerViewModel::class.java.declaredFields
             .filter { java.lang.reflect.Modifier.isStatic(it.modifiers) }

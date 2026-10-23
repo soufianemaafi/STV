@@ -201,7 +201,13 @@ class PlayerViewModel @JvmOverloads constructor(
                 _player.prepare()
                 return
             }
-            // 2) Erreur reseau recuperable : retry avec backoff exponentiel (max 3).
+            // 2) Une erreur HTTP fatale ne doit pas consommer les retries de la source.
+            if (isSourceError(error) &&
+                (!isRecoverableNetworkError(error) || networkRetryCount >= MAX_NETWORK_RETRIES) &&
+                fallbackToNextSource()
+            ) return
+
+            // 3) Erreur reseau recuperable : retry avec backoff exponentiel (max 3).
             if (isRecoverableNetworkError(error) && networkRetryCount < MAX_NETWORK_RETRIES) {
                 networkRetryCount++
                 val attempt = networkRetryCount
@@ -214,7 +220,11 @@ class PlayerViewModel @JvmOverloads constructor(
                 }
                 return
             }
-            // 3) Erreur definitive.
+
+            // 4) Les retries de la source courante sont épuisés : essayer la suivante.
+            if (networkRetryCount >= MAX_NETWORK_RETRIES && fallbackToNextSource()) return
+
+            // 5) Erreur definitive (ou aucune source alternative disponible).
             _isLoading.value = false
             _errorMessage.value = getUserFriendlyErrorMessage(error)
         }
@@ -300,6 +310,32 @@ class PlayerViewModel @JvmOverloads constructor(
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> true
             else -> false
         }
+
+    /**
+     * Media3 regroupe les erreurs provenant de la source par familles numériques : IO,
+     * parsing, décodage, audio, DRM et traitement vidéo. Cette classification évite de
+     * dépendre d'une liste incomplète et couvre notamment les manifests malformés.
+     */
+    private fun isSourceError(error: PlaybackException): Boolean =
+        error.errorCode in IO_ERROR_CODE_RANGE ||
+            error.errorCode in PARSING_ERROR_CODE_RANGE ||
+            error.errorCode in DECODER_ERROR_CODE_RANGE ||
+            error.errorCode in AUDIO_ERROR_CODE_RANGE ||
+            error.errorCode in DRM_ERROR_CODE_RANGE ||
+            error.errorCode in VIDEO_ERROR_CODE_RANGE
+
+    /**
+     * Bascule sur la prochaine source en conservant la session HTTP (headers et MIME).
+     * Retourne false quand la liste est épuisée afin que l'appelant affiche l'erreur finale.
+     */
+    private fun fallbackToNextSource(): Boolean {
+        val nextIndex = _currentSourceIndex.value + 1
+        val nextSource = _availableSources.value.getOrNull(nextIndex) ?: return false
+
+        networkRetryCount = 0
+        switchSource(nextSource.url, nextIndex)
+        return true
+    }
 
     /**
      * Démarre une nouvelle session : coupe IMMÉDIATEMENT le flux précédent (zapping propre),
@@ -595,6 +631,12 @@ class PlayerViewModel @JvmOverloads constructor(
 
         private const val MAX_NETWORK_RETRIES = 3
         private const val RETRY_BACKOFF_BASE_MS = 1_500L
+        private val IO_ERROR_CODE_RANGE = 2_000..2_008
+        private val PARSING_ERROR_CODE_RANGE = 3_001..3_004
+        private val DECODER_ERROR_CODE_RANGE = 4_001..4_006
+        private val AUDIO_ERROR_CODE_RANGE = 5_001..5_004
+        private val DRM_ERROR_CODE_RANGE = 6_000..6_008
+        private val VIDEO_ERROR_CODE_RANGE = 7_000..7_001
 
 
         /**

@@ -96,71 +96,65 @@ fun VideoPlayer(
             areControlsVisible = !areControlsVisible
         }
     ) {
-        if (errorMessage != null) {
-            Text(
-                text = errorMessage!!,
-                color = Color.White,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else {
-            val lifecycleOwner = LocalLifecycleOwner.current
-            val activity = LocalContext.current.findActivity()
-            val isInPipModeState by rememberUpdatedState(isInPipMode)
-            val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val activity = LocalContext.current.findActivity()
+        val isInPipModeState by rememberUpdatedState(isInPipMode)
+        val playerViewRef = remember { mutableStateOf<PlayerView?>(null) }
 
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        useController = false
-                        keepScreenOn = true
-                        playerViewRef.value = this
-                    }
-                },
-                update = { playerView ->
-                    if (playerView.resizeMode != resizeMode) {
-                        playerView.resizeMode = resizeMode
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    useController = false
+                    keepScreenOn = true
+                    playerViewRef.value = this
+                }
+            },
+            update = { playerView ->
+                if (playerView.resizeMode != resizeMode) {
+                    playerView.resizeMode = resizeMode
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
 
             // âœ… Attache/dÃ©tache la PlayerView au Player du ViewModel selon le cycle de
             // vie de l'Activity â€” le Player, lui, vit dans le ViewModel et survit aux
             // rotations d'Ã©cran. EmpÃªche toute rÃ©tention de la vue par le player (ou
             // inversement) aprÃ¨s destruction de l'Activity.
-            DisposableEffect(lifecycleOwner, viewModel.player) {
-                val observer = LifecycleEventObserver { _, event ->
-                    when (event) {
-                        Lifecycle.Event.ON_START -> {
-                            playerViewRef.value?.player = viewModel.player
-                            // Reprise uniquement si la lecture était active avant ON_STOP.
-                            viewModel.onAction(PlayerUiAction.Foreground)
-                        }
-                        Lifecycle.Event.ON_STOP -> {
-                            playerViewRef.value?.player = null
-                            // Pause en arrière-plan, sauf Picture-in-Picture.
-                            val inPip = isInPipModeState || activity?.isInPictureInPictureCompat() == true
-                            viewModel.onAction(PlayerUiAction.Background(isInPictureInPicture = inPip))
-                        }
-                        else -> Unit
+        DisposableEffect(lifecycleOwner, viewModel.player) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_START -> {
+                        playerViewRef.value?.player = viewModel.player
+                        // Reprise uniquement si la lecture était active avant ON_STOP.
+                        viewModel.onAction(PlayerUiAction.Foreground)
                     }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-                // Attachement immÃ©diat si le composable apparaÃ®t alors que l'Activity est dÃ©jÃ  dÃ©marrÃ©e
-                playerViewRef.value?.player = viewModel.player
-
-                onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(observer)
-                    // âœ… DÃ©tachement final : la vue ne doit jamais retenir le player
-                    // au-delÃ  de sa propre destruction.
-                    playerViewRef.value?.player = null
+                    Lifecycle.Event.ON_STOP -> {
+                        playerViewRef.value?.player = null
+                        // Pause en arrière-plan, sauf Picture-in-Picture.
+                        val inPip = isInPipModeState || activity?.isInPictureInPictureCompat() == true
+                        viewModel.onAction(PlayerUiAction.Background(isInPictureInPicture = inPip))
+                    }
+                    else -> Unit
                 }
             }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            // Attachement immÃ©diat si le composable apparaÃ®t alors que l'Activity est dÃ©jÃ  dÃ©marrÃ©e
+            playerViewRef.value?.player = viewModel.player
 
-            // Overlay avec les contrÃ´les personnalisÃ©s (masquÃ©s en PiP)
-            if (!isInPipMode) {
-                PlayerControls(
-                    isVisible = areControlsVisible,
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                // âœ… DÃ©tachement final : la vue ne doit jamais retenir le player
+                // au-delÃ  de sa propre destruction.
+                playerViewRef.value?.player = null
+            }
+        }
+
+        // Overlay avec les contrÃ´les personnalisÃ©s (masquÃ©s en PiP).
+        // En cas d'erreur, le sélecteur de sources reste toujours cliquable.
+        if (!isInPipMode) {
+            PlayerControls(
+                    isVisible = areControlsVisible || errorMessage != null,
                     isPlaying = isPlaying,
                     isLive = isLive,
                     isSeekable = isSeekable,
@@ -201,27 +195,34 @@ fun VideoPlayer(
                         viewModel.onAction(PlayerUiAction.SwitchSource(source.url, index))
                         areControlsVisible = true
                     }
-                )
-            }
+            )
+        }
 
-            if (showQualityDialog) {
-                QualitySelectionDialog(
-                    tracks = videoTracks,
-                    currentTrackName = currentTrackName,
-                    onDismiss = { showQualityDialog = false },
-                    onTrackSelected = { trackInfo ->
-                        viewModel.onAction(PlayerUiAction.SelectTrack(trackInfo))
-                        showQualityDialog = false
-                    }
-                )
-            }
+        if (showQualityDialog) {
+            QualitySelectionDialog(
+                tracks = videoTracks,
+                currentTrackName = currentTrackName,
+                onDismiss = { showQualityDialog = false },
+                onTrackSelected = { trackInfo ->
+                    viewModel.onAction(PlayerUiAction.SelectTrack(trackInfo))
+                    showQualityDialog = false
+                }
+            )
+        }
 
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        errorMessage?.let { message ->
+            Text(
+                text = message,
+                color = Color.White,
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
     }
 }
