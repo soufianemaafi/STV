@@ -621,7 +621,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     15_000, // minBufferMs
                     50_000, // maxBufferMs
                     800,    // bufferForPlaybackMs
-                    1_500   // bufferForPlaybackAfterRebufferMs
+                    3_000   // bufferForPlaybackAfterRebufferMs
                 )
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
