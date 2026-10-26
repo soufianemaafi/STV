@@ -3,13 +3,13 @@ package com.example.soukitv.ui.home
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -24,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,9 +37,11 @@ import com.example.soukitv.features.home.presentation.HomeViewModel
 import com.example.soukitv.features.home.presentation.HomeViewModelFactory
 import com.example.soukitv.features.home.presentation.NavigationTab
 import com.example.soukitv.features.home.presentation.components.ChannelsTab
+import com.example.soukitv.features.home.presentation.components.HomeShimmerSkeleton
 import com.example.soukitv.features.home.presentation.components.MatchesTab
-import com.example.soukitv.features.home.presentation.components.StvErrorDialog
+import com.example.soukitv.features.home.presentation.components.SearchAndFilterBar
 import com.example.soukitv.features.home.presentation.components.SoukiBottomBar
+import com.example.soukitv.features.home.presentation.components.StvErrorDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,8 +83,9 @@ fun HomeScreen(
                     Text(
                         text = stringResource(R.string.app_name),
                         style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
+                            fontWeight = FontWeight.Black,
+                            fontSize = 24.sp,
+                            letterSpacing = 1.sp
                         ),
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -131,41 +133,56 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when {
-                success == null && errorState == null -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                success?.currentTab == NavigationTab.MATCHES -> {
-                    MatchesTab(
-                        matches = success.matches,
-                        onMatchClick = { match ->
-                            viewModel.onAction(HomeUiAction.SelectMatch(match))
-                        }
-                    )
-                }
-
-                success != null -> {
-                    ChannelsTab(
-                        categories = success.categories,
-                        activeCategory = success.activeCategoryDetail,
-                        activeCountry = success.activeCountryDetail,
-                        onCategoryClick = { category ->
-                            viewModel.onAction(HomeUiAction.SelectCategoryDetail(category))
-                        },
-                        onCountryClick = { country ->
-                            viewModel.onAction(HomeUiAction.SelectCountry(country))
-                        },
-                        onBackClick = {
-                            viewModel.onAction(HomeUiAction.NavigateBack)
-                        },
-                        onChannelClick = { channel ->
-                            viewModel.onAction(HomeUiAction.SelectChannel(channel))
-                        }
-                    )
+            if (success == null) {
+                if (errorState == null) HomeShimmerSkeleton()
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    val inRootLevel = success.activeCategoryDetail == null &&
+                        success.activeCountryDetail == null
+                    if (inRootLevel && success.currentTab == NavigationTab.CHANNELS) {
+                        SearchAndFilterBar(
+                            query = success.searchQuery,
+                            filters = success.filterOptions,
+                            selectedFilter = success.selectedFilter,
+                            onQueryChange = { viewModel.onAction(HomeUiAction.SearchQuery(it)) },
+                            onFilterSelected = { viewModel.onAction(HomeUiAction.SelectFilter(it)) }
+                        )
+                    }
+                    if (success.currentTab == NavigationTab.MATCHES) {
+                        MatchesTab(
+                            matches = success.visibleMatches,
+                            liveMatchIds = success.liveMatchIds,
+                            isFiltering = success.searchQuery.isNotBlank() ||
+                                success.selectedFilter != null,
+                            onMatchClick = { match ->
+                                viewModel.onAction(HomeUiAction.SelectMatch(match))
+                            }
+                        )
+                    } else {
+                        ChannelsTab(
+                            categories = success.categories,
+                            activeCategory = success.activeCategoryDetail,
+                            activeCountry = success.activeCountryDetail,
+                            isFlatMode = success.isFlatChannelMode,
+                            flatChannels = success.visibleChannels,
+                            favorites = success.favorites,
+                            onCategoryClick = { category ->
+                                viewModel.onAction(HomeUiAction.SelectCategoryDetail(category))
+                            },
+                            onCountryClick = { country ->
+                                viewModel.onAction(HomeUiAction.SelectCountry(country))
+                            },
+                            onBackClick = {
+                                viewModel.onAction(HomeUiAction.NavigateBack)
+                            },
+                            onChannelClick = { channel ->
+                                viewModel.onAction(HomeUiAction.SelectChannel(channel))
+                            },
+                            onToggleFavorite = { channel ->
+                                viewModel.onAction(HomeUiAction.ToggleFavorite(channel.id))
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -181,3 +198,4 @@ fun HomeScreen(
         )
     }
 }
+

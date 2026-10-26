@@ -21,5 +21,8 @@ sealed interface HomeUiAction {
     data object InstallStv : HomeUiAction
     data object Retry : HomeUiAction
     data object ToggleTheme : HomeUiAction
+    data class SearchQuery(val query: String) : HomeUiAction
+    /** null = "Tous". */
+    data class SelectFilter(val filter: String?) : HomeUiAction
+    data class ToggleFavorite(val channelId: String) : HomeUiAction
 }
-

@@ -21,11 +21,15 @@ import com.example.soukitv.features.home.domain.model.MatchItem
 @Composable
 fun MatchesTab(
     matches: List<MatchItem>,
+    liveMatchIds: Set<String>,
+    isFiltering: Boolean,
     onMatchClick: (MatchItem) -> Unit
 ) {
     if (matches.isEmpty()) {
         Text(
-            text = stringResource(R.string.empty_matches_today),
+            text = stringResource(
+                if (isFiltering) R.string.empty_search_results else R.string.empty_matches_today
+            ),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -42,8 +46,12 @@ fun MatchesTab(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(matches, key = { it.id.orEmpty() }) { match ->
-            MatchCard(match = match, onMatchClick = onMatchClick)
+        items(matches, key = { it.id.orEmpty() + it.time.orEmpty() + it.teamA.orEmpty() }) { match ->
+            MatchCard(
+                match = match,
+                isLive = match.id in liveMatchIds,
+                onMatchClick = onMatchClick
+            )
         }
     }
 }

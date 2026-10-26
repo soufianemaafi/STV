@@ -5,8 +5,10 @@ import android.util.Log
 import com.stv.videoplayer.AdManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
 /**
@@ -78,39 +80,43 @@ class AdFlowController(
                 }
             }
 
-            adManager.loadAndShow(
-                activity = activity,
-                onAdShowed = {
-                    timeoutJob.cancel()
-                    frequencyManager.markAdShown()
-                    Log.d(tag, "Ad showing -> cooldown timestamp updated")
-                    onAdShowed()
-                },
-                onAdDismissed = {
-                    timeoutJob.cancel()
-                    Log.d(tag, "Ad dismissed")
-                    if (cont.isActive) cont.resume(AdResult.AdDismissed)
-                },
-                onFailed = {
-                    timeoutJob.cancel()
-                    Log.d(tag, "Ad load/show failed; keeping playback retryable")
-                    if (cont.isActive) cont.resume(AdResult.Failed)
-                },
-                onNoNetwork = {
-                    timeoutJob.cancel()
-                    Log.d(tag, "No network")
-                    if (cont.isActive) cont.resume(AdResult.NoNetwork)
-                },
-                onNetworkError = {
-                    timeoutJob.cancel()
-                    if (cont.isActive) {
-                        frequencyManager.markAdBlockerSuspected()
-                        Log.w(tag, "AdMob network error -> ad blocker suspected")
-                        cont.resume(AdResult.AdBlockerBlocked)
-                    }
-                },
-                isRequestActive = { cont.isActive }
-            )
+            CoroutineScope(cont.context).launch {
+                withContext(Dispatchers.Main.immediate) {
+                    adManager.loadAndShow(
+                        activity = activity,
+                        onAdShowed = {
+                            timeoutJob.cancel()
+                            frequencyManager.markAdShown()
+                            Log.d(tag, "Ad showing -> cooldown timestamp updated")
+                            onAdShowed()
+                        },
+                        onAdDismissed = {
+                            timeoutJob.cancel()
+                            Log.d(tag, "Ad dismissed")
+                            if (cont.isActive) cont.resume(AdResult.AdDismissed)
+                        },
+                        onFailed = {
+                            timeoutJob.cancel()
+                            Log.d(tag, "Ad load/show failed; keeping playback retryable")
+                            if (cont.isActive) cont.resume(AdResult.Failed)
+                        },
+                        onNoNetwork = {
+                            timeoutJob.cancel()
+                            Log.d(tag, "No network")
+                            if (cont.isActive) cont.resume(AdResult.NoNetwork)
+                        },
+                        onNetworkError = {
+                            timeoutJob.cancel()
+                            if (cont.isActive) {
+                                frequencyManager.markAdBlockerSuspected()
+                                Log.w(tag, "AdMob network error -> ad blocker suspected")
+                                cont.resume(AdResult.AdBlockerBlocked)
+                            }
+                        },
+                        isRequestActive = { cont.isActive }
+                    )
+                }
+            }
         }
     }
 

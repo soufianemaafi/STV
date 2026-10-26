@@ -18,8 +18,18 @@ import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
     primary = SoukiRed,
+    onPrimary = Color.White,
+    primaryContainer = SoukiRed.copy(alpha = 0.18f),
+    onPrimaryContainer = Color.White,
+    secondary = SoukiCrimson,
     background = SoukiDarkBackground,
     surface = SoukiDarkSurface,
+    surfaceVariant = SoukiDarkSurfaceVariant,
+    surfaceContainer = SoukiDarkSurface,
+    surfaceContainerHigh = SoukiDarkSurfaceVariant,
+    onSurfaceVariant = Color(0xFFA8A8B5),
+    outline = SoukiDarkBorder,
+    outlineVariant = SoukiDarkBorder,
     onBackground = Color.White,
     onSurface = Color.White
 )
@@ -28,6 +38,9 @@ private val LightColorScheme = lightColorScheme(
     primary = SoukiRed,
     background = SoukiLightBackground,
     surface = SoukiLightSurface,
+    surfaceVariant = SoukiLightSurfaceVariant,
+    outline = SoukiLightBorder,
+    outlineVariant = SoukiLightBorder,
     onBackground = Color(0xFF1A1A1A),
     onSurface = Color(0xFF1A1A1A)
 )

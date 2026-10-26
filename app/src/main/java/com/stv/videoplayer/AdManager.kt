@@ -68,6 +68,7 @@ class AdManager private constructor(
     private val TAG = "AdManager"
     private val AD_UNIT_ID = BuildConfig.ADMOB_INTERSTITIAL_ID
     private val preloadLock = Any()
+    private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     @Volatile
     private var preloadedInterstitial: InterstitialAd? = null
@@ -108,29 +109,31 @@ class AdManager private constructor(
         }
 
         Log.d(TAG, "Preloading interstitial ad...")
-        InterstitialAd.load(
-            appContext,
-            AD_UNIT_ID,
-            AdRequest.Builder().build(),
-            object : InterstitialAdLoadCallback() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.d(TAG, "Preload failed: $adError")
-                    synchronized(preloadLock) {
-                        isPreloading = false
+        mainScope.launch {
+            InterstitialAd.load(
+                appContext,
+                AD_UNIT_ID,
+                AdRequest.Builder().build(),
+                object : InterstitialAdLoadCallback() {
+                    override fun onAdFailedToLoad(adError: LoadAdError) {
+                        Log.d(TAG, "Preload failed: $adError")
+                        synchronized(preloadLock) {
+                            isPreloading = false
+                        }
+                        schedulePreloadRetry()
                     }
-                    schedulePreloadRetry()
-                }
 
-                override fun onAdLoaded(ad: InterstitialAd) {
-                    Log.d(TAG, "Interstitial preloaded")
-                    synchronized(preloadLock) {
-                        preloadedInterstitial = ad
-                        isPreloading = false
-                        preloadRetryCount = 0
+                    override fun onAdLoaded(ad: InterstitialAd) {
+                        Log.d(TAG, "Interstitial preloaded")
+                        synchronized(preloadLock) {
+                            preloadedInterstitial = ad
+                            isPreloading = false
+                            preloadRetryCount = 0
+                        }
                     }
                 }
-            }
-        )
+            )
+        }
     }
 
     /**
@@ -197,52 +200,56 @@ class AdManager private constructor(
                 return
             }
             Log.d(TAG, "Showing preloaded interstitial.")
-            showInterstitial(
-                activity = activity,
-                ad = cachedAd,
-                onAdShowed = onAdShowed,
-                onAdDismissed = onAdDismissed,
-                onFailed = onFailed,
-                isRequestActive = isRequestActive
-            )
+            mainScope.launch {
+                showInterstitial(
+                    activity = activity,
+                    ad = cachedAd,
+                    onAdShowed = onAdShowed,
+                    onAdDismissed = onAdDismissed,
+                    onFailed = onFailed,
+                    isRequestActive = isRequestActive
+                )
+            }
             return
         }
 
         Log.d(TAG, "Loading interstitial ad on-demand...")
-        InterstitialAd.load(
-            appContext,
-            AD_UNIT_ID,
-            AdRequest.Builder().build(),
-            object : InterstitialAdLoadCallback() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.d(TAG, "Ad failed to load: $adError")
-                    if (adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
-                        onNetworkError()
-                    } else if (!NetworkUtils.isNetworkAvailable(appContext)) {
-                        onNoNetwork()
-                    } else {
-                        onFailed()
-                    }
-                    preloadInterstitial()
-                }
-
-                override fun onAdLoaded(ad: InterstitialAd) {
-                    Log.d(TAG, "Ad loaded. Showing...")
-                    if (!isRequestActive()) {
+        mainScope.launch {
+            InterstitialAd.load(
+                appContext,
+                AD_UNIT_ID,
+                AdRequest.Builder().build(),
+                object : InterstitialAdLoadCallback() {
+                    override fun onAdFailedToLoad(adError: LoadAdError) {
+                        Log.d(TAG, "Ad failed to load: $adError")
+                        if (adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
+                            onNetworkError()
+                        } else if (!NetworkUtils.isNetworkAvailable(appContext)) {
+                            onNoNetwork()
+                        } else {
+                            onFailed()
+                        }
                         preloadInterstitial()
-                        return
                     }
-                    showInterstitial(
-                        activity = activity,
-                        ad = ad,
-                        onAdShowed = onAdShowed,
-                        onAdDismissed = onAdDismissed,
-                        onFailed = onFailed,
-                        isRequestActive = isRequestActive
-                    )
+
+                    override fun onAdLoaded(ad: InterstitialAd) {
+                        Log.d(TAG, "Ad loaded. Showing...")
+                        if (!isRequestActive()) {
+                            preloadInterstitial()
+                            return
+                        }
+                        showInterstitial(
+                            activity = activity,
+                            ad = ad,
+                            onAdShowed = onAdShowed,
+                            onAdDismissed = onAdDismissed,
+                            onFailed = onFailed,
+                            isRequestActive = isRequestActive
+                        )
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     private fun showInterstitial(

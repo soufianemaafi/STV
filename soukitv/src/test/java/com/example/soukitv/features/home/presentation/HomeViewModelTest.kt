@@ -6,6 +6,8 @@ import com.example.soukitv.features.home.domain.model.Channel
 import com.example.soukitv.features.home.domain.model.MatchItem
 import com.example.soukitv.features.home.domain.model.toChannel
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
+import com.example.soukitv.features.home.domain.repository.FavoritesStore
+import com.example.soukitv.features.home.domain.repository.InMemoryFavoritesStore
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
@@ -204,15 +206,65 @@ class HomeViewModelTest {
         )
     }
 
+    @Test
+    fun searchQuery_filtersChannelsByName() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+
+        viewModel.onAction(HomeUiAction.SearchQuery("jaz"))
+
+        val state = viewModel.success()
+        assertTrue(state.isFlatChannelMode)
+        assertEquals(listOf("Al Jazeera"), state.visibleChannels.map { it.name })
+
+        viewModel.onAction(HomeUiAction.SearchQuery(""))
+        assertEquals(false, viewModel.success().isFlatChannelMode)
+    }
+
+    @Test
+    fun selectFilter_filtersChannelsByCategory() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+
+        viewModel.onAction(HomeUiAction.SelectFilter("Sports"))
+
+        val state = viewModel.success()
+        assertEquals("Sports", state.selectedFilter)
+        assertEquals(sports.channels, state.visibleChannels)
+
+        viewModel.onAction(HomeUiAction.SelectFilter(null))
+        assertNull(viewModel.success().selectedFilter)
+        assertEquals(false, viewModel.success().isFlatChannelMode)
+    }
+
+    @Test
+    fun toggleFavorite_addsAndRemovesIdAndPersistsInStore() {
+        val store = InMemoryFavoritesStore()
+        val viewModel = viewModel(store = store)
+
+        viewModel.onAction(HomeUiAction.ToggleFavorite("2"))
+        assertEquals(setOf("2"), viewModel.success().favorites)
+        assertEquals(setOf("2"), store.load())
+
+        viewModel.onAction(HomeUiAction.ToggleFavorite("2"))
+        assertTrue(viewModel.success().favorites.isEmpty())
+        assertTrue(store.load().isEmpty())
+    }
+
     private fun viewModel(
         categories: List<Category> = catalogue,
-        matches: List<MatchItem> = emptyList()
+        matches: List<MatchItem> = emptyList(),
+        store: FavoritesStore = InMemoryFavoritesStore()
     ): HomeViewModel {
         val repository = object : ChannelRepository {
             override fun getCategories(): Flow<List<Category>> = flowOf(categories)
             override fun getMatches(): Flow<List<MatchItem>> = flowOf(matches)
         }
-        return HomeViewModel(repository = repository, stvPlayerLauncher = launcher)
+        return HomeViewModel(
+            repository = repository,
+            stvPlayerLauncher = launcher,
+            favoritesStore = store
+        )
     }
 
     private fun HomeViewModel.success(): HomeUiState.Success =

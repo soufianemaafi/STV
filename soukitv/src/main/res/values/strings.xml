@@ -11,6 +11,10 @@
     <string name="empty_matches_today">Aucun match programmé aujourd\'hui</string>
     <string name="empty_channels">Aucune chaîne disponible</string>
     <string name="match_versus">VS</string>
+    <string name="filter_all">Tous</string>
+    <string name="search_placeholder">Rechercher une chaîne, un match…</string>
+    <string name="search_clear">Effacer la recherche</string>
+    <string name="empty_search_results">Aucun résultat</string>
     <string name="error_stv_not_installed">STV Player est requis pour lire ce contenu.</string>
     <string name="theme_light_mode">Activer le mode clair</string>
     <string name="theme_dark_mode">Activer le mode sombre</string>

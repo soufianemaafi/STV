@@ -7,20 +7,26 @@ import androidx.lifecycle.viewModelScope
 import com.example.soukitv.core.player.StvPlayerLauncher
 import com.example.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.example.soukitv.features.home.data.ChannelRepositoryImpl
+import com.example.soukitv.features.home.data.SharedPrefsFavoritesStore
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
 import com.example.soukitv.features.home.domain.model.MatchItem
+import com.example.soukitv.features.home.domain.model.isLiveAt
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
+import com.example.soukitv.features.home.domain.repository.FavoritesStore
+import com.example.soukitv.features.home.domain.repository.InMemoryFavoritesStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 class HomeViewModel(
     private val repository: ChannelRepository,
-    private val stvPlayerLauncher: StvPlayerLauncher
+    private val stvPlayerLauncher: StvPlayerLauncher,
+    private val favoritesStore: FavoritesStore = InMemoryFavoritesStore()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -33,6 +39,11 @@ class HomeViewModel(
     private var activeCategoryDetail: Category? = null
     private var activeCountryDetail: String? = null
     private var isDarkTheme: Boolean = true
+    private var searchQuery: String = ""
+    private var matchFilter: String? = null
+    private var channelFilter: String? = null
+    private var favorites: Set<String> =
+        runCatching { favoritesStore.load() }.getOrDefault(emptySet())
 
     init {
         loadChannels()
@@ -59,6 +70,7 @@ class HomeViewModel(
             }
             is HomeUiAction.SwitchTab -> {
                 currentTab = action.tab
+                searchQuery = ""
                 activeCategoryDetail = null
                 activeCountryDetail = null
                 refreshState()
@@ -78,6 +90,27 @@ class HomeViewModel(
                 } else if (activeCategoryDetail != null) {
                     activeCategoryDetail = null
                 }
+                refreshState()
+            }
+            is HomeUiAction.SearchQuery -> {
+                searchQuery = action.query
+                refreshState()
+            }
+            is HomeUiAction.SelectFilter -> {
+                if (currentTab == NavigationTab.MATCHES) {
+                    matchFilter = action.filter
+                } else {
+                    channelFilter = action.filter
+                }
+                refreshState()
+            }
+            is HomeUiAction.ToggleFavorite -> {
+                favorites = if (action.channelId in favorites) {
+                    favorites - action.channelId
+                } else {
+                    favorites + action.channelId
+                }
+                runCatching { favoritesStore.save(favorites) }
                 refreshState()
             }
         }
@@ -141,13 +174,55 @@ class HomeViewModel(
     }
 
     private fun publishSuccess() {
+        val query = searchQuery.trim()
+        val isMatches = currentTab == NavigationTab.MATCHES
+
+        // Un filtre devenu obsolete (catalogue recharge) retombe sur "Tous".
+        val matchOptions = matches
+            .mapNotNull { it.tournament?.takeIf(String::isNotBlank) }
+            .distinct()
+        val channelOptions = categories.map { it.name }
+        if (matchFilter !in matchOptions) matchFilter = null
+        if (channelFilter !in channelOptions) channelFilter = null
+
+        val visibleMatches = matches.filter { match ->
+            (matchFilter == null || match.tournament == matchFilter) &&
+                (query.isEmpty() ||
+                    listOf(match.teamA, match.teamB, match.tournament, match.channelName)
+                        .any { it?.contains(query, ignoreCase = true) == true })
+        }
+
+        val now = Calendar.getInstance()
+        val minutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        val liveIds = matches.filter { it.isLiveAt(minutes) }.mapNotNull { it.id }.toSet()
+
+        val flat = !isMatches && (query.isNotEmpty() || channelFilter != null)
+        val visibleChannels = if (flat) {
+            categories
+                .filter { channelFilter == null || it.name == channelFilter }
+                .flatMap { it.channels }
+                .distinctBy { it.id }
+                .filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+                .sortedByDescending { it.id in favorites }
+        } else {
+            emptyList()
+        }
+
         _uiState.value = HomeUiState.Success(
             currentTab = currentTab,
             matches = matches,
             categories = categories,
             activeCategoryDetail = activeCategoryDetail,
             activeCountryDetail = activeCountryDetail,
-            isDarkTheme = isDarkTheme
+            isDarkTheme = isDarkTheme,
+            searchQuery = searchQuery,
+            selectedFilter = if (isMatches) matchFilter else channelFilter,
+            filterOptions = if (isMatches) matchOptions else channelOptions,
+            visibleMatches = visibleMatches,
+            visibleChannels = visibleChannels,
+            isFlatChannelMode = flat,
+            favorites = favorites,
+            liveMatchIds = liveIds
         )
     }
 }
@@ -161,7 +236,8 @@ class HomeViewModelFactory(
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             return HomeViewModel(
                 repository = ChannelRepositoryImpl(),
-                stvPlayerLauncher = StvPlayerLauncher(context.applicationContext)
+                stvPlayerLauncher = StvPlayerLauncher(context.applicationContext),
+                favoritesStore = SharedPrefsFavoritesStore(context.applicationContext)
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

@@ -34,11 +34,25 @@ fun ChannelsTab(
     categories: List<Category>,
     activeCategory: Category?,
     activeCountry: String?,
+    isFlatMode: Boolean,
+    flatChannels: List<Channel>,
+    favorites: Set<String>,
     onCategoryClick: (Category) -> Unit,
     onCountryClick: (String) -> Unit,
     onBackClick: () -> Unit,
-    onChannelClick: (Channel) -> Unit
+    onChannelClick: (Channel) -> Unit,
+    onToggleFavorite: (Channel) -> Unit
 ) {
+    if (isFlatMode) {
+        ChannelsGridContent(
+            channels = flatChannels,
+            favorites = favorites,
+            onChannelClick = onChannelClick,
+            onToggleFavorite = onToggleFavorite
+        )
+        return
+    }
+
     if (activeCategory == null) {
         CategoriesGrid(categories = categories, onCategoryClick = onCategoryClick)
     } else {
@@ -51,12 +65,20 @@ fun ChannelsTab(
                 onCountryClick = onCountryClick
             )
         } else {
-            ChannelsGrid(
-                category = activeCategory,
-                country = activeCountry,
-                onBackClick = onBackClick,
-                onChannelClick = onChannelClick
-            )
+            val channels = if (activeCountry != null) {
+                activeCategory.channels.filter { it.country == activeCountry }
+            } else {
+                activeCategory.channels
+            }
+            Column(modifier = Modifier.fillMaxSize()) {
+                BackHeader(title = activeCountry ?: activeCategory.name, onBackClick = onBackClick)
+                ChannelsGridContent(
+                    channels = channels.sortedByDescending { it.id in favorites },
+                    favorites = favorites,
+                    onChannelClick = onChannelClick,
+                    onToggleFavorite = onToggleFavorite
+                )
+            }
         }
     }
 }
@@ -67,16 +89,7 @@ private fun CategoriesGrid(
     onCategoryClick: (Category) -> Unit
 ) {
     if (categories.isEmpty()) {
-        Text(
-            text = stringResource(R.string.empty_channels),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-                .wrapContentSize(Alignment.Center)
-        )
+        EmptyMessage(stringResource(R.string.empty_channels))
         return
     }
 
@@ -121,32 +134,46 @@ private fun CountriesGrid(
 }
 
 @Composable
-private fun ChannelsGrid(
-    category: Category,
-    country: String?,
-    onBackClick: () -> Unit,
-    onChannelClick: (Channel) -> Unit
+private fun ChannelsGridContent(
+    channels: List<Channel>,
+    favorites: Set<String>,
+    onChannelClick: (Channel) -> Unit,
+    onToggleFavorite: (Channel) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        BackHeader(title = country ?: category.name, onBackClick = onBackClick)
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            val channelsToShow = if (country != null) {
-                category.channels.filter { it.country == country }
-            } else {
-                category.channels
-            }
-            items(channelsToShow, key = { it.id }) { channel ->
-                ChannelTile(channel = channel, onChannelClick = onChannelClick)
-            }
+    if (channels.isEmpty()) {
+        EmptyMessage(stringResource(R.string.empty_search_results))
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        items(channels, key = { it.id }) { channel ->
+            ChannelTile(
+                channel = channel,
+                isFavorite = channel.id in favorites,
+                onChannelClick = onChannelClick,
+                onToggleFavorite = onToggleFavorite
+            )
         }
     }
+}
+
+@Composable
+private fun EmptyMessage(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .wrapContentSize(Alignment.Center)
+    )
 }
 
 @Composable
