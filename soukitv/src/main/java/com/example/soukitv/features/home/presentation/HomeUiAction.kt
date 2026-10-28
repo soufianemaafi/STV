@@ -22,7 +22,7 @@ sealed interface HomeUiAction {
     data object Retry : HomeUiAction
     data object ToggleTheme : HomeUiAction
     data class SearchQuery(val query: String) : HomeUiAction
-    /** null = "Tous". */
-    data class SelectFilter(val filter: String?) : HomeUiAction
+    /** Filtre par catégorie (ou tournoi pour les matchs) ; null = "Tous". */
+    data class SelectFilter(val category: String?) : HomeUiAction
     data class ToggleFavorite(val channelId: String) : HomeUiAction
 }

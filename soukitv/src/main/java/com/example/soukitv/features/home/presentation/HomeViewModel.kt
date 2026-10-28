@@ -1,4 +1,4 @@
-package com.example.soukitv.features.home.presentation
+﻿package com.example.soukitv.features.home.presentation
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -53,10 +53,7 @@ class HomeViewModel(
         when (action) {
             is HomeUiAction.SelectChannel -> handleSelectChannel(action.channel)
             is HomeUiAction.SelectMatch -> {
-                val result = stvPlayerLauncher.launchMatch(action.match)
-                if (result is LaunchResult.NotInstalled) {
-                    _uiState.value = HomeUiState.Error(StvPlayerLauncher.NOT_INSTALLED_MESSAGE)
-                }
+                handleLaunchResult(stvPlayerLauncher.launchMatch(action.match))
             }
             HomeUiAction.DismissInstallDialog -> restoreSuccessState()
             HomeUiAction.InstallStv -> {
@@ -98,9 +95,9 @@ class HomeViewModel(
             }
             is HomeUiAction.SelectFilter -> {
                 if (currentTab == NavigationTab.MATCHES) {
-                    matchFilter = action.filter
+                    matchFilter = action.category
                 } else {
-                    channelFilter = action.filter
+                    channelFilter = action.category
                 }
                 refreshState()
             }
@@ -119,7 +116,13 @@ class HomeViewModel(
     private fun loadChannels() {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading
+            // Rechargement avec contenu déjà chargé : on garde l'UI et on lève isLoading.
+            val current = _uiState.value
+            _uiState.value = if (current is HomeUiState.Success) {
+                current.copy(isLoading = true)
+            } else {
+                HomeUiState.Loading
+            }
             runCatching {
                 repository.getCategories()
                     .combine(repository.getMatches()) { categories, todayMatches ->
@@ -147,15 +150,20 @@ class HomeViewModel(
     }
 
     private fun handleSelectChannel(channel: Channel) {
-        when (val result = stvPlayerLauncher.launchChannel(channel)) {
+        handleLaunchResult(stvPlayerLauncher.launchChannel(channel))
+    }
+
+    private fun handleLaunchResult(result: LaunchResult) {
+        when (result) {
             LaunchResult.Launched -> Unit
             LaunchResult.NotInstalled -> {
                 _uiState.value = HomeUiState.Error(StvPlayerLauncher.NOT_INSTALLED_MESSAGE)
             }
+            LaunchResult.UpdateRequired -> {
+                _uiState.value = HomeUiState.Error(StvPlayerLauncher.UPDATE_REQUIRED_MESSAGE)
+            }
             is LaunchResult.Failed -> {
-                _uiState.value = HomeUiState.Error(
-                    result.message
-                )
+                _uiState.value = HomeUiState.Error(result.message)
             }
         }
     }
@@ -216,7 +224,7 @@ class HomeViewModel(
             activeCountryDetail = activeCountryDetail,
             isDarkTheme = isDarkTheme,
             searchQuery = searchQuery,
-            selectedFilter = if (isMatches) matchFilter else channelFilter,
+            selectedCategoryFilter = if (isMatches) matchFilter else channelFilter,
             filterOptions = if (isMatches) matchOptions else channelOptions,
             visibleMatches = visibleMatches,
             visibleChannels = visibleChannels,

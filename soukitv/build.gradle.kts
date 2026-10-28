@@ -51,6 +51,10 @@ android {
             )
         }
     }
+    // Permet aux stubs android.jar (Intent, Bundle, PackageInfo...) de fonctionner en tests JVM purs.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

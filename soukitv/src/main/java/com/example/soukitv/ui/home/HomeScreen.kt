@@ -1,4 +1,4 @@
-package com.example.soukitv.ui.home
+﻿package com.example.soukitv.ui.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
@@ -143,7 +143,7 @@ fun HomeScreen(
                         SearchAndFilterBar(
                             query = success.searchQuery,
                             filters = success.filterOptions,
-                            selectedFilter = success.selectedFilter,
+                            selectedFilter = success.selectedCategoryFilter,
                             onQueryChange = { viewModel.onAction(HomeUiAction.SearchQuery(it)) },
                             onFilterSelected = { viewModel.onAction(HomeUiAction.SelectFilter(it)) }
                         )
@@ -153,7 +153,7 @@ fun HomeScreen(
                             matches = success.visibleMatches,
                             liveMatchIds = success.liveMatchIds,
                             isFiltering = success.searchQuery.isNotBlank() ||
-                                success.selectedFilter != null,
+                                success.selectedCategoryFilter != null,
                             onMatchClick = { match ->
                                 viewModel.onAction(HomeUiAction.SelectMatch(match))
                             }
@@ -191,7 +191,8 @@ fun HomeScreen(
     if (errorState != null) {
         StvErrorDialog(
             message = errorState.message,
-            installRequired = errorState.message == StvPlayerLauncher.NOT_INSTALLED_MESSAGE,
+            installRequired = errorState.message == StvPlayerLauncher.NOT_INSTALLED_MESSAGE ||
+                errorState.message == StvPlayerLauncher.UPDATE_REQUIRED_MESSAGE,
             onDismiss = { viewModel.onAction(HomeUiAction.DismissInstallDialog) },
             onInstall = { viewModel.onAction(HomeUiAction.InstallStv) },
             onRetry = { viewModel.onAction(HomeUiAction.Retry) }

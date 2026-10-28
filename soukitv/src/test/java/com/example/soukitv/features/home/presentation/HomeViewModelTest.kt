@@ -229,12 +229,37 @@ class HomeViewModelTest {
         viewModel.onAction(HomeUiAction.SelectFilter("Sports"))
 
         val state = viewModel.success()
-        assertEquals("Sports", state.selectedFilter)
+        assertEquals("Sports", state.selectedCategoryFilter)
         assertEquals(sports.channels, state.visibleChannels)
 
         viewModel.onAction(HomeUiAction.SelectFilter(null))
-        assertNull(viewModel.success().selectedFilter)
+        assertNull(viewModel.success().selectedCategoryFilter)
         assertEquals(false, viewModel.success().isFlatChannelMode)
+    }
+
+    @Test
+    fun searchAndFilter_combineToNarrowVisibleChannels() {
+        val viewModel = viewModel()
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+
+        viewModel.onAction(HomeUiAction.SelectFilter("Sports"))
+        viewModel.onAction(HomeUiAction.SearchQuery("euro"))
+
+        val state = viewModel.success()
+        assertEquals("euro", state.searchQuery)
+        assertEquals(listOf("Eurosport"), state.visibleChannels.map { it.name })
+        assertEquals(false, state.isLoading)
+    }
+
+    @Test
+    fun retry_keepsContentAndEndsWithIsLoadingFalse() {
+        val viewModel = viewModel()
+
+        viewModel.onAction(HomeUiAction.Retry)
+
+        val state = viewModel.success()
+        assertEquals(catalogue, state.categories)
+        assertEquals(false, state.isLoading)
     }
 
     @Test

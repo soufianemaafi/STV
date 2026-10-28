@@ -13,7 +13,7 @@ sealed interface HomeUiState {
         val isDarkTheme: Boolean = true,
         val searchQuery: String = "",
         /** Filtre actif (tournoi ou catégorie) ; null = "Tous". */
-        val selectedFilter: String? = null,
+        val selectedCategoryFilter: String? = null,
         val filterOptions: List<String> = emptyList(),
         val visibleMatches: List<MatchItem> = emptyList(),
         /** Chaînes filtrées (favoris en tête) utilisées en mode liste plate. */
@@ -21,7 +21,9 @@ sealed interface HomeUiState {
         /** true si recherche/filtre actif : grille plate au lieu de la navigation hiérarchique. */
         val isFlatChannelMode: Boolean = false,
         val favorites: Set<String> = emptySet(),
-        val liveMatchIds: Set<String> = emptySet()
+        val liveMatchIds: Set<String> = emptySet(),
+        /** true pendant un rechargement : le contenu déjà affiché est conservé (pas de flash). */
+        val isLoading: Boolean = false
     ) : HomeUiState
     data class Error(val message: String) : HomeUiState
 }
