@@ -1,14 +1,13 @@
 package com.example.soukitv.features.home.domain.model
 
-import com.google.gson.annotations.SerializedName
-
+/** Chaîne TV : modèle métier pur (aucune dépendance Android / sérialisation). */
 data class Channel(
-    @SerializedName("id") val id: String,
-    @SerializedName("name") val name: String,
-    @SerializedName("logoUrl") val logoUrl: String,
-    @SerializedName("streamUrl") val streamUrl: String,
-    @SerializedName("category") val category: String,
-    @SerializedName("country") val country: String? = null
+    val id: String,
+    val name: String,
+    val logoUrl: String,
+    val streamUrl: String,
+    val category: String,
+    val country: String? = null
 )
 
 

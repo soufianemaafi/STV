@@ -1,25 +1,24 @@
 package com.example.soukitv.features.home.domain.model
 
-import com.google.gson.annotations.SerializedName
 
 /** Source de diffusion alternative (qualité / serveur) d'un match. */
 data class StreamSource(
-    @SerializedName("quality") val quality: String,
-    @SerializedName("url") val url: String
+    val quality: String,
+    val url: String
 )
 
 data class MatchItem(
-    @SerializedName("id") val id: String? = null,
-    @SerializedName("teamA") val teamA: String? = null,
-    @SerializedName("teamALogo") val teamALogo: String? = null,
-    @SerializedName("teamB") val teamB: String? = null,
-    @SerializedName("teamBLogo") val teamBLogo: String? = null,
-    @SerializedName("time") val time: String? = null,
-    @SerializedName("tournament") val tournament: String? = null,
-    @SerializedName("channelName") val channelName: String? = null,
-    @SerializedName("commentator") val commentator: String? = null,
-    @SerializedName("streamUrl") val streamUrl: String? = null,
-    @SerializedName("sources") val sources: List<StreamSource>? = null
+    val id: String? = null,
+    val teamA: String? = null,
+    val teamALogo: String? = null,
+    val teamB: String? = null,
+    val teamBLogo: String? = null,
+    val time: String? = null,
+    val tournament: String? = null,
+    val channelName: String? = null,
+    val commentator: String? = null,
+    val streamUrl: String? = null,
+    val sources: List<StreamSource>? = null
 )
 
 /** Convertit un match en [Channel] lisible par [com.example.soukitv.core.player.StvPlayerLauncher]. */

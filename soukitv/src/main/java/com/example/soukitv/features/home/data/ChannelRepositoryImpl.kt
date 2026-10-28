@@ -1,6 +1,8 @@
 package com.example.soukitv.features.home.data
 
 import android.util.Log
+import com.example.soukitv.features.home.data.mapper.toCategories
+import com.example.soukitv.features.home.data.mapper.toDomain
 import com.example.soukitv.features.home.data.remote.ChannelApiService
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
@@ -25,10 +27,9 @@ class ChannelRepositoryImpl : ChannelRepository {
         val categories = try {
             withContext(Dispatchers.IO) {
                 apiService.getChannels(REMOTE_CHANNELS_URL)
-            }.groupBy { it.category }
-                .map { (categoryName, channelList) ->
-                    Category(categoryName, channelList)
-                }
+            }.toDomain()
+                .toCategories()
+                .ifEmpty { localCategories() }
         } catch (throwable: Exception) {
             Log.w(TAG, "Remote catalogue unavailable, falling back to local channels", throwable)
             localCategories()
@@ -62,10 +63,7 @@ class ChannelRepositoryImpl : ChannelRepository {
             Channel("20", "BFM DICI Haute-Provence", "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/bfm-tv-fr.png", "https://ncdn-live-bfm.pfd.sfr.net/shls/LIVE${'$'}BFM_DICI_HAUTEPROVENCE/index.m3u8?end=END&start=LIVE", "BFM News & Régions")
         )
 
-        return channels.groupBy { it.category }
-            .map { (categoryName, channelList) ->
-                Category(categoryName, channelList)
-            }
+        return channels.toCategories()
     }
 
     /**
@@ -76,7 +74,7 @@ class ChannelRepositoryImpl : ChannelRepository {
         val matches = try {
             withContext(Dispatchers.IO) {
                 apiService.getMatches(REMOTE_MATCHES_URL)
-            }
+            }.toDomain()
         } catch (throwable: Exception) {
             Log.w(TAG, "Remote matches unavailable, falling back to local matches", throwable)
             fallbackMatches()

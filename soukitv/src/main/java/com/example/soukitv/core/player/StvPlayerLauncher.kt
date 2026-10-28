@@ -9,7 +9,8 @@ import com.example.soukitv.features.home.domain.model.Channel
 import com.example.soukitv.features.home.domain.model.MatchItem
 import com.example.soukitv.features.home.domain.model.StreamSource
 import com.example.soukitv.features.home.domain.model.toChannel
-import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 /**
  * Lance un flux dans STV Player via un Intent explicite (contrat IPC immuable).
  *
@@ -69,7 +70,7 @@ class StvPlayerLauncher(
                 putExtra(EXTRA_URL, channel.streamUrl)
                 putExtra(EXTRA_TITLE, channel.name)
                 if (!sources.isNullOrEmpty()) {
-                    putExtra(EXTRA_SOURCES_JSON, Gson().toJson(sources))
+                    putExtra(EXTRA_SOURCES_JSON, sourcesToJson(sources))
                 }
                 putHeaders(this, headers)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -98,6 +99,20 @@ class StvPlayerLauncher(
     } catch (_: Exception) {
         null
     }
+    /** Sérialise les sources en JSON `[{"quality":..,"url":..}]` sans réflexion (R8-safe). */
+    private fun sourcesToJson(sources: List<StreamSource>): String {
+        val array = JsonArray()
+        sources.forEach { source ->
+            array.add(
+                JsonObject().apply {
+                    addProperty("quality", source.quality)
+                    addProperty("url", source.url)
+                }
+            )
+        }
+        return array.toString()
+    }
+
     private fun isAllowedUrl(url: String): Boolean {
         val lower = url.trim().lowercase()
         return lower.startsWith("http://") || lower.startsWith("https://")

@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Bundle
 import com.example.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.example.soukitv.features.home.domain.model.Channel
+import com.example.soukitv.features.home.domain.model.MatchItem
+import com.example.soukitv.features.home.domain.model.StreamSource
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
