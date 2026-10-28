@@ -68,10 +68,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import android.net.Uri
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import com.stv.videoplayer.R
 import com.stv.videoplayer.ui.theme.BlackDrawer
 import com.stv.videoplayer.ui.theme.GrayLight
 import com.stv.videoplayer.ui.theme.GrayMuted
+import com.stv.videoplayer.ui.theme.RedPrimary
 import com.stv.videoplayer.ui.theme.WhitePrimary
 import com.stv.videoplayer.util.NetworkUtils
 import kotlinx.coroutines.launch
@@ -109,6 +114,23 @@ fun HomeScreen(
         showLegalDisclaimerDialog = false
     }
 
+    val appName = stringResource(R.string.app_name)
+    val annotatedAppName = remember(appName) {
+        buildAnnotatedString {
+            appName.forEach { char ->
+                if (char == 'N' || char == 'P') {
+                    withStyle(SpanStyle(color = RedPrimary)) {
+                        append(char)
+                    }
+                } else {
+                    withStyle(SpanStyle(color = WhitePrimary)) {
+                        append(char)
+                    }
+                }
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -127,9 +149,8 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.Start
                     ) {
                         Text(
-                            "STV",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                            color = WhitePrimary
+                            text = annotatedAppName,
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
 
@@ -169,19 +190,18 @@ fun HomeScreen(
                         icon = { Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.menu_rate_us), tint = GrayLight) },
                         selected = false,
                         onClick = {
-                            val marketIntent = Intent(
-                                Intent.ACTION_VIEW,
-                                "market://details?id=com.soufcom.stv".toUri()
-                            )
+                            val packageName = context.packageName
                             try {
-                                context.startActivity(marketIntent)
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                                    setPackage("com.android.vending")
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
                             } catch (_: ActivityNotFoundException) {
-                                context.startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        "https://play.google.com/store/apps/details?id=com.soufcom.stv".toUri()
-                                    )
-                                )
+                                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(webIntent)
                             }
                             scope.launch { drawerState.close() }
                         },
@@ -288,7 +308,7 @@ fun HomeScreen(
                 CenterAlignedTopAppBar(
                     title = {
                         Text(
-                            text = "STV",
+                            text = stringResource(R.string.app_name),
                             style = MaterialTheme.typography.headlineSmall.copy(
                                 fontWeight = FontWeight.Bold
                             ),

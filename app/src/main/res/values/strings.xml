@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">STV</string>
+    <string name="app_name">NexiPlayer</string>
 
     <!-- MainActivity -->
     <string name="menu_content_description">Menu</string>
@@ -36,13 +36,13 @@
     <string name="error_unknown">An error occurred: %1$s</string>
 
     <!-- Home screen -->
-    <string name="welcome_message">Welcome to STV</string>
+    <string name="welcome_message">Welcome to Nexi</string>
     <string name="tagline_message">Watch your favorite videos streaming</string>
     <string name="menu_quit">Quit</string>
     <string name="menu_contact_us">Contact Us</string>
     <string name="menu_rate_us">Rate Us</string>
     <string name="menu_share_app">Share App</string>
-    <string name="share_app_message">Discover STV Player, the best video player: https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
+    <string name="share_app_message">Discover NexiPlayer, the best video player: https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
     <string name="action_quit">Quit</string>
     <string name="action_retry">Retry</string>
     <string name="action_cancel">Cancel</string>
@@ -55,7 +55,7 @@
     <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/soufcom-stv/terms-of-service</string>
     <string name="legal_disclaimer" translatable="false">Legal Disclaimer</string>
     <string name="legal_disclaimer_title" translatable="false">Legal Warning</string>
-    <string name="legal_disclaimer_message" translatable="false">STV Player is a purely technical media player. The application does not provide, host, or stream any video stream or multimedia content. Users are solely responsible for the content they add. STV Player has no affiliation with third-party stream providers and does not endorse the playback of copyrighted content without authorization.</string>
+    <string name="legal_disclaimer_message" translatable="false">NexiPlayer is a purely technical media player. The application does not provide, host, or stream any video stream or multimedia content. Users are solely responsible for the content they add. NexiPlayer has no affiliation with third-party stream providers and does not endorse the playback of copyrighted content without authorization.</string>
     <string name="legal_disclaimer_acknowledge" translatable="false">Understood</string>
 
     <!-- Videos list & add form -->
@@ -104,7 +104,7 @@
     <string name="live_badge" translatable="false">LIVE</string>
     <string name="live_badge_cd">Live stream</string>
     <string name="access_denied">Access denied</string>
-    <string name="this_app_not_authorized">This application is not authorized to launch STV Player.</string>
+    <string name="this_app_not_authorized">This application is not authorized to launch NexiPlayer.</string>
     <string name="ad_load_failed_title">Unable to load content</string>
     <string name="ad_load_failed_message">The content could not be loaded.\nPlease check your connection or disable any ad blocker, then try again.</string>
     <string name="no_network_title">No connection</string>

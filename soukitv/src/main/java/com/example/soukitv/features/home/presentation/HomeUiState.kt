@@ -31,7 +31,9 @@ sealed interface HomeUiState {
         val favorites: Set<String> = emptySet(),
         val liveMatchIds: Set<String> = emptySet(),
         /** true pendant un rechargement : le contenu déjà affiché est conservé (pas de flash). */
-        val isLoading: Boolean = false
+        val isLoading: Boolean = false,
+        /** true pendant un pull-to-refresh : le spinner de rafraîchissement est affiché. */
+        val isRefreshing: Boolean = false
     ) : HomeUiState
     data class Error(val message: String) : HomeUiState
 }

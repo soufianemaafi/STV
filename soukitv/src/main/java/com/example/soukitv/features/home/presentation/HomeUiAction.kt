@@ -25,4 +25,5 @@ sealed interface HomeUiAction {
     /** Filtre par catégorie (ou tournoi pour les matchs) ; null = "Tous". */
     data class SelectFilter(val category: String?) : HomeUiAction
     data class ToggleFavorite(val channelId: String) : HomeUiAction
+    data object RefreshData : HomeUiAction
 }

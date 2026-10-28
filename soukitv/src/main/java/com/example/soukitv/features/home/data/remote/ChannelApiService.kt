@@ -4,6 +4,7 @@ import com.example.soukitv.features.home.data.model.ChannelDto
 import com.example.soukitv.features.home.data.model.MatchItemDto
 import com.example.soukitv.features.home.data.model.RemoteCatalogConfigDto
 import retrofit2.http.GET
+import retrofit2.http.Query
 import retrofit2.http.Url
 
 /** API distante : ne manipule que des DTOs ; le mapping vers le Domain est fait par le repository. */
@@ -12,9 +13,15 @@ interface ChannelApiService {
     suspend fun getRemoteConfig(@Url fullUrl: String): RemoteCatalogConfigDto
 
     @GET("")
-    suspend fun getChannels(@Url fullUrl: String): List<ChannelDto>
+    suspend fun getChannels(
+        @Url fullUrl: String,
+        @Query("t") timestamp: Long = System.currentTimeMillis()
+    ): List<ChannelDto>
 
     @GET("")
-    suspend fun getMatches(@Url fullUrl: String): List<MatchItemDto>
+    suspend fun getMatches(
+        @Url fullUrl: String,
+        @Query("t") timestamp: Long = System.currentTimeMillis()
+    ): List<MatchItemDto>
 }
 

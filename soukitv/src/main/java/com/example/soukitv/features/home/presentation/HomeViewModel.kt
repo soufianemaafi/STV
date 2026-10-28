@@ -111,15 +111,18 @@ class HomeViewModel(
                 runCatching { favoritesStore.save(favorites) }
                 refreshState()
             }
+            HomeUiAction.RefreshData -> loadChannels(isRefresh = true)
         }
     }
 
-    private fun loadChannels() {
+    private fun loadChannels(isRefresh: Boolean = false) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            // Rechargement avec contenu déjà chargé : on garde l'UI et on lève isLoading.
+            // Rechargement avec contenu déjà chargé : on garde l'UI intacte et on lève isRefreshing ou isLoading.
             val current = _uiState.value
-            _uiState.value = if (current is HomeUiState.Success) {
+            _uiState.value = if (isRefresh && current is HomeUiState.Success) {
+                current.copy(isRefreshing = true)
+            } else if (current is HomeUiState.Success) {
                 current.copy(isLoading = true)
             } else {
                 HomeUiState.Loading
@@ -144,9 +147,13 @@ class HomeViewModel(
                         if (activeCountryDetail != null && activeCategoryDetail == null) {
                             activeCountryDetail = null
                         }
-                        publishSuccess()
+                        publishSuccess(isRefreshing = false)
                     }
             }.onFailure { throwable ->
+                val prevSuccess = _uiState.value as? HomeUiState.Success
+                if (prevSuccess != null) {
+                    _uiState.value = prevSuccess.copy(isRefreshing = false, isLoading = false)
+                }
                 _uiState.value = HomeUiState.Error(
                     throwable.message ?: "Unable to load channels"
                 )
@@ -212,10 +219,11 @@ class HomeViewModel(
 
     /** Republie l'etat uniquement si le catalogue est affiche. */
     private fun refreshState() {
-        if (_uiState.value is HomeUiState.Success) publishSuccess()
+        val current = _uiState.value as? HomeUiState.Success ?: return
+        publishSuccess(isRefreshing = current.isRefreshing)
     }
 
-    private fun publishSuccess() {
+    private fun publishSuccess(isRefreshing: Boolean = false) {
         val query = searchQuery.trim()
         val isMatches = currentTab == NavigationTab.MATCHES
 
@@ -264,7 +272,8 @@ class HomeViewModel(
             visibleChannels = visibleChannels,
             isFlatChannelMode = flat,
             favorites = favorites,
-            liveMatchIds = liveIds
+            liveMatchIds = liveIds,
+            isRefreshing = isRefreshing
         )
     }
 }

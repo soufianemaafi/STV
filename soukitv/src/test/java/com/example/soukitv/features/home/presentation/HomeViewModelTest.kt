@@ -4,7 +4,6 @@ import com.example.soukitv.core.player.StvPlayerLauncher
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
 import com.example.soukitv.features.home.domain.model.MatchItem
-import com.example.soukitv.features.home.domain.model.toChannel
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
 import com.example.soukitv.features.home.domain.repository.FavoritesStore
 import com.example.soukitv.features.home.domain.repository.InMemoryFavoritesStore
@@ -279,6 +278,42 @@ class HomeViewModelTest {
         viewModel.onAction(HomeUiAction.ToggleFavorite("2"))
         assertTrue(viewModel.success().favorites.isEmpty())
         assertTrue(store.load().isEmpty())
+    }
+
+    @Test
+    fun refreshData_reloadsDataAndEndsWithIsRefreshingFalse() {
+        val viewModel = viewModel()
+
+        viewModel.onAction(HomeUiAction.RefreshData)
+
+        val state = viewModel.success()
+        assertEquals(catalogue, state.categories)
+        assertEquals(false, state.isRefreshing)
+    }
+
+    @Test
+    fun refreshData_whenErrorOccurs_resetsIsRefreshingAndTransitionsToError() {
+        val repository = object : ChannelRepository {
+            var shouldFail = false
+            override fun getCategories(): Flow<List<Category>> =
+                if (shouldFail) kotlinx.coroutines.flow.flow { throw RuntimeException("Network error") }
+                else flowOf(catalogue)
+            override fun getMatches(): Flow<List<MatchItem>> = flowOf(listOf(match))
+            override fun getMinStvVersionCode(): Flow<Long> = flowOf(1L)
+        }
+        val viewModel = HomeViewModel(
+            repository = repository,
+            stvPlayerLauncher = launcher,
+            favoritesStore = InMemoryFavoritesStore()
+        )
+
+        assertEquals(catalogue, viewModel.success().categories)
+
+        repository.shouldFail = true
+        viewModel.onAction(HomeUiAction.RefreshData)
+
+        assertTrue(viewModel.uiState.value is HomeUiState.Error)
+        assertEquals("Network error", (viewModel.uiState.value as HomeUiState.Error).message)
     }
 
     private fun viewModel(

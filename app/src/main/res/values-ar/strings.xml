@@ -1,6 +1,6 @@
 <resources>
     <!-- الترجمة العربية — STV Player -->
-    <string name="app_name" translatable="false">STV</string>
+    <string name="app_name">NexiPlayer</string>
 
     <!-- الشاشة الرئيسية -->
     <string name="menu_content_description">القائمة</string>
@@ -37,13 +37,13 @@
     <string name="error_unknown">حدث خطأ: %1$s</string>
 
     <!-- الشاشة الرئيسية -->
-    <string name="welcome_message">مرحبًا بك في STV</string>
+    <string name="welcome_message">مرحبًا بك في Nexi</string>
     <string name="tagline_message">شاهد مقاطع الفيديو المفضلة لديك عبر البث</string>
     <string name="menu_quit">خروج</string>
     <string name="menu_contact_us">اتصل بنا</string>
     <string name="menu_rate_us">قيم التطبيق</string>
     <string name="menu_share_app">مشاركة التطبيق</string>
-    <string name="share_app_message">اكتشف STV Player، أفضل مشغل فيديو: https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
+    <string name="share_app_message">اكتشف NexiPlayer، أفضل مشغل فيديو: https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
     <string name="action_quit">خروج</string>
     <string name="action_retry">إعادة المحاولة</string>
     <string name="action_cancel">إلغاء</string>
@@ -56,7 +56,7 @@
     <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/soufcom-stv/terms-of-service</string>
     <string name="legal_disclaimer">إخلاء المسؤولية القانوني</string>
     <string name="legal_disclaimer_title">تحذير قانوني</string>
-    <string name="legal_disclaimer_message">STV Player مشغل وسائط تقني بحت. لا يوفر التطبيق أي بث فيديو أو محتوى متعدد الوسائط، ولا يستضيفه أو ينقله. يتحمل المستخدمون وحدهم مسؤولية المحتوى الذي يضيفونه. لا يرتبط STV Player بأي مزودي بث من جهات خارجية، ولا يؤيد تشغيل المحتوى المحمي بحقوق الطبع والنشر دون تصريح.</string>
+    <string name="legal_disclaimer_message">NexiPlayer مشغل وسائط تقني بحت. لا يوفر التطبيق أي بث فيديو أو محتوى متعدد الوسائط، ولا يستضيفه أو ينقله. يتحمل المستخدمون وحدهم مسؤولية المحتوى الذي يضيفونه. لا يرتبط NexiPlayer بأي مزودي بث من جهات خارجية، ولا يؤيد تشغيل المحتوى المحمي بحقوق الطبع والنشر دون تصريح.</string>
     <string name="legal_disclaimer_acknowledge">فهمت</string>
 
     <!-- قائمة الفيديو ونموذج الإضافة -->
@@ -105,7 +105,7 @@
     <string name="live_badge" translatable="false">LIVE</string>
     <string name="live_badge_cd">بث مباشر</string>
     <string name="access_denied">تم رفض الوصول</string>
-    <string name="this_app_not_authorized">غير مصرح لهذا التطبيق بتشغيل STV Player.</string>
+    <string name="this_app_not_authorized">غير مصرح لهذا التطبيق بتشغيل NexiPlayer.</string>
     <string name="ad_load_failed_title">تعذر تحميل المحتوى</string>
     <string name="ad_load_failed_message">تعذر تحميل المحتوى.\nتحقق من اتصالك أو عطّل أي مانع للإعلانات، ثم حاول مرة أخرى.</string>
     <string name="no_network_title">لا يوجد اتصال</string>

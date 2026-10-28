@@ -43,13 +43,13 @@
     <string name="error_unknown">Une erreur s\'est produite : %1$s</string>
 
     <!-- Home screen -->
-    <string name="welcome_message">Bienvenue sur STV</string>
+    <string name="welcome_message">Bienvenue sur NexiPlayer</string>
     <string name="tagline_message">Regardez vos vidéos en streaming préférées</string>
     <string name="menu_quit">Quitter</string>
     <string name="menu_contact_us">Nous contacter</string>
     <string name="menu_rate_us">Noter l\'application</string>
     <string name="menu_share_app">Partager l\'application</string>
-    <string name="share_app_message">Découvre STV Player, le meilleur lecteur vidéo : https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
+    <string name="share_app_message">Découvre NexiPlayer, le meilleur lecteur vidéo : https://play.google.com/store/apps/details?id=com.soufcom.stv</string>
     <string name="action_quit">Quitter</string>
     <string name="action_retry">Réessayer</string>
     <string name="action_cancel">Annuler</string>
@@ -65,7 +65,7 @@
     <string name="terms_of_service_url" translatable="false">https://sites.google.com/view/soufcom-stv/terms-of-service</string>
     <string name="legal_disclaimer">Avis de non-responsabilité</string>
     <string name="legal_disclaimer_title">Avertissement Légal</string>
-    <string name="legal_disclaimer_message">STV Player est un lecteur multimédia purement technique. L\'application ne fournit, n\'héberge et ne diffuse aucun flux vidéo ni contenu multimédia. Les utilisateurs sont seuls responsables des contenus qu\'ils ajoutent. STV Player n\'a aucune affiliation avec les fournisseurs de flux tiers et n\'approuve pas la lecture de contenus protégés sans autorisation.</string>
+    <string name="legal_disclaimer_message">NexiPlayer est un lecteur multimédia purement technique. L\'application ne fournit, n\'héberge et ne diffuse aucun flux vidéo ni contenu multimédia. Les utilisateurs sont seuls responsables des contenus qu\'ils ajoutent. NexiPlayer n\'a aucune affiliation avec les fournisseurs de flux tiers et n\'approuve pas la lecture de contenus protégés sans autorisation.</string>
     <string name="legal_disclaimer_acknowledge">Compris</string>
 
     <!-- Videos list & add form -->
@@ -112,12 +112,12 @@
     <string name="live_badge" translatable="false">LIVE</string>
     <string name="live_badge_cd">Flux en direct</string>
     <string name="access_denied">Accès refusé</string>
-    <string name="this_app_not_authorized">Cette application n\'est pas autorisée à lancer STV Player.</string>
+    <string name="this_app_not_authorized">Cette application n\'est pas autorisée à lancer NexiPlayer.</string>
     <string name="ad_load_failed_title">Impossible de charger le contenu</string>
     <string name="ad_load_failed_message">Le contenu n\'a pas pu être chargé.\nVérifiez votre connexion ou désactivez tout bloqueur de pub, puis réessayez.</string>
     <string name="no_network_title">Pas de connexion</string>
     <string name="no_network_message">Une connexion internet est nécessaire pour charger le contenu.\nVérifiez votre réseau et réessayez.</string>
     <string name="retry_button">Réessayer</string>
     <string name="no_results_for">Aucun résultat pour</string>
-    <string name="app_name">STV</string>
+    <string name="app_name">NexiPlayer</string>
 </resources>
