@@ -44,6 +44,7 @@ class HomeViewModel(
     private var channelFilter: String? = null
     private var favorites: Set<String> =
         runCatching { favoritesStore.load() }.getOrDefault(emptySet())
+    private var minStvVersionCode: Long = StvPlayerLauncher.MIN_STV_VERSION_CODE
 
     init {
         loadChannels()
@@ -53,7 +54,7 @@ class HomeViewModel(
         when (action) {
             is HomeUiAction.SelectChannel -> handleSelectChannel(action.channel)
             is HomeUiAction.SelectMatch -> {
-                handleLaunchResult(stvPlayerLauncher.launchMatch(action.match))
+                handleSelectMatch(action.match)
             }
             HomeUiAction.DismissInstallDialog -> restoreSuccessState()
             HomeUiAction.InstallStv -> {
@@ -128,10 +129,14 @@ class HomeViewModel(
                     .combine(repository.getMatches()) { categories, todayMatches ->
                         categories to todayMatches
                     }
-                    .collect { (categories, todayMatches) ->
+                    .combine(repository.getMinStvVersionCode()) { (categories, todayMatches), minVersionCode ->
+                        Triple(categories, todayMatches, minVersionCode)
+                    }
+                    .collect { (categories, todayMatches, minVersionCode) ->
                         this@HomeViewModel.categories = categories
                         // Tri chronologique des matchs (format HH:mm).
                         matches = todayMatches.sortedBy { it.time }
+                        minStvVersionCode = minVersionCode
                         // Re-resout la categorie ouverte sur le nouveau catalogue.
                         activeCategoryDetail = activeCategoryDetail?.let { open ->
                             categories.firstOrNull { it.name == open.name }
@@ -150,22 +155,51 @@ class HomeViewModel(
     }
 
     private fun handleSelectChannel(channel: Channel) {
-        handleLaunchResult(stvPlayerLauncher.launchChannel(channel))
+        handleLaunchResult(
+            stvPlayerLauncher.launchChannel(
+                channel = channel,
+                minStvVersionCode = minStvVersionCode
+            )
+        )
+    }
+
+    private fun handleSelectMatch(match: MatchItem) {
+        handleLaunchResult(
+            stvPlayerLauncher.launchMatch(
+                match = match,
+                minStvVersionCode = minStvVersionCode
+            )
+        )
     }
 
     private fun handleLaunchResult(result: LaunchResult) {
         when (result) {
             LaunchResult.Launched -> Unit
             LaunchResult.NotInstalled -> {
-                _uiState.value = HomeUiState.Error(StvPlayerLauncher.NOT_INSTALLED_MESSAGE)
+                showStvPrompt(StvPromptType.Install)
             }
             LaunchResult.UpdateRequired -> {
-                _uiState.value = HomeUiState.Error(StvPlayerLauncher.UPDATE_REQUIRED_MESSAGE)
+                showStvPrompt(StvPromptType.Update)
             }
             is LaunchResult.Failed -> {
                 _uiState.value = HomeUiState.Error(result.message)
             }
         }
+    }
+
+    private fun showStvPrompt(promptType: StvPromptType) {
+        val current = _uiState.value
+        if (current is HomeUiState.Success) {
+            _uiState.value = current.copy(stvPromptType = promptType)
+            return
+        }
+        _uiState.value = HomeUiState.Error(
+            if (promptType is StvPromptType.Update) {
+                StvPlayerLauncher.UPDATE_REQUIRED_MESSAGE
+            } else {
+                StvPlayerLauncher.NOT_INSTALLED_MESSAGE
+            }
+        )
     }
 
     private fun restoreSuccessState() {

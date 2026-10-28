@@ -3,8 +3,14 @@
     <string name="tab_matches">Matchs</string>
     <string name="tab_channels">Chaînes TV</string>
     <string name="dialog_stv_required_title">STV Required</string>
+    <string name="dialog_stv_install_title">Lecteur video requis</string>
+    <string name="dialog_stv_install_message">Installez STV Player depuis le Play Store pour lire ce contenu.</string>
+    <string name="dialog_stv_update_title">Mise a jour requise</string>
+    <string name="dialog_stv_update_message">La version actuelle de STV Player est obsolete et incompatible. Mettez-la a jour depuis le Play Store.</string>
     <string name="dialog_error_title">Erreur</string>
     <string name="action_install_stv">Installer STV</string>
+    <string name="action_install">Installer</string>
+    <string name="action_update">Mettre a jour</string>
     <string name="action_retry">Réessayer</string>
     <string name="action_cancel">Annuler</string>
     <string name="action_back">Retour</string>

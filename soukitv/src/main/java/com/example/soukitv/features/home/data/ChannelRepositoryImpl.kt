@@ -3,6 +3,7 @@ package com.example.soukitv.features.home.data
 import android.util.Log
 import com.example.soukitv.features.home.data.mapper.toCategories
 import com.example.soukitv.features.home.data.mapper.toDomain
+import com.example.soukitv.features.home.data.model.RemoteCatalogConfigDto
 import com.example.soukitv.features.home.data.remote.ChannelApiService
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
@@ -36,6 +37,21 @@ class ChannelRepositoryImpl : ChannelRepository {
         }
 
         emit(categories)
+    }
+
+    override fun getMinStvVersionCode(): Flow<Long> = flow {
+        val minVersion = try {
+            withContext(Dispatchers.IO) {
+                apiService.getRemoteConfig(REMOTE_CONFIG_URL)
+            }.minStvVersionCode
+                .takeIf { it > 0L }
+                ?: RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE
+        } catch (throwable: Exception) {
+            Log.w(TAG, "Remote config unavailable, using default minStvVersionCode", throwable)
+            RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE
+        }
+
+        emit(minVersion)
     }
 
     private fun localCategories(): List<Category> {
@@ -124,6 +140,7 @@ class ChannelRepositoryImpl : ChannelRepository {
 
     companion object {
         private const val TAG = "ChannelRepositoryImpl"
+        private const val REMOTE_CONFIG_URL = "https://raw.githubusercontent.com/elcodefy/souki-chanels/refs/heads/main/config.json"
         private const val REMOTE_CHANNELS_URL = "https://raw.githubusercontent.com/elcodefy/souki-chanels/refs/heads/main/channels.json"
         private const val REMOTE_MATCHES_URL = "https://raw.githubusercontent.com/elcodefy/souki-chanels/refs/heads/main/matches.json"
     }

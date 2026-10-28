@@ -30,7 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.soukitv.R
-import com.example.soukitv.core.player.StvPlayerLauncher
 import com.example.soukitv.features.home.presentation.HomeUiAction
 import com.example.soukitv.features.home.presentation.HomeUiState
 import com.example.soukitv.features.home.presentation.HomeViewModel
@@ -73,6 +72,7 @@ fun HomeScreen(
 
     val success = (currentUiState as? HomeUiState.Success) ?: lastSuccess
     val errorState = currentUiState as? HomeUiState.Error
+    val stvPromptType = (currentUiState as? HomeUiState.Success)?.stvPromptType
     val selectedTab = success?.currentTab ?: NavigationTab.MATCHES
 
     Scaffold(
@@ -188,11 +188,10 @@ fun HomeScreen(
         }
     }
 
-    if (errorState != null) {
+    if (errorState != null || stvPromptType != null) {
         StvErrorDialog(
-            message = errorState.message,
-            installRequired = errorState.message == StvPlayerLauncher.NOT_INSTALLED_MESSAGE ||
-                errorState.message == StvPlayerLauncher.UPDATE_REQUIRED_MESSAGE,
+            message = errorState?.message,
+            promptType = stvPromptType,
             onDismiss = { viewModel.onAction(HomeUiAction.DismissInstallDialog) },
             onInstall = { viewModel.onAction(HomeUiAction.InstallStv) },
             onRetry = { viewModel.onAction(HomeUiAction.Retry) }

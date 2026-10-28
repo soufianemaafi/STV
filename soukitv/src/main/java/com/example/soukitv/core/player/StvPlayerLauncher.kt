@@ -28,28 +28,58 @@ class StvPlayerLauncher(
     private val bundleFactory: () -> Bundle = { Bundle() },
     private val uriParser: (String) -> Uri = { Uri.parse(it) }
 ) {
-    fun launchChannel(channel: Channel): LaunchResult =
-        launch(channel, sources = null, headers = emptyMap())
+    fun launchChannel(
+        channel: Channel,
+        minStvVersionCode: Long = minVersionCode
+    ): LaunchResult =
+        launch(
+            channel = channel,
+            sources = null,
+            headers = emptyMap(),
+            minStvVersionCode = minStvVersionCode
+        )
     /** Variante avec en-têtes HTTP optionnels (Referer, User-Agent, jetons Nginx...). */
-    fun launchChannel(channel: Channel, headers: Map<String, String>): LaunchResult =
-        launch(channel, sources = null, headers = headers)
+    fun launchChannel(
+        channel: Channel,
+        headers: Map<String, String>,
+        minStvVersionCode: Long = minVersionCode
+    ): LaunchResult =
+        launch(
+            channel = channel,
+            sources = null,
+            headers = headers,
+            minStvVersionCode = minStvVersionCode
+        )
     /**
      * Lance un match. Si [MatchItem.sources] n'est pas vide, la liste est sérialisée en JSON
      * (extra `sources_json`) et la première source devient l'URL par défaut (`VIDEO_URL`).
      */
-    fun launchMatch(match: MatchItem): LaunchResult = launchMatch(match, emptyMap())
-    fun launchMatch(match: MatchItem, headers: Map<String, String>): LaunchResult {
+    fun launchMatch(
+        match: MatchItem,
+        minStvVersionCode: Long = minVersionCode
+    ): LaunchResult = launchMatch(match, emptyMap(), minStvVersionCode)
+    fun launchMatch(
+        match: MatchItem,
+        headers: Map<String, String>,
+        minStvVersionCode: Long = minVersionCode
+    ): LaunchResult {
         val sources = match.sources
             ?.filter { it.url.isNotBlank() }
             ?.takeIf { it.isNotEmpty() }
         val baseChannel = match.toChannel()
         val channel = if (sources != null) baseChannel.copy(streamUrl = sources.first().url) else baseChannel
-        return launch(channel, sources, headers)
+        return launch(
+            channel = channel,
+            sources = sources,
+            headers = headers,
+            minStvVersionCode = minStvVersionCode
+        )
     }
     private fun launch(
         channel: Channel,
         sources: List<StreamSource>?,
-        headers: Map<String, String>
+        headers: Map<String, String>,
+        minStvVersionCode: Long
     ): LaunchResult {
         // 1. Package cible : production en priorité stricte, puis dev.
         val target = TARGET_PACKAGES.firstNotNullOfOrNull { packageName ->
@@ -57,7 +87,7 @@ class StvPlayerLauncher(
         } ?: return LaunchResult.NotInstalled
         val (targetPackage, versionCode) = target
         // 2. Force update.
-        if (versionCode < minVersionCode) return LaunchResult.UpdateRequired
+        if (versionCode < minStvVersionCode) return LaunchResult.UpdateRequired
         // 3. Seuls http/https sont autorisés (anti-hijacking).
         if (!isAllowedUrl(channel.streamUrl)) {
             return LaunchResult.Failed("Unsupported stream URL")
@@ -119,6 +149,7 @@ class StvPlayerLauncher(
     }
     fun openPlayStore() {
         val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse(PLAY_STORE_MARKET_URL)).apply {
+            setPackage(GOOGLE_PLAY_PACKAGE)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         try {
@@ -153,6 +184,7 @@ class StvPlayerLauncher(
             "Please update STV Player from the Google Play Store to play this content."
         private const val VIDEO_MIME_TYPE = "video/*"
         private const val HEADER_REFERER = "Referer"
+        private const val GOOGLE_PLAY_PACKAGE = "com.android.vending"
         private const val PLAY_STORE_MARKET_URL = "market://details?id=$PACKAGE_PROD"
         private const val PLAY_STORE_WEB_URL = "https://play.google.com/store/apps/details?id=$PACKAGE_PROD"
         /** Ordre = priorité : production d'abord, puis variante dev. */
