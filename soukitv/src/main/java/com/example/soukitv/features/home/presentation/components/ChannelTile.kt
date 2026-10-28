@@ -51,7 +51,7 @@ fun ChannelTile(
     Card(
         onClick = { onChannelClick(channel) },
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(6.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline)
     ) {
@@ -64,7 +64,7 @@ fun ChannelTile(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1.3f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(4.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(10.dp)
                 ) {

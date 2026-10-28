@@ -45,7 +45,7 @@ private val ShimmerBase = SoukiDarkSurfaceVariant
 private val ShimmerHighlight = SoukiDarkBorder
 
 /** Applique un balayage lumineux animé (gradient linéaire) sur le composant. */
-fun Modifier.shimmer(shape: Shape = RoundedCornerShape(8.dp)): Modifier = composed {
+fun Modifier.shimmer(shape: Shape = RoundedCornerShape(6.dp)): Modifier = composed {
     val transition = rememberInfiniteTransition(label = "shimmer")
     val progress by transition.animateFloat(
         initialValue = 0f,
@@ -70,7 +70,7 @@ fun Modifier.shimmer(shape: Shape = RoundedCornerShape(8.dp)): Modifier = compos
 
 /** Bloc squelette générique. */
 @Composable
-fun ShimmerBox(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(8.dp)) {
+fun ShimmerBox(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(6.dp)) {
     Box(modifier = modifier.shimmer(shape))
 }
 
@@ -79,7 +79,7 @@ private fun MatchCardSkeleton() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(SoukiDarkSurface)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -91,7 +91,7 @@ private fun MatchCardSkeleton() {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             ShimmerBox(Modifier.size(52.dp), CircleShape)
-            ShimmerBox(Modifier.size(width = 64.dp, height = 28.dp), RoundedCornerShape(14.dp))
+            ShimmerBox(Modifier.size(width = 64.dp, height = 28.dp), RoundedCornerShape(4.dp))
             ShimmerBox(Modifier.size(52.dp), CircleShape)
         }
         ShimmerBox(Modifier.fillMaxWidth().height(12.dp))
@@ -103,12 +103,12 @@ private fun ChannelCardSkeleton() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(SoukiDarkSurface)
             .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        ShimmerBox(Modifier.fillMaxWidth().aspectRatio(1.3f), RoundedCornerShape(10.dp))
+        ShimmerBox(Modifier.fillMaxWidth().aspectRatio(1.3f), RoundedCornerShape(4.dp))
         Spacer(Modifier.height(8.dp))
         ShimmerBox(Modifier.fillMaxWidth(0.7f).height(12.dp))
     }
@@ -123,14 +123,14 @@ fun HomeShimmerSkeleton(modifier: Modifier = Modifier) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .height(52.dp),
-            RoundedCornerShape(26.dp)
+            RoundedCornerShape(6.dp)
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(List(5) { it }) {
-                ShimmerBox(Modifier.size(width = 72.dp, height = 32.dp), RoundedCornerShape(16.dp))
+                ShimmerBox(Modifier.size(width = 72.dp, height = 32.dp), RoundedCornerShape(6.dp))
             }
         }
         LazyColumn(

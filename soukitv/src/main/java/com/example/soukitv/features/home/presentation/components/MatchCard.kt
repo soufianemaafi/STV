@@ -65,7 +65,7 @@ fun MatchCard(
     Card(
         onClick = { onMatchClick(match) },
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(6.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = BorderStroke(0.5.dp, borderColor)
     ) {
@@ -123,10 +123,13 @@ private fun MatchInfoRow(match: MatchItem) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(0.5.dp, SoukiDarkBorder, RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(SoukiDarkSurface.copy(alpha = 0.85f))
+                    .border(0.5.dp, SoukiDarkBorder, RoundedCornerShape(4.dp))
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             )
+        } else {
+            Spacer(modifier = Modifier.width(12.dp))
         }
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
             InfoText(Icons.Default.Tv, match.channelName, TextAlign.End)
