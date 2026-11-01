@@ -149,14 +149,15 @@ class HomeViewModel(
                         }
                         publishSuccess(isRefreshing = false)
                     }
-            }.onFailure { throwable ->
+            }.onFailure {
                 val prevSuccess = _uiState.value as? HomeUiState.Success
                 if (prevSuccess != null) {
                     _uiState.value = prevSuccess.copy(isRefreshing = false, isLoading = false)
+                } else {
+                    _uiState.value = HomeUiState.Error(
+                        "Connexion Internet indisponible. Veuillez vérifier votre réseau."
+                    )
                 }
-                _uiState.value = HomeUiState.Error(
-                    throwable.message ?: "Unable to load channels"
-                )
             }
         }
     }
@@ -214,7 +215,7 @@ class HomeViewModel(
         if (categories.isNotEmpty()) {
             publishSuccess()
         } else {
-            _uiState.value = HomeUiState.Loading
+            loadChannels()
         }
     }
 

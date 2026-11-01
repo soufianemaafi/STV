@@ -17,13 +17,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -39,6 +38,7 @@ import com.example.soukitv.features.home.presentation.NavigationTab
 import com.example.soukitv.features.home.presentation.components.ChannelsTab
 import com.example.soukitv.features.home.presentation.components.HomeShimmerSkeleton
 import com.example.soukitv.features.home.presentation.components.MatchesTab
+import com.example.soukitv.features.home.presentation.components.OfflineErrorView
 import com.example.soukitv.features.home.presentation.components.SearchAndFilterBar
 import com.example.soukitv.features.home.presentation.components.SoukiBottomBar
 import com.example.soukitv.features.home.presentation.components.StvErrorDialog
@@ -66,9 +66,8 @@ fun HomeScreen(
     }
 
     val success = currentUiState as? HomeUiState.Success
-    val errorState = currentUiState as? HomeUiState.Error
     val isLoading = currentUiState is HomeUiState.Loading
-    val stvPromptType = (currentUiState as? HomeUiState.Success)?.stvPromptType
+    val stvPromptType = success?.stvPromptType
     val selectedTab = success?.currentTab ?: NavigationTab.MATCHES
 
     Scaffold(
@@ -129,82 +128,92 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when {
-                isLoading -> HomeShimmerSkeleton()
-                success != null -> {
-                val pullToRefreshState = rememberPullToRefreshState()
-                PullToRefreshBox(
-                    isRefreshing = success.isRefreshing,
-                    onRefresh = { viewModel.onAction(HomeUiAction.RefreshData) },
-                    state = pullToRefreshState,
-                    modifier = Modifier.fillMaxSize(),
-                    indicator = {
-                        PullToRefreshDefaults.Indicator(
-                            state = pullToRefreshState,
-                            isRefreshing = success.isRefreshing,
-                            modifier = Modifier.align(Alignment.TopCenter),
-                            containerColor = SoukiDarkSurface,
-                            color = SoukiRed
+            val pullToRefreshState = rememberPullToRefreshState()
+            PullToRefreshBox(
+                isRefreshing = success?.isRefreshing == true,
+                onRefresh = { viewModel.onAction(HomeUiAction.RefreshData) },
+                state = pullToRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullToRefreshState,
+                        isRefreshing = success?.isRefreshing == true,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        containerColor = SoukiDarkSurface,
+                        color = SoukiRed
+                    )
+                }
+            ) {
+                when {
+                    isLoading -> HomeShimmerSkeleton()
+                    currentUiState is HomeUiState.Error -> {
+                        OfflineErrorView(
+                            onRetry = { viewModel.onAction(HomeUiAction.Retry) }
                         )
                     }
-                ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        val inRootLevel = success.activeCategoryDetail == null &&
-                            success.activeCountryDetail == null
-                        if (inRootLevel && success.currentTab == NavigationTab.CHANNELS) {
-                            SearchAndFilterBar(
-                                query = success.searchQuery,
-                                filters = success.filterOptions,
-                                selectedFilter = success.selectedCategoryFilter,
-                                onQueryChange = { viewModel.onAction(HomeUiAction.SearchQuery(it)) },
-                                onFilterSelected = { viewModel.onAction(HomeUiAction.SelectFilter(it)) }
-                            )
-                        }
-                        if (success.currentTab == NavigationTab.MATCHES) {
-                            MatchesTab(
-                                matches = success.visibleMatches,
-                                liveMatchIds = success.liveMatchIds,
-                                isFiltering = success.searchQuery.isNotBlank() ||
-                                    success.selectedCategoryFilter != null,
-                                onMatchClick = { match ->
-                                    viewModel.onAction(HomeUiAction.SelectMatch(match))
-                                }
-                            )
-                        } else {
-                            ChannelsTab(
-                                categories = success.categories,
-                                activeCategory = success.activeCategoryDetail,
-                                activeCountry = success.activeCountryDetail,
-                                isFlatMode = success.isFlatChannelMode,
-                                flatChannels = success.visibleChannels,
-                                favorites = success.favorites,
-                                onCategoryClick = { category ->
-                                    viewModel.onAction(HomeUiAction.SelectCategoryDetail(category))
-                                },
-                                onCountryClick = { country ->
-                                    viewModel.onAction(HomeUiAction.SelectCountry(country))
-                                },
-                                onBackClick = {
-                                    viewModel.onAction(HomeUiAction.NavigateBack)
-                                },
-                                onChannelClick = { channel ->
-                                    viewModel.onAction(HomeUiAction.SelectChannel(channel))
-                                },
-                                onToggleFavorite = { channel ->
-                                    viewModel.onAction(HomeUiAction.ToggleFavorite(channel.id))
-                                }
-                            )
+                    success != null -> {
+                        val loaded = success
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            val inRootLevel = loaded.activeCategoryDetail == null &&
+                                loaded.activeCountryDetail == null
+                            if (inRootLevel && loaded.currentTab == NavigationTab.CHANNELS) {
+                                SearchAndFilterBar(
+                                    query = loaded.searchQuery,
+                                    filters = loaded.filterOptions,
+                                    selectedFilter = loaded.selectedCategoryFilter,
+                                    onQueryChange = {
+                                        viewModel.onAction(HomeUiAction.SearchQuery(it))
+                                    },
+                                    onFilterSelected = {
+                                        viewModel.onAction(HomeUiAction.SelectFilter(it))
+                                    }
+                                )
+                            }
+                            if (loaded.currentTab == NavigationTab.MATCHES) {
+                                MatchesTab(
+                                    matches = loaded.visibleMatches,
+                                    liveMatchIds = loaded.liveMatchIds,
+                                    isFiltering = loaded.searchQuery.isNotBlank() ||
+                                        loaded.selectedCategoryFilter != null,
+                                    onMatchClick = { match ->
+                                        viewModel.onAction(HomeUiAction.SelectMatch(match))
+                                    }
+                                )
+                            } else {
+                                ChannelsTab(
+                                    categories = loaded.categories,
+                                    activeCategory = loaded.activeCategoryDetail,
+                                    activeCountry = loaded.activeCountryDetail,
+                                    isFlatMode = loaded.isFlatChannelMode,
+                                    flatChannels = loaded.visibleChannels,
+                                    favorites = loaded.favorites,
+                                    onCategoryClick = { category ->
+                                        viewModel.onAction(HomeUiAction.SelectCategoryDetail(category))
+                                    },
+                                    onCountryClick = { country ->
+                                        viewModel.onAction(HomeUiAction.SelectCountry(country))
+                                    },
+                                    onBackClick = {
+                                        viewModel.onAction(HomeUiAction.NavigateBack)
+                                    },
+                                    onChannelClick = { channel ->
+                                        viewModel.onAction(HomeUiAction.SelectChannel(channel))
+                                    },
+                                    onToggleFavorite = { channel ->
+                                        viewModel.onAction(HomeUiAction.ToggleFavorite(channel.id))
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
-            }
         }
     }
 
-    if (errorState != null || stvPromptType != null) {
+    if (stvPromptType != null) {
         StvErrorDialog(
-            message = errorState?.message,
+            message = null,
             promptType = stvPromptType,
             onDismiss = { viewModel.onAction(HomeUiAction.DismissInstallDialog) },
             onInstall = { viewModel.onAction(HomeUiAction.InstallStv) },

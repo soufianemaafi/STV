@@ -289,10 +289,11 @@ class HomeViewModelTest {
         val state = viewModel.success()
         assertEquals(catalogue, state.categories)
         assertEquals(false, state.isRefreshing)
+        assertEquals(false, state.isLoading)
     }
 
     @Test
-    fun refreshData_whenErrorOccurs_resetsIsRefreshingAndTransitionsToError() {
+    fun refreshData_whenErrorOccurs_preservesSuccessAndResetsRefreshing() {
         val repository = object : ChannelRepository {
             var shouldFail = false
             override fun getCategories(): Flow<List<Category>> =
@@ -312,8 +313,9 @@ class HomeViewModelTest {
         repository.shouldFail = true
         viewModel.onAction(HomeUiAction.RefreshData)
 
-        assertTrue(viewModel.uiState.value is HomeUiState.Error)
-        assertEquals("Network error", (viewModel.uiState.value as HomeUiState.Error).message)
+        val state = viewModel.success()
+        assertEquals(catalogue, state.categories)
+        assertEquals(false, state.isRefreshing)
     }
 
     private fun viewModel(
