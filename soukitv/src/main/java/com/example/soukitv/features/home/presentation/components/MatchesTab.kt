@@ -53,7 +53,7 @@ fun MatchesTab(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(matches, key = { it.id.orEmpty() + it.time.orEmpty() + it.teamA.orEmpty() }) { match ->
+        items(matches, key = { match -> match.id ?: "${match.teamA}_${match.time}" }) { match ->
             MatchCard(
                 match = match,
                 isLive = match.id in liveMatchIds,

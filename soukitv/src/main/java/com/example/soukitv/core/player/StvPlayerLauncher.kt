@@ -63,11 +63,20 @@ class StvPlayerLauncher(
         headers: Map<String, String>,
         minStvVersionCode: Long = minVersionCode
     ): LaunchResult {
+        val primaryUrl = match.streamUrl?.trim().orEmpty()
         val sources = match.sources
-            ?.filter { it.url.isNotBlank() }
+            ?.mapNotNull { source ->
+                source.url.trim()
+                    .takeIf(::isAllowedUrl)
+                    ?.let { url -> source.copy(url = url) }
+            }
             ?.takeIf { it.isNotEmpty() }
+        val streamUrl = primaryUrl
+            .takeIf(::isAllowedUrl)
+            ?: sources?.firstOrNull()?.url?.trim()
+            ?: return LaunchResult.Failed("Aucun flux vidéo disponible pour cet événement.")
         val baseChannel = match.toChannel()
-        val channel = if (sources != null) baseChannel.copy(streamUrl = sources.first().url) else baseChannel
+        val channel = baseChannel.copy(streamUrl = streamUrl)
         return launch(
             channel = channel,
             sources = sources,
@@ -81,6 +90,10 @@ class StvPlayerLauncher(
         headers: Map<String, String>,
         minStvVersionCode: Long
     ): LaunchResult {
+        // Rejeter immédiatement les URLs vides ou non HTTP(S), avant toute résolution de package.
+        if (!isAllowedUrl(channel.streamUrl)) {
+            return LaunchResult.Failed("Unsupported stream URL")
+        }
         // 1. Package cible : production en priorité stricte, puis dev.
         val target = TARGET_PACKAGES.firstNotNullOfOrNull { packageName ->
             installedVersionCode(packageName)?.let { packageName to it }
@@ -88,10 +101,6 @@ class StvPlayerLauncher(
         val (targetPackage, versionCode) = target
         // 2. Force update.
         if (versionCode < minStvVersionCode) return LaunchResult.UpdateRequired
-        // 3. Seuls http/https sont autorisés (anti-hijacking).
-        if (!isAllowedUrl(channel.streamUrl)) {
-            return LaunchResult.Failed("Unsupported stream URL")
-        }
         return try {
             val intent = intentFactory(PLAY_STREAM_ACTION).apply {
                 setPackage(targetPackage)

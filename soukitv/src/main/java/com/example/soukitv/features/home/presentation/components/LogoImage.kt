@@ -1,6 +1,7 @@
 package com.example.soukitv.features.home.presentation.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
@@ -17,13 +18,19 @@ fun SoukiLogoImage(
     modifier: Modifier,
     contentScale: ContentScale = ContentScale.Fit
 ) {
-    AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
+    val context = LocalContext.current
+    val transformation = remember { AutoCropTransparentTransformation() }
+    val imageRequest = remember(url) {
+        ImageRequest.Builder(context)
             .data(url)
             .addHeader("User-Agent", BROWSER_USER_AGENT)
-            .transformations(AutoCropTransparentTransformation())
+            .transformations(transformation)
             .crossfade(true)
-            .build(),
+            .build()
+    }
+
+    AsyncImage(
+        model = imageRequest,
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale

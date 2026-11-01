@@ -160,6 +160,49 @@ class StvPlayerLauncherTest {
         verify(exactly = 0) { context.startActivity(any()) }
     }
 
+    @Test
+    fun launchMatch_returnsFailed_whenPrimaryUrlIsNullAndNoValidSecondarySourceExists() {
+        val match = MatchItem(streamUrl = null)
+
+        val result = launcher().launchMatch(match)
+
+        assertEquals(
+            LaunchResult.Failed("Aucun flux vidéo disponible pour cet événement."),
+            result
+        )
+        verify(exactly = 0) { context.startActivity(any()) }
+    }
+
+    @Test
+    fun launchMatch_returnsFailed_whenPrimaryUrlUsesUnsupportedScheme() {
+        val match = MatchItem(streamUrl = "file:///sdcard/match.mp4")
+
+        val result = launcher().launchMatch(match)
+
+        assertTrue(result is LaunchResult.Failed)
+        verify(exactly = 0) { context.startActivity(any()) }
+    }
+
+    @Test
+    fun launchMatch_usesFirstValidSecondarySource_whenPrimaryUrlIsNull() {
+        installed(prod, versionCode = 2)
+        val secondaryUrl = "https://example.com/secondary.m3u8"
+        val match = MatchItem(
+            streamUrl = null,
+            sources = listOf(
+                StreamSource("Invalid", "file:///sdcard/invalid.mp4"),
+                StreamSource("HD", secondaryUrl)
+            )
+        )
+
+        val result = launcher().launchMatch(match)
+
+        assertEquals(LaunchResult.Launched, result)
+        verify { intent.putExtra(StvPlayerLauncher.EXTRA_VIDEO_URL, secondaryUrl) }
+        verify(exactly = 1) { context.startActivity(intent) }
+    }
+
+    @Suppress("DEPRECATION")
     private fun installed(packageName: String, versionCode: Int) {
         val info = PackageInfo().apply { this.versionCode = versionCode }
         every { packageManager.getPackageInfo(packageName, 0) } returns info

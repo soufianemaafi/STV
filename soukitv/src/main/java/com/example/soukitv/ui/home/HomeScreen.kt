@@ -18,12 +18,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -68,16 +65,9 @@ fun HomeScreen(
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.MATCHES))
     }
 
-    var lastSuccess by remember { mutableStateOf<HomeUiState.Success?>(null) }
-    LaunchedEffect(currentUiState) {
-        val newSuccess = currentUiState as? HomeUiState.Success
-        if (newSuccess != null) {
-            lastSuccess = newSuccess
-        }
-    }
-
-    val success = (currentUiState as? HomeUiState.Success) ?: lastSuccess
+    val success = currentUiState as? HomeUiState.Success
     val errorState = currentUiState as? HomeUiState.Error
+    val isLoading = currentUiState is HomeUiState.Loading
     val stvPromptType = (currentUiState as? HomeUiState.Success)?.stvPromptType
     val selectedTab = success?.currentTab ?: NavigationTab.MATCHES
 
@@ -139,9 +129,9 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (success == null) {
-                if (errorState == null) HomeShimmerSkeleton()
-            } else {
+            when {
+                isLoading -> HomeShimmerSkeleton()
+                success != null -> {
                 val pullToRefreshState = rememberPullToRefreshState()
                 PullToRefreshBox(
                     isRefreshing = success.isRefreshing,
@@ -207,6 +197,7 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

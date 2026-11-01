@@ -189,7 +189,9 @@ class HomeViewModel(
                 showStvPrompt(StvPromptType.Update)
             }
             is LaunchResult.Failed -> {
-                _uiState.value = HomeUiState.Error(result.message)
+                if (_uiState.value !is HomeUiState.Success) {
+                    _uiState.value = HomeUiState.Error(result.message)
+                }
             }
         }
     }
@@ -201,10 +203,9 @@ class HomeViewModel(
             return
         }
         _uiState.value = HomeUiState.Error(
-            if (promptType is StvPromptType.Update) {
-                StvPlayerLauncher.UPDATE_REQUIRED_MESSAGE
-            } else {
-                StvPlayerLauncher.NOT_INSTALLED_MESSAGE
+            when (promptType) {
+                StvPromptType.Install -> StvPlayerLauncher.NOT_INSTALLED_MESSAGE
+                StvPromptType.Update -> StvPlayerLauncher.UPDATE_REQUIRED_MESSAGE
             }
         )
     }
