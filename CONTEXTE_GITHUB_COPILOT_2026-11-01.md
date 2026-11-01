@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`  
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
-> **Git Release Tag** : `v3.2.0-soukitv-ipc-security` (Novembre 2026)
+> **Git Release Tag** : `v3.3.0-soukitv-network-security` (Novembre 2026)
 
 ---
 
@@ -210,6 +210,7 @@ soukitv/src/main/java/com/example/soukitv/
 6. **Sécurité IPC & Robustesse** :
    - `StvPlayerLauncher` filtre strictement les schémas `http` et `https`.
    - En l'absence d'URL primaire valide, bascule automatiquement sur la première source secondaire valide.
+   - **Protection Réseau & Anti-MITM (`network_security_config.xml`)** : Interdiction stricte du trafic en clair (`cleartextTrafficPermitted="false"`) ; rejet absolu des certificats utilisateurs et proxys pirates via `<certificates src="system" />` (neutralisation de Burp Suite / Charles Proxy) ; architecture prête pour la migration vers le VPS backend dédié.
 
 7. **Conformité SDK 36** :
    - Suppression de `statusBarColor` dans `Theme.kt`.
