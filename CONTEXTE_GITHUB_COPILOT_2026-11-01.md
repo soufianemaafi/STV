@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`  
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
-> **Git Release Tag** : `v3.0.0-soukitv-offline-resilience` (Novembre 2026)
+> **Git Release Tag** : `v3.1.0-soukitv-anti-tamper` (Novembre 2026)
 
 ---
 
@@ -84,8 +84,10 @@ app/src/main/java/com/stv/videoplayer/
 soukitv/src/main/java/com/example/soukitv/
 ├── MainActivity.kt                      # Point d'entrée catalogue
 ├── core/
-│   └── player/
-│       └── StvPlayerLauncher.kt         # Lanceur IPC de PlayerActivity (:app)
+│   ├── player/
+│   │   └── StvPlayerLauncher.kt         # Lanceur IPC de PlayerActivity (:app)
+│   └── security/
+│       └── AppSignatureVerifier.kt      # Contrôle d'intégrité de signature XOR-obfusqué (Anti-Repackaging)
 ├── features/home/
 │   ├── data/
 │   │   ├── model/
@@ -208,6 +210,12 @@ soukitv/src/main/java/com/example/soukitv/
 7. **Conformité SDK 36** :
    - Suppression de `statusBarColor` dans `Theme.kt`.
    - Gestion native Edge-to-Edge du contraste des icônes système via `WindowCompat`.
+
+8. **Sécurité & Intégrité Applicative (`AppSignatureVerifier.kt`)** :
+   - Protection Anti-Repackaging sans chaîne hexadécimale en clair : l'empreinte SHA-256 est stockée dans un `ByteArray` masqué via XOR `0x5A`.
+   - Comparaison à temps constant avec `MessageDigest.isEqual` après extraction rétrocompatible des certificats de signature Android.
+   - Fermeture immédiate de l'application au démarrage de `MainActivity` si l'APK a été altéré ou re-signé.
+   - Génération explicitement activée via `buildConfig = true` dans `build.gradle.kts`, avec bypass automatique en mode `BuildConfig.DEBUG`.
 
 ---
 
