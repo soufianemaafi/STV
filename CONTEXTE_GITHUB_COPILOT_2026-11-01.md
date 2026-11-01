@@ -4,6 +4,7 @@
 > **Repository** : `D:\STV`  
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
+> **Git Release Tag** : `v3.0.0-soukitv-offline-resilience` (Novembre 2026)
 
 ---
 
@@ -120,6 +121,7 @@ soukitv/src/main/java/com/example/soukitv/
 │       │   ├── SearchAndFilterBar.kt    # Barre de recherche & filtres
 │       │   ├── Shimmer.kt               # Placeholders de chargement
 │       │   ├── SoukiBottomBar.kt        # Navigation inférieure
+│       │   ├── OfflineErrorView.kt       # Écran d'erreur hors-ligne natif M3 avec bouton Réessayer
 │       │   └── StvErrorDialog.kt        # Dialogue erreur d'installation :app
 │       ├── HomeUiAction.kt              # Actions MVI catalogue
 │       ├── HomeUiState.kt               # États MVI catalogue
@@ -189,11 +191,29 @@ soukitv/src/main/java/com/example/soukitv/
    - Redirection de secours via Deep Link `stv://play?url=...`.
    - Si `:app` n'est pas installée, affiche un dialogue M3 stylisé (`StvErrorDialog`) invitant à l'installation.
 
+4. **Résilience MVI & Réseau** :
+   - Suppression des faux fallbacks en dur dans `ChannelRepositoryImpl` afin de propager les erreurs réseau et JSON GitHub réelles.
+   - Timeouts explicites sur `OkHttpClient` : connexion `10s`, lecture `15s`, écriture `15s`, avec retry réseau activé.
+   - Pull-to-Refresh universel dans `HomeScreen`, actif sur les états `Loading`, `Error` et `Success`.
+   - `StvErrorDialog` strictement découplé des erreurs réseau et réservé aux prompts d'installation ou de mise à jour du lecteur STV.
+
+5. **Performances & Mémoire** :
+   - Mémorisation avec `remember` de `AutoCropTransparentTransformation` et de `ImageRequest` dans `LogoImage`.
+   - Clés légères sans concaténation de chaînes dans `MatchesTab` pour limiter les allocations lors du défilement.
+
+6. **Sécurité IPC & Robustesse** :
+   - `StvPlayerLauncher` filtre strictement les schémas `http` et `https`.
+   - En l'absence d'URL primaire valide, bascule automatiquement sur la première source secondaire valide.
+
+7. **Conformité SDK 36** :
+   - Suppression de `statusBarColor` dans `Theme.kt`.
+   - Gestion native Edge-to-Edge du contraste des icônes système via `WindowCompat`.
+
 ---
 
-## 5. 🧪 COUVERTURE DE TESTS UNITAIRES (181 TESTS PASSÉS)
+## 5. 🧪 COUVERTURE DE TESTS UNITAIRES (184 TESTS PASSÉS)
 
-La suite de tests unitaires JVM s'exécute sans émulateur avec un taux de réussite de **100% (181/181 tests)** :
+La suite de tests unitaires JVM s'exécute sans émulateur avec un taux de réussite de **100% (184/184 tests)** :
 
 - **Module `:app` (142 tests unitaires validés)** :
   - `VideoItemTest` : Validation des entités vidéo.
@@ -207,8 +227,9 @@ La suite de tests unitaires JVM s'exécute sans émulateur avec un taux de réus
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (39 tests unitaires validés)** :
+- **Module `:soukitv` (42 tests unitaires validés)** :
   - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`.
+     - Trois tests de sécurité couvrent les URLs primaires nulles, les schémas interdits et la sélection de sources secondaires valides.
   - `MappersTest` : Mapping DTO -> Domain (`ChannelMapper`, `MatchItemMapper`).
   - `HomeViewModelTest` : MVI du catalogue, filtres, recherche et gestion des favoris.
 
