@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import com.example.soukitv.features.home.presentation.HomeUiState
 import com.example.soukitv.features.home.presentation.HomeViewModel
 import com.example.soukitv.features.home.presentation.HomeViewModelFactory
+import com.example.soukitv.core.security.AppSignatureVerifier
 
 class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels {
@@ -23,6 +24,10 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (!AppSignatureVerifier.isGenuine(this)) {
+            finishAffinity()
+            return
+        }
         setContent {
             val uiState by homeViewModel.uiState.collectAsState()
             val isDarkTheme = (uiState as? HomeUiState.Success)?.isDarkTheme ?: true
