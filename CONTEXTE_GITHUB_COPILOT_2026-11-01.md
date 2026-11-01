@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`  
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
-> **Git Release Tag** : `v3.1.0-soukitv-anti-tamper` (Novembre 2026)
+> **Git Release Tag** : `v3.2.0-soukitv-ipc-security` (Novembre 2026)
 
 ---
 
@@ -192,6 +192,10 @@ soukitv/src/main/java/com/example/soukitv/
    - Tente d'ouvrir `:app` via un Intent explicite `com.soufcom.stv.action.PLAY_STREAM` avec le package `com.soufcom.stv`.
    - Redirection de secours via Deep Link `stv://play?url=...`.
    - Si `:app` n'est pas installée, affiche un dialogue M3 stylisé (`StvErrorDialog`) invitant à l'installation.
+   - **Verrou Cryptographique IPC** : vérification obligatoire de l'empreinte de signature SHA-256 du package `com.soufcom.stv` avant toute émission d'Intent.
+   - Double liste blanche XOR-obfusquée avec la clé `0x5A`, couvrant la nouvelle clé Google Play et la clé historique de NexiPlayer.
+   - Blocage immédiat des lecteurs pirates ou re-signés avec retour `LaunchResult.Failed`.
+   - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG`.
 
 4. **Résilience MVI & Réseau** :
    - Suppression des faux fallbacks en dur dans `ChannelRepositoryImpl` afin de propager les erreurs réseau et JSON GitHub réelles.
