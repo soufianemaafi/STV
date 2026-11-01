@@ -210,7 +210,7 @@ soukitv/src/main/java/com/example/soukitv/
 6. **Sécurité IPC & Robustesse** :
    - `StvPlayerLauncher` filtre strictement les schémas `http` et `https`.
    - En l'absence d'URL primaire valide, bascule automatiquement sur la première source secondaire valide.
-   - **Protection Réseau & Anti-MITM (`network_security_config.xml`)** : Interdiction stricte du trafic en clair (`cleartextTrafficPermitted="false"`) ; rejet absolu des certificats utilisateurs et proxys pirates via `<certificates src="system" />` (neutralisation de Burp Suite / Charles Proxy) ; architecture prête pour la migration vers le VPS backend dédié.
+   - **Protection Réseau & Anti-MITM (`network_security_config.xml`)** : Rejet strict des certificats pirates/proxys utilisateurs via `<certificates src="system" />` (neutralisation de Burp Suite / Charles Proxy sur les requêtes API), tout en autorisant le trafic média tiers en clair pour assurer un affichage fiable des logos de chaînes et de clubs distants ; architecture prête pour la migration vers le VPS backend dédié.
 
 7. **Conformité SDK 36** :
    - Suppression de `statusBarColor` dans `Theme.kt`.

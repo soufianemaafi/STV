@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false">
+    <!-- RÈGLE PAR DÉFAUT : Autorisé pour charger les logos et images tiers distants -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- VERROU HAUTE SÉCURITÉ SUR LE BACKEND : HTTPS STRICT OBLIGATOIRE (Zéro HTTP en clair) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">raw.githubusercontent.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>
 
