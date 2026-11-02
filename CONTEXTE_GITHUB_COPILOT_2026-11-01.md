@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`  
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
-> **Git Release Tag** : `v3.3.0-soukitv-network-security` (Novembre 2026)
+> **Git Release Tag** : `v3.4.0-soukitv-anti-decompilation` (Novembre 2026)
 
 ---
 
@@ -87,7 +87,8 @@ soukitv/src/main/java/com/example/soukitv/
 │   ├── player/
 │   │   └── StvPlayerLauncher.kt         # Lanceur IPC de PlayerActivity (:app)
 │   └── security/
-│       └── AppSignatureVerifier.kt      # Contrôle d'intégrité de signature XOR-obfusqué (Anti-Repackaging)
+│       ├── AppSignatureVerifier.kt      # Contrôle d'intégrité de signature XOR-obfusqué (Anti-Repackaging)
+│       └── SecretDecoder.kt              # Décodage XOR des endpoints réseau obfusqués
 ├── features/home/
 │   ├── data/
 │   │   ├── model/
@@ -221,6 +222,10 @@ soukitv/src/main/java/com/example/soukitv/
    - Comparaison à temps constant avec `MessageDigest.isEqual` après extraction rétrocompatible des certificats de signature Android.
    - Fermeture immédiate de l'application au démarrage de `MainActivity` si l'APK a été altéré ou re-signé.
    - Génération explicitement activée via `buildConfig = true` dans `build.gradle.kts`, avec bypass automatique en mode `BuildConfig.DEBUG`.
+
+9. **Obfuscation des Endpoints & Anti-JADX (`SecretDecoder.kt`)** :
+   - Élimination totale des chaînes d'URLs distantes en clair dans le bytecode source du repository.
+   - Masquage binaire XOR dynamique avec la clé `0x4B`, empêchant la recherche textuelle directe des endpoints dans Jadx-GUI/Apktool.
 
 ---
 
