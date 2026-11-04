@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`  
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
-> **Git Release Tag** : `v3.4.0-soukitv-anti-decompilation` (Novembre 2026)
+> **Git Release Tag** : `v3.5.0-soukitv-dynamic-lockin` (Novembre 2026)
 
 ---
 
@@ -197,6 +197,7 @@ soukitv/src/main/java/com/example/soukitv/
    - Double liste blanche XOR-obfusquée avec la clé `0x5A`, couvrant la nouvelle clé Google Play et la clé historique de NexiPlayer.
    - Blocage immédiat des lecteurs pirates ou re-signés avec retour `LaunchResult.Failed`.
    - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG`.
+    - **Player Lock-in dynamique** : l’application récupère la clé secrète `stvAuthSecret` depuis le JSON distant et l’injecte dans le header `X-STV-Auth` via IPC, avec le User-Agent officiel. Cette authentification empêche le vol de flux par des lecteurs tiers tout en permettant la rotation instantanée de la clé sans mise à jour de l’APK. En l’absence de clé, le contrat reste fonctionnel avec une valeur vide contrôlée.
 
 4. **Résilience MVI & Réseau** :
    - Suppression des faux fallbacks en dur dans `ChannelRepositoryImpl` afin de propager les erreurs réseau et JSON GitHub réelles.

@@ -45,6 +45,7 @@ class HomeViewModel(
     private var favorites: Set<String> =
         runCatching { favoritesStore.load() }.getOrDefault(emptySet())
     private var minStvVersionCode: Long = StvPlayerLauncher.MIN_STV_VERSION_CODE
+    private var authSecret: String = ""
 
     init {
         loadChannels()
@@ -132,14 +133,15 @@ class HomeViewModel(
                     .combine(repository.getMatches()) { categories, todayMatches ->
                         categories to todayMatches
                     }
-                    .combine(repository.getMinStvVersionCode()) { (categories, todayMatches), minVersionCode ->
-                        Triple(categories, todayMatches, minVersionCode)
+                    .combine(repository.getRemoteConfig()) { (categories, todayMatches), remoteConfig ->
+                        Triple(categories, todayMatches, remoteConfig)
                     }
-                    .collect { (categories, todayMatches, minVersionCode) ->
+                    .collect { (categories, todayMatches, remoteConfig) ->
                         this@HomeViewModel.categories = categories
                         // Tri chronologique des matchs (format HH:mm).
                         matches = todayMatches.sortedBy { it.time }
-                        minStvVersionCode = minVersionCode
+                        minStvVersionCode = remoteConfig.minVersionCode
+                        authSecret = remoteConfig.authSecret
                         // Re-resout la categorie ouverte sur le nouveau catalogue.
                         activeCategoryDetail = activeCategoryDetail?.let { open ->
                             categories.firstOrNull { it.name == open.name }
@@ -166,7 +168,8 @@ class HomeViewModel(
         handleLaunchResult(
             stvPlayerLauncher.launchChannel(
                 channel = channel,
-                minStvVersionCode = minStvVersionCode
+                minStvVersionCode = minStvVersionCode,
+                authSecret = authSecret
             )
         )
     }
@@ -175,7 +178,8 @@ class HomeViewModel(
         handleLaunchResult(
             stvPlayerLauncher.launchMatch(
                 match = match,
-                minStvVersionCode = minStvVersionCode
+                minStvVersionCode = minStvVersionCode,
+                authSecret = authSecret
             )
         )
     }

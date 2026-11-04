@@ -87,6 +87,9 @@ class StvPlayerLauncherTest {
         verify { intent.setPackage("com.soufcom.stv") }
         verify { intent.setDataAndType(uri, "video/*") }
         verify { intent.putExtra("title", "France 24") }
+        verify { bundle.putString("X-STV-Auth", "") }
+        verify { bundle.putString("User-Agent", "NexiPlayer-Official-Client/v3.0") }
+        verify { intent.putExtra("headers", bundle) }
         verify { context.startActivity(intent) }
     }
 
@@ -141,12 +144,23 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_withoutHeaders_doesNotAddHeadersExtra() {
+    fun launch_withoutCustomHeaders_stillAddsLockInHeaders() {
         installed(prod, versionCode = 2)
 
         launcher().launchChannel(channel)
 
-        verify(exactly = 0) { intent.putExtra("headers", any<Bundle>()) }
+        verify { bundle.putString("X-STV-Auth", "") }
+        verify { bundle.putString("User-Agent", "NexiPlayer-Official-Client/v3.0") }
+        verify { intent.putExtra("headers", bundle) }
+    }
+
+    @Test
+    fun launch_injectsDynamicAuthSecret() {
+        installed(prod, versionCode = 2)
+
+        launcher().launchChannel(channel, authSecret = "rotating-secret")
+
+        verify { bundle.putString("X-STV-Auth", "rotating-secret") }
     }
 
     @Test

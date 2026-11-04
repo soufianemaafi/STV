@@ -8,6 +8,7 @@ import com.example.soukitv.features.home.data.model.RemoteCatalogConfigDto
 import com.example.soukitv.features.home.data.remote.ChannelApiService
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.MatchItem
+import com.example.soukitv.features.home.domain.model.RemoteConfig
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -42,20 +43,28 @@ class ChannelRepositoryImpl : ChannelRepository {
         )
     }
 
-    override fun getMinStvVersionCode(): Flow<Long> = flow {
-        val minVersion = try {
-            withContext(Dispatchers.IO) {
+    override fun getRemoteConfig(): Flow<RemoteConfig> = flow {
+        val remoteConfig = try {
+            val dto = withContext(Dispatchers.IO) {
                 apiService.getRemoteConfig(SecretDecoder.decode(REMOTE_CONFIG_URL))
-            }.minStvVersionCode
-                .takeIf { it > 0L }
-                ?: RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE
+            }
+            RemoteConfig(
+                minVersionCode = dto.minStvVersionCode
+                    .takeIf { it > 0L }
+                    ?: RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE,
+                authSecret = dto.stvAuthSecret.orEmpty()
+            )
         } catch (throwable: Exception) {
-            Log.w(TAG, "Remote config unavailable, using default minStvVersionCode", throwable)
-            RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE
+            Log.w(TAG, "Remote config unavailable, using default remote config", throwable)
+            RemoteConfig(
+                minVersionCode = RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE,
+                authSecret = ""
+            )
         }
 
-        emit(minVersion)
+        emit(remoteConfig)
     }
+
 
     /** Matchs du jour récupérés depuis [REMOTE_MATCHES_URL] sur Dispatchers.IO. */
     override fun getMatches(): Flow<List<MatchItem>> = flow {

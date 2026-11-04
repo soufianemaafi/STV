@@ -35,24 +35,28 @@ class StvPlayerLauncher(
 ) {
     fun launchChannel(
         channel: Channel,
+        authSecret: String = "",
         minStvVersionCode: Long = minVersionCode
     ): LaunchResult =
         launch(
             channel = channel,
             sources = null,
             headers = emptyMap(),
+            authSecret = authSecret,
             minStvVersionCode = minStvVersionCode
         )
     /** Variante avec en-têtes HTTP optionnels (Referer, User-Agent, jetons Nginx...). */
     fun launchChannel(
         channel: Channel,
         headers: Map<String, String>,
+        authSecret: String = "",
         minStvVersionCode: Long = minVersionCode
     ): LaunchResult =
         launch(
             channel = channel,
             sources = null,
             headers = headers,
+            authSecret = authSecret,
             minStvVersionCode = minStvVersionCode
         )
     /**
@@ -61,11 +65,13 @@ class StvPlayerLauncher(
      */
     fun launchMatch(
         match: MatchItem,
+        authSecret: String = "",
         minStvVersionCode: Long = minVersionCode
-    ): LaunchResult = launchMatch(match, emptyMap(), minStvVersionCode)
+    ): LaunchResult = launchMatch(match, emptyMap(), authSecret, minStvVersionCode)
     fun launchMatch(
         match: MatchItem,
         headers: Map<String, String>,
+        authSecret: String = "",
         minStvVersionCode: Long = minVersionCode
     ): LaunchResult {
         val primaryUrl = match.streamUrl?.trim().orEmpty()
@@ -86,6 +92,7 @@ class StvPlayerLauncher(
             channel = channel,
             sources = sources,
             headers = headers,
+            authSecret = authSecret,
             minStvVersionCode = minStvVersionCode
         )
     }
@@ -93,6 +100,7 @@ class StvPlayerLauncher(
         channel: Channel,
         sources: List<StreamSource>?,
         headers: Map<String, String>,
+        authSecret: String,
         minStvVersionCode: Long
     ): LaunchResult {
         // Rejeter immédiatement les URLs vides ou non HTTP(S), avant toute résolution de package.
@@ -122,7 +130,7 @@ class StvPlayerLauncher(
                 if (!sources.isNullOrEmpty()) {
                     putExtra(EXTRA_SOURCES_JSON, sourcesToJson(sources))
                 }
-                putHeaders(this, headers)
+                putHeaders(this, headers, authSecret)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
@@ -132,11 +140,13 @@ class StvPlayerLauncher(
         }
     }
     /** Convertit la Map d'en-têtes en Bundle (`headers`) + extra `referer` pour compatibilité. */
-    private fun putHeaders(intent: Intent, headers: Map<String, String>) {
+    private fun putHeaders(intent: Intent, headers: Map<String, String>, authSecret: String) {
         val clean = headers.filter { (key, value) -> key.isNotBlank() && value.isNotBlank() }
-        if (clean.isEmpty()) return
-        val bundle = bundleFactory()
-        clean.forEach { (key, value) -> bundle.putString(key.trim(), value) }
+        val bundle = bundleFactory().apply {
+            clean.forEach { (key, value) -> putString(key.trim(), value) }
+            putString("X-STV-Auth", authSecret)
+            putString("User-Agent", "NexiPlayer-Official-Client/v3.0")
+        }
         intent.putExtra(EXTRA_HEADERS, bundle)
         clean.entries
             .firstOrNull { it.key.trim().equals(HEADER_REFERER, ignoreCase = true) }

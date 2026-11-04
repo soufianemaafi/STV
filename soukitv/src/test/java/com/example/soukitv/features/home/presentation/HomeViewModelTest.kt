@@ -4,6 +4,7 @@ import com.example.soukitv.core.player.StvPlayerLauncher
 import com.example.soukitv.features.home.domain.model.Category
 import com.example.soukitv.features.home.domain.model.Channel
 import com.example.soukitv.features.home.domain.model.MatchItem
+import com.example.soukitv.features.home.domain.model.RemoteConfig
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
 import com.example.soukitv.features.home.domain.repository.FavoritesStore
 import com.example.soukitv.features.home.domain.repository.InMemoryFavoritesStore
@@ -170,17 +171,17 @@ class HomeViewModelTest {
 
     @Test
     fun selectMatch_launchesStvPlayerWithMatch() {
-        every { launcher.launchMatch(any(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.Launched
+        every { launcher.launchMatch(any(), any<String>(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.Launched
         val viewModel = viewModel(matches = listOf(match), minStvVersionCode = 7L)
 
         viewModel.onAction(HomeUiAction.SelectMatch(match))
 
-        verify { launcher.launchMatch(match, 7L) }
+        verify { launcher.launchMatch(match, "", 7L) }
     }
 
     @Test
     fun selectMatch_showsInstallPromptWhenStvIsNotInstalled() {
-        every { launcher.launchMatch(any(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
+        every { launcher.launchMatch(any(), any<String>(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
         val viewModel = viewModel(matches = listOf(match))
 
         viewModel.onAction(HomeUiAction.SelectMatch(match))
@@ -190,7 +191,7 @@ class HomeViewModelTest {
 
     @Test
     fun selectChannel_showsInstallPromptWhenStvIsNotInstalled() {
-        every { launcher.launchChannel(any(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
+        every { launcher.launchChannel(any(), any<String>(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.NotInstalled
         val selectedChannel = sports.channels.first()
         val viewModel = viewModel()
 
@@ -201,7 +202,7 @@ class HomeViewModelTest {
 
     @Test
     fun selectChannel_showsUpdatePromptWhenStvIsOutdated() {
-        every { launcher.launchChannel(any(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.UpdateRequired
+        every { launcher.launchChannel(any(), any<String>(), any<Long>()) } returns StvPlayerLauncher.LaunchResult.UpdateRequired
         val selectedChannel = sports.channels.first()
         val viewModel = viewModel()
 
@@ -300,7 +301,7 @@ class HomeViewModelTest {
                 if (shouldFail) kotlinx.coroutines.flow.flow { throw RuntimeException("Network error") }
                 else flowOf(catalogue)
             override fun getMatches(): Flow<List<MatchItem>> = flowOf(listOf(match))
-            override fun getMinStvVersionCode(): Flow<Long> = flowOf(1L)
+            override fun getRemoteConfig(): Flow<RemoteConfig> = flowOf(RemoteConfig(1L))
         }
         val viewModel = HomeViewModel(
             repository = repository,
@@ -327,7 +328,7 @@ class HomeViewModelTest {
         val repository = object : ChannelRepository {
             override fun getCategories(): Flow<List<Category>> = flowOf(categories)
             override fun getMatches(): Flow<List<MatchItem>> = flowOf(matches)
-            override fun getMinStvVersionCode(): Flow<Long> = flowOf(minStvVersionCode)
+            override fun getRemoteConfig(): Flow<RemoteConfig> = flowOf(RemoteConfig(minStvVersionCode))
         }
         return HomeViewModel(
             repository = repository,
