@@ -15,7 +15,13 @@ import com.example.soukitv.features.home.domain.model.StreamSource
 import com.example.soukitv.features.home.domain.model.toChannel
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 /**
  * Lance un flux dans STV Player via un Intent explicite (contrat IPC immuable).
  *
@@ -31,7 +37,9 @@ class StvPlayerLauncher(
     private val minVersionCode: Long = MIN_STV_VERSION_CODE,
     private val intentFactory: (action: String) -> Intent = { Intent(it) },
     private val bundleFactory: () -> Bundle = { Bundle() },
-    private val uriParser: (String) -> Uri = { Uri.parse(it) }
+    private val uriParser: (String) -> Uri = { Uri.parse(it) },
+    private val streamDispatcher: StreamDispatcher = OkHttpStreamDispatcher(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     fun launchChannel(
         channel: Channel,
@@ -76,15 +84,11 @@ class StvPlayerLauncher(
     ): LaunchResult {
         val primaryUrl = match.streamUrl?.trim().orEmpty()
         val sources = match.sources
-            ?.mapNotNull { source ->
-                source.url.trim()
-                    .takeIf(::isAllowedUrl)
-                    ?.let { url -> source.copy(url = url) }
-            }
+            ?.filter { source -> isAllowedUrl(source.url) }
             ?.takeIf { it.isNotEmpty() }
         val streamUrl = primaryUrl
             .takeIf(::isAllowedUrl)
-            ?: sources?.firstOrNull()?.url?.trim()
+            ?: sources?.firstOrNull()?.url
             ?: return LaunchResult.Failed("Aucun flux vidéo disponible pour cet événement.")
         val baseChannel = match.toChannel()
         val channel = baseChannel.copy(streamUrl = streamUrl)
@@ -107,6 +111,31 @@ class StvPlayerLauncher(
         if (!isAllowedUrl(channel.streamUrl)) {
             return LaunchResult.Failed("Unsupported stream URL")
         }
+        val dispatchUrl = sequenceOf(channel.streamUrl)
+            .plus(sources.orEmpty().asSequence().map(StreamSource::url))
+            .firstOrNull(::requiresDispatch)
+        val resolvedEdgeUrl = dispatchUrl?.let {
+            resolveDispatchUrl(it, authSecret)
+        }
+        val rewrittenSources = sources?.map { source ->
+            if (requiresDispatch(source.url) && resolvedEdgeUrl != null) {
+                source.copy(url = resolvedEdgeUrl)
+            } else {
+                source
+            }
+        }
+        val resolvedPrimaryUrl = when {
+            requiresDispatch(channel.streamUrl) -> resolvedEdgeUrl
+            else -> channel.streamUrl
+        }
+        val fallbackUrl = sources
+            .orEmpty()
+            .firstOrNull { !requiresDispatch(it.url) }
+            ?.url
+        val finalUrl = resolvedPrimaryUrl
+            ?: fallbackUrl
+            ?: return LaunchResult.Failed("Impossible de résoudre le flux vidéo.")
+        val resolvedChannel = channel.copy(streamUrl = finalUrl)
         // 1. Package cible : production en priorité stricte, puis dev.
         val target = TARGET_PACKAGES.firstNotNullOfOrNull { packageName ->
             installedVersionCode(packageName)?.let { packageName to it }
@@ -123,12 +152,12 @@ class StvPlayerLauncher(
         return try {
             val intent = intentFactory(PLAY_STREAM_ACTION).apply {
                 setPackage(targetPackage)
-                setDataAndType(uriParser(channel.streamUrl), VIDEO_MIME_TYPE)
-                putExtra(EXTRA_VIDEO_URL, channel.streamUrl)
-                putExtra(EXTRA_URL, channel.streamUrl)
-                putExtra(EXTRA_TITLE, channel.name)
-                if (!sources.isNullOrEmpty()) {
-                    putExtra(EXTRA_SOURCES_JSON, sourcesToJson(sources))
+                setDataAndType(uriParser(resolvedChannel.streamUrl), VIDEO_MIME_TYPE)
+                putExtra(EXTRA_VIDEO_URL, resolvedChannel.streamUrl)
+                putExtra(EXTRA_URL, resolvedChannel.streamUrl)
+                putExtra(EXTRA_TITLE, resolvedChannel.name)
+                if (!rewrittenSources.isNullOrEmpty()) {
+                    putExtra(EXTRA_SOURCES_JSON, sourcesToJson(rewrittenSources))
                 }
                 putHeaders(this, headers, authSecret)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -139,13 +168,25 @@ class StvPlayerLauncher(
             LaunchResult.Failed(e.message ?: "Error launching STV Player")
         }
     }
+
+    /** Résout un seul ticket du balancer avant de le transmettre au lecteur. */
+    private fun resolveDispatchUrl(dispatchUrl: String, authSecret: String): String? =
+        runBlocking(ioDispatcher) {
+            runCatching { streamDispatcher.resolve(dispatchUrl, authSecret) }
+                .getOrNull()
+                ?.trim()
+                ?.takeIf(::isAllowedUrl)
+        }
+
+    private fun requiresDispatch(url: String): Boolean =
+        url.contains("/dispatch", ignoreCase = true)
     /** Convertit la Map d'en-têtes en Bundle (`headers`) + extra `referer` pour compatibilité. */
     private fun putHeaders(intent: Intent, headers: Map<String, String>, authSecret: String) {
         val clean = headers.filter { (key, value) -> key.isNotBlank() && value.isNotBlank() }
         val bundle = bundleFactory().apply {
             clean.forEach { (key, value) -> putString(key.trim(), value) }
             putString("X-STV-Auth", authSecret)
-            putString("User-Agent", "NexiPlayer-Official-Client/v3.0")
+            putString("User-Agent", OFFICIAL_USER_AGENT)
         }
         intent.putExtra(EXTRA_HEADERS, bundle)
         clean.entries
@@ -252,6 +293,7 @@ class StvPlayerLauncher(
         const val UPDATE_REQUIRED_MESSAGE =
             "Please update STV Player from the Google Play Store to play this content."
         private const val VIDEO_MIME_TYPE = "video/*"
+        const val OFFICIAL_USER_AGENT = "NexiPlayer-Official-Client/v3.0"
         private const val HEADER_REFERER = "Referer"
         private const val GOOGLE_PLAY_PACKAGE = "com.android.vending"
         private const val PLAY_STORE_MARKET_URL = "market://details?id=$PACKAGE_PROD"
@@ -271,5 +313,33 @@ class StvPlayerLauncher(
         )
         /** Ordre = priorité : production d'abord, puis variante dev. */
         private val TARGET_PACKAGES = listOf(PACKAGE_PROD, PACKAGE_DEV)
+    }
+}
+
+/** Résolveur isolé pour rendre la résolution réseau testable sur JVM pure. */
+fun interface StreamDispatcher {
+    fun resolve(dispatchUrl: String, authSecret: String): String?
+}
+
+/** Implémentation de production du contrat sécurisé du balancer. */
+private class OkHttpStreamDispatcher(
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .writeTimeout(3, TimeUnit.SECONDS)
+        .build()
+) : StreamDispatcher {
+    override fun resolve(dispatchUrl: String, authSecret: String): String? {
+        val request = Request.Builder()
+            .url(dispatchUrl)
+            .header("X-STV-Auth", authSecret)
+            .header("User-Agent", StvPlayerLauncher.OFFICIAL_USER_AGENT)
+            .get()
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful || response.code != 200) return null
+            return response.body?.string()?.trim()?.takeIf(String::isNotEmpty)
+        }
     }
 }

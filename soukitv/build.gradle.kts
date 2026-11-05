@@ -96,6 +96,7 @@ dependencies {
     // Assuming simple JSON fetching via URL or similar. Let's add OkHttp/Retrofit to be robust as requested.
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0") // Load images (logos)
 
     implementation(libs.androidx.appcompat)

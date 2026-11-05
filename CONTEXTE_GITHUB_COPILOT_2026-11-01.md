@@ -198,6 +198,8 @@ soukitv/src/main/java/com/example/soukitv/
    - Blocage immédiat des lecteurs pirates ou re-signés avec retour `LaunchResult.Failed`.
    - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG`.
     - **Player Lock-in dynamique** : l’application récupère la clé secrète `stvAuthSecret` depuis le JSON distant et l’injecte dans le header `X-STV-Auth` via IPC, avec le User-Agent officiel. Cette authentification empêche le vol de flux par des lecteurs tiers tout en permettant la rotation instantanée de la clé sans mise à jour de l’APK. En l’absence de clé, le contrat reste fonctionnel avec une valeur vide contrôlée.
+    - **Stream Dispatcher** : `core/player/StvPlayerLauncher.kt` résout les tickets internes `/dispatch` avant l’IPC via un `StreamDispatcher` OkHttp exécuté sur `Dispatchers.IO` (timeouts courts de 3 secondes). Le balancer du relais `.190` expose `/dispatch`, exige `X-STV-Auth` et renvoie en environ 1 ms l’adresse directe de l’Edge sélectionné ; il ne transporte aucune vidéo et consomme donc 0 % de la bande passante vidéo.
+    - Pour les matchs multi-sources, le ticket est résolu une seule fois en mémoire vive. Toutes les entrées `/dispatch` de `sources_json` sont réécrites avec le même Edge, tandis que les sources externes (Korasport, Cloud Run, etc.) sont conservées strictement inchangées. Cette préparation évite les erreurs de zapping entre sources internes et externes dans NexiPlayer.
 
 4. **Résilience MVI & Réseau** :
    - Suppression des faux fallbacks en dur dans `ChannelRepositoryImpl` afin de propager les erreurs réseau et JSON GitHub réelles.
@@ -230,9 +232,9 @@ soukitv/src/main/java/com/example/soukitv/
 
 ---
 
-## 5. 🧪 COUVERTURE DE TESTS UNITAIRES (184 TESTS PASSÉS)
+## 5. 🧪 COUVERTURE DE TESTS UNITAIRES (48 TESTS `:soukitv` PASSÉS)
 
-La suite de tests unitaires JVM s'exécute sans émulateur avec un taux de réussite de **100% (184/184 tests)** :
+La dernière validation exécutée le 6 novembre 2026 pour `:soukitv` s'exécute sans émulateur avec un taux de réussite de **100% (48/48 tests)** via `:soukitv:testDebugUnitTest --no-daemon`.
 
 - **Module `:app` (142 tests unitaires validés)** :
   - `VideoItemTest` : Validation des entités vidéo.
@@ -246,9 +248,9 @@ La suite de tests unitaires JVM s'exécute sans émulateur avec un taux de réus
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (42 tests unitaires validés)** :
-  - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`.
-     - Trois tests de sécurité couvrent les URLs primaires nulles, les schémas interdits et la sélection de sources secondaires valides.
+- **Module `:soukitv` (48 tests unitaires validés)** :
+   - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
+      - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes et la conservation stricte des sources externes.
   - `MappersTest` : Mapping DTO -> Domain (`ChannelMapper`, `MatchItemMapper`).
   - `HomeViewModelTest` : MVI du catalogue, filtres, recherche et gestion des favoris.
 

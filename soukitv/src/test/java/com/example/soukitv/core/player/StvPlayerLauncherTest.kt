@@ -164,6 +164,129 @@ class StvPlayerLauncherTest {
     }
 
     @Test
+    fun launch_resolvesDispatchUrl_beforeLaunchingWithDirectUrl() {
+        installed(prod, versionCode = 2)
+        val dispatchUrl = "http://196.200.156.190/dispatch"
+        val resolvedUrl = "http://196.200.156.184/master.m3u8"
+        var receivedAuth = ""
+        var receivedUrl = ""
+
+        val result = launcher(
+            streamDispatcher = StreamDispatcher { url, authSecret ->
+                receivedUrl = url
+                receivedAuth = authSecret
+                resolvedUrl
+            }
+        ).launchChannel(channel.copy(streamUrl = dispatchUrl), authSecret = "dynamic-secret")
+
+        assertEquals(LaunchResult.Launched, result)
+        assertEquals(dispatchUrl, receivedUrl)
+        assertEquals("dynamic-secret", receivedAuth)
+        verify { intent.putExtra(StvPlayerLauncher.EXTRA_VIDEO_URL, resolvedUrl) }
+        verify { intent.putExtra(StvPlayerLauncher.EXTRA_URL, resolvedUrl) }
+    }
+
+    @Test
+    fun launch_rewritesAllDispatchSourcesWithOneResolvedEdge_andKeepsExternalSourcesIntact() {
+        installed(prod, versionCode = 2)
+        val edgeUrl = "http://196.200.156.184/master.m3u8"
+        val externalUrl = "https://live-tv-example.run.app/live/index.m3u8?token=a%2Fb"
+        val calls = mutableListOf<String>()
+        val match = MatchItem(
+            streamUrl = "http://196.200.156.190/dispatch",
+            sources = listOf(
+                StreamSource("HD", "http://196.200.156.190/dispatch?source=hd"),
+                StreamSource("External", externalUrl),
+                StreamSource("SD", "https://196.200.156.190/dispatch?source=sd")
+            )
+        )
+
+        val result = launcher(
+            streamDispatcher = StreamDispatcher { url, _ ->
+                calls += url
+                edgeUrl
+            }
+        ).launchMatch(match, authSecret = "rotating-secret")
+
+        assertEquals(LaunchResult.Launched, result)
+        assertEquals(listOf("http://196.200.156.190/dispatch"), calls)
+        verify {
+            intent.putExtra(
+                StvPlayerLauncher.EXTRA_SOURCES_JSON,
+                "[{\"quality\":\"HD\",\"url\":\"$edgeUrl\"}," +
+                    "{\"quality\":\"External\",\"url\":\"$externalUrl\"}," +
+                    "{\"quality\":\"SD\",\"url\":\"$edgeUrl\"}]"
+            )
+        }
+    }
+
+    @Test
+    fun launch_resolvesOneDispatcherSource_whenPrimaryUrlIsExternal() {
+        installed(prod, versionCode = 2)
+        val primaryUrl = "https://external.example/live.m3u8"
+        val edgeUrl = "http://196.200.156.184/master.m3u8"
+        var callCount = 0
+        val match = MatchItem(
+            streamUrl = primaryUrl,
+            sources = listOf(
+                StreamSource("Internal HD", "http://196.200.156.190/dispatch?source=hd"),
+                StreamSource("Internal SD", "http://196.200.156.190/dispatch?source=sd")
+            )
+        )
+
+        val result = launcher(
+            streamDispatcher = StreamDispatcher { _, _ ->
+                callCount++
+                edgeUrl
+            }
+        ).launchMatch(match)
+
+        assertEquals(LaunchResult.Launched, result)
+        assertEquals(1, callCount)
+        verify { intent.putExtra(StvPlayerLauncher.EXTRA_VIDEO_URL, primaryUrl) }
+        verify {
+            intent.putExtra(
+                StvPlayerLauncher.EXTRA_SOURCES_JSON,
+                "[{\"quality\":\"Internal HD\",\"url\":\"$edgeUrl\"}," +
+                    "{\"quality\":\"Internal SD\",\"url\":\"$edgeUrl\"}]"
+            )
+        }
+    }
+
+    @Test
+    fun launch_fallsBackToFirstValidSecondarySource_whenDispatchFails() {
+        installed(prod, versionCode = 2)
+        val fallbackUrl = "https://relay.example/master.m3u8"
+        val match = MatchItem(
+            streamUrl = "http://196.200.156.190/dispatch",
+            sources = listOf(
+                StreamSource("bad", "file:///invalid"),
+                StreamSource("HD", fallbackUrl)
+            )
+        )
+
+        val result = launcher(
+            streamDispatcher = StreamDispatcher { _, _ -> null }
+        ).launchMatch(match)
+
+        assertEquals(LaunchResult.Launched, result)
+        verify { intent.putExtra(StvPlayerLauncher.EXTRA_VIDEO_URL, fallbackUrl) }
+        verify(exactly = 1) { context.startActivity(intent) }
+    }
+
+    @Test
+    fun launch_returnsFailed_whenDispatchTimesOutAndNoFallbackExists() {
+        installed(prod, versionCode = 2)
+
+        val result = launcher(
+            streamDispatcher = StreamDispatcher { _, _ -> throw java.net.SocketTimeoutException("timeout") }
+        ).launchChannel(channel.copy(streamUrl = "https://196.200.156.190/dispatch"))
+
+        assertTrue(result is LaunchResult.Failed)
+        verify(exactly = 0) { context.startActivity(any()) }
+    }
+
+    @Test
     fun launch_rejectsNonHttpSchemes() {
         installed(prod, versionCode = 2)
 
@@ -222,7 +345,10 @@ class StvPlayerLauncherTest {
         every { packageManager.getPackageInfo(packageName, 0) } returns info
     }
 
-    private fun launcher(minVersionCode: Long = StvPlayerLauncher.MIN_STV_VERSION_CODE) =
+    private fun launcher(
+        minVersionCode: Long = StvPlayerLauncher.MIN_STV_VERSION_CODE,
+        streamDispatcher: StreamDispatcher = StreamDispatcher { _, _ -> null }
+    ) =
         StvPlayerLauncher(
             context = context,
             minVersionCode = minVersionCode,
@@ -231,7 +357,8 @@ class StvPlayerLauncherTest {
                 intent
             },
             bundleFactory = { bundle },
-            uriParser = { uri }
+            uriParser = { uri },
+            streamDispatcher = streamDispatcher
         )
 }
 
