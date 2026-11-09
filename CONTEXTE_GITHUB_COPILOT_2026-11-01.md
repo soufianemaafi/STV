@@ -5,6 +5,7 @@
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
 > **Git Release Tag** : `v3.5.0-soukitv-dynamic-lockin` (Novembre 2026)
+> **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer)
 
 ---
 
@@ -170,9 +171,23 @@ soukitv/src/main/java/com/example/soukitv/
    - `DEFAULT_COOLDOWN_MS = 0L` : Zapping fluide instantané sans spam.
    - Timeout de chargement `adLoadTimeoutMs = 10_000L` (10s max avant reprise/fallback).
    - Détection d'AdBlocker : en cas d'échec réseau répété sur l'annonceur, l'état bascule sur `AdResult.AdBlockerBlocked`.
-    - **Détection d'AdBlocker infaillible (Test croisé 50ms)** : utilise ConnectivityManager (NET_CAPABILITY_VALIDATED) pour confirmer l'accès Internet, puis vérifie la résolution DNS des domaines Google. Zéro faux positif sur No-Fill.
+   - **Tolérance AdMob / Anti-AdBlock** : `ERROR_CODE_NO_FILL` (code 3) est explicitement ignorée (bypass), car elle signifie que l'inventaire Google est momentanément vide et ne constitue pas un signal d'AdBlocker.
+   - **Détection d'AdBlocker renforcée** : utilise `ConnectivityManager` (`NET_CAPABILITY_VALIDATED`) puis un ping/résolution DNS de `doubleclick.net` en complément de la vérification de connectivité, afin d'éviter les faux positifs légitimes.
 
-4. **Sécurité & Contrat IPC (`IntentSecurityManager.kt` / `PermissionHelper.kt`)** :
+4. **Smart Auto-Failover (`PlayerViewModel.kt`)** :
+   - Un `bufferingJob` surveille les états `Player.STATE_BUFFERING` pendant 12 secondes.
+   - Si le flux gèle ou reste bloqué en chargement au-delà de ce délai, le lecteur bascule automatiquement vers la source secondaire via l'action MVI `SwitchSource`.
+   - Le job est annulé proprement lors des transitions `READY`, `IDLE` et `ENDED`, lors d'un changement de source, d'une nouvelle session ou de la destruction du ViewModel.
+
+5. **UX Navigation (`PlayerActivity.kt`)** :
+   - `BackHandler { finish() }` est installé pour les états `LoadingAds`, `ShowingAd` et `NeedRetry`.
+   - L'utilisateur peut ainsi quitter le lecteur pendant l'attente ou l'échec AdMob sans rester bloqué sur un écran noir de chargement.
+
+6. **Rebranding NexiPlayer & ressources Android** :
+   - Les icônes `launcher` et le `Splash Screen` API 12+ utilisent désormais le logo NexiPlayer via les ressources `@mipmap`.
+   - Les fichiers adaptive-icon respectent la charte **Strict XML Headers** : déclaration `<?xml version="1.0" encoding="utf-8"?>` en première ligne absolue et aucune déclaration XML dupliquée.
+
+7. **Sécurité & Contrat IPC (`IntentSecurityManager.kt` / `PermissionHelper.kt`)** :
    - **Action Intent** : `com.soufcom.stv.action.PLAY_STREAM` et `com.stv.videoplayer.action.PLAY_STREAM`.
    - **Schémas autorisés** : `http://` et `https://` strictement (rejet immédiat de `file://`, `content://`, `javascript:`).
    - **Extras gérés** : `VIDEO_URL`, `title` / `EXTRA_TITLE`, `SKIP_ADS`, `sources_json`, `headers`, `referer`.
@@ -238,7 +253,7 @@ soukitv/src/main/java/com/example/soukitv/
 
 La dernière validation exécutée le 6 novembre 2026 pour `:soukitv` s'exécute sans émulateur avec un taux de réussite de **100% (48/48 tests)** via `:soukitv:testDebugUnitTest --no-daemon`.
 
-- **Module `:app` (142 tests unitaires validés)** :
+- **Module `:app` (144 tests unitaires validés)** :
   - `VideoItemTest` : Validation des entités vidéo.
   - `IntentSecurityManagerTest` : Validation de sécurité des URIs et filtrage anti-hijacking.
   - `AdFlowControllerTest` : Tests MVI du flux publicitaire, timeouts et retries.

@@ -134,6 +134,7 @@ class PlayerViewModel @JvmOverloads constructor(
     // Auto-recovery reseau : compteur remis a 0 en STATE_READY, job annule a chaque nouvelle session.
     private var networkRetryCount = 0
     private var retryJob: Job? = null
+    private var bufferingJob: Job? = null
 
     // Lecture active au moment du passage en arriere-plan (reprise en ON_START).
     private var resumeOnForeground = false
@@ -164,8 +165,26 @@ class PlayerViewModel @JvmOverloads constructor(
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
-                Player.STATE_BUFFERING -> _isLoading.value = true
+                Player.STATE_BUFFERING -> {
+                    _isLoading.value = true
+                    bufferingJob?.cancel()
+                    bufferingJob = viewModelScope.launch {
+                        delay(12_000L)
+                        val state = _uiState.value as? PlayerUiState.Ready
+                        val sources = _availableSources.value
+                        if (state != null && sources.size > 1) {
+                            val nextIndex = (state.currentSourceIndex + 1) % sources.size
+                            onAction(
+                                PlayerUiAction.SwitchSource(
+                                    sources[nextIndex].url,
+                                    nextIndex
+                                )
+                            )
+                        }
+                    }
+                }
                 Player.STATE_READY -> {
+                    bufferingJob?.cancel()
                     networkRetryCount = 0
                     _isLoading.value = false
                     _duration.value = _player.duration.coerceAtLeast(0L)
@@ -173,10 +192,14 @@ class PlayerViewModel @JvmOverloads constructor(
                     updateSeekableState()
                 }
                 Player.STATE_ENDED -> {
+                    bufferingJob?.cancel()
                     _isLoading.value = false
                     _isPlaying.value = false
                 }
-                Player.STATE_IDLE -> _isLoading.value = false
+                Player.STATE_IDLE -> {
+                    bufferingJob?.cancel()
+                    _isLoading.value = false
+                }
             }
         }
 
@@ -193,6 +216,8 @@ class PlayerViewModel @JvmOverloads constructor(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            bufferingJob?.cancel()
+
             // 1) Retard sur le direct HLS/DASH : on rattrape le live, sans erreur visible.
             if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                 _errorMessage.value = null
@@ -353,6 +378,7 @@ class PlayerViewModel @JvmOverloads constructor(
         if (!isRedelivery) {
             retryJob?.cancel()
             retryJob = null
+            bufferingJob?.cancel()
             networkRetryCount = 0
             resumeOnForeground = false
             _player.stop()
@@ -444,6 +470,7 @@ class PlayerViewModel @JvmOverloads constructor(
         val session = currentSession
         val headers = session?.headers ?: emptyMap()
         retryJob?.cancel()
+        bufferingJob?.cancel()
         networkRetryCount = 0
         _currentSourceIndex.value = qualityIndex
         _isLoading.value = true
@@ -622,6 +649,8 @@ class PlayerViewModel @JvmOverloads constructor(
         positionUpdateJob = null
         retryJob?.cancel()
         retryJob = null
+        bufferingJob?.cancel()
+        bufferingJob = null
         currentSession = null
         _player.removeListener(playerListener)
         _player.release()

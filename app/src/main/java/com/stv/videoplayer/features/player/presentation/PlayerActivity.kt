@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
@@ -185,11 +186,13 @@ class PlayerActivity : ComponentActivity() {
                             ErrorScreen(currentState.message)
                         }
                         is PlayerUiState.LoadingAds -> {
+                            BackHandler { finish() }
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             }
                         }
                         is PlayerUiState.ShowingAd -> {
+                            BackHandler { finish() }
                             Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                         }
                         is PlayerUiState.AdBlockerBlocked -> {
@@ -201,6 +204,7 @@ class PlayerActivity : ComponentActivity() {
                             )
                         }
                         is PlayerUiState.NeedRetry -> {
+                            BackHandler { finish() }
                             BlockedScreen(
                                 icon = Icons.Filled.Refresh,
                                 title = stringResource(R.string.ad_load_failed_title),
