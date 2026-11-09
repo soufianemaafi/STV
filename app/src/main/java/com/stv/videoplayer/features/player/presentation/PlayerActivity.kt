@@ -382,6 +382,7 @@ class PlayerActivity : ComponentActivity() {
 
             viewModel.setUiState(when (result) {
                 AdResult.AdDismissed -> PlayerUiState.Ready(url)
+                AdResult.SkippedByNoFill -> PlayerUiState.Ready(url)
                 AdResult.SkippedByCooldown -> PlayerUiState.Ready(url)
                 AdResult.SkippedByTimeout -> PlayerUiState.Ready(url)
                 AdResult.NoNetwork -> PlayerUiState.NetworkError(url)

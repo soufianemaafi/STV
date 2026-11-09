@@ -42,6 +42,7 @@ app/src/main/java/com/stv/videoplayer/
 │   └── VideoRepository.kt               # Persistance locale (JSON SharedPreferences)
 ├── features/
 │   ├── ads/
+│   │   ├── AdBlockerDetector.kt           # Test croisé réseau/DNS des domaines publicitaires Google
 │   │   ├── AdFlowController.kt          # Orchestration MVI du flux publicitaire
 │   │   └── AdFrequencyManager.kt        # Cooldown anti-zapping (DEFAULT_COOLDOWN_MS = 0)
 │   ├── home/presentation/
@@ -169,6 +170,7 @@ soukitv/src/main/java/com/example/soukitv/
    - `DEFAULT_COOLDOWN_MS = 0L` : Zapping fluide instantané sans spam.
    - Timeout de chargement `adLoadTimeoutMs = 10_000L` (10s max avant reprise/fallback).
    - Détection d'AdBlocker : en cas d'échec réseau répété sur l'annonceur, l'état bascule sur `AdResult.AdBlockerBlocked`.
+    - **Détection d'AdBlocker infaillible (Test croisé 50ms)** : utilise ConnectivityManager (NET_CAPABILITY_VALIDATED) pour confirmer l'accès Internet, puis vérifie la résolution DNS des domaines Google. Zéro faux positif sur No-Fill.
 
 4. **Sécurité & Contrat IPC (`IntentSecurityManager.kt` / `PermissionHelper.kt`)** :
    - **Action Intent** : `com.soufcom.stv.action.PLAY_STREAM` et `com.stv.videoplayer.action.PLAY_STREAM`.

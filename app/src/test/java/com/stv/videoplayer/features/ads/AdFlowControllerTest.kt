@@ -36,7 +36,7 @@ class AdFlowControllerTest {
         val frequencyManager = AdFrequencyManager(clock = { 1_000L })
         frequencyManager.markAdShown(nowMs = 1_000L)
 
-        val controller = AdFlowController(adManager, frequencyManager)
+        val controller = AdFlowController(adManager, frequencyManager) { _ -> false }
 
         every {
             adManager.loadAndShow(
@@ -45,6 +45,7 @@ class AdFlowControllerTest {
                 onAdDismissed = any(),
                 onFailed = any(),
                 onNoNetwork = any(),
+                onNoFill = any(),
                 onNetworkError = any(),
                 isRequestActive = any()
             )
@@ -56,14 +57,14 @@ class AdFlowControllerTest {
         val result = controller.showAdIfNeeded(activity)
 
         assertEquals(AdFlowController.AdResult.AdDismissed, result)
-        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
     fun `une pub affichee met a jour le cooldown`() = runTest {
         val now = 1_000L
         val frequencyManager = AdFrequencyManager(cooldownMs = 30_000L, clock = { now })
-        val controller = AdFlowController(adManager, frequencyManager)
+        val controller = AdFlowController(adManager, frequencyManager) { _ -> false }
 
         verify(exactly = 1) { adManager.preloadInterstitial() }
 
@@ -74,6 +75,7 @@ class AdFlowControllerTest {
                 onAdDismissed = any(),
                 onFailed = any(),
                 onNoNetwork = any(),
+                onNoFill = any(),
                 onNetworkError = any(),
                 isRequestActive = any()
             )
@@ -104,6 +106,7 @@ class AdFlowControllerTest {
                 onAdDismissed = any(),
                 onFailed = any(),
                 onNoNetwork = any(),
+                onNoFill = any(),
                 onNetworkError = any(),
                 isRequestActive = any()
             )
@@ -117,13 +120,13 @@ class AdFlowControllerTest {
         val result = controller.showAdIfNeeded(activity, bypassCooldown = true)
 
         assertEquals(AdFlowController.AdResult.AdDismissed, result)
-        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
     fun `un timeout de chargement lance directement la video sans suspecter un adblocker`() = runTest {
         val frequencyManager = AdFrequencyManager(clock = { 1_000L })
-        val controller = AdFlowController(adManager, frequencyManager)
+        val controller = AdFlowController(adManager, frequencyManager) { _ -> false }
 
         val result = async { controller.showAdIfNeeded(activity) }
 
@@ -133,13 +136,13 @@ class AdFlowControllerTest {
 
         assertEquals(AdFlowController.AdResult.SkippedByTimeout, result.await())
         assertFalse(frequencyManager.isAdBlockerSuspected())
-        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `une erreur reseau AdMob declenche le blocage AdBlock`() = runTest {
+    fun `une erreur reseau sans blocage confirme lance la video`() = runTest {
         val frequencyManager = AdFrequencyManager(clock = { 1_000L })
-        val controller = AdFlowController(adManager, frequencyManager)
+        val controller = AdFlowController(adManager, frequencyManager) { _ -> false }
 
         every {
             adManager.loadAndShow(
@@ -148,17 +151,69 @@ class AdFlowControllerTest {
                 onAdDismissed = any(),
                 onFailed = any(),
                 onNoNetwork = any(),
+                onNoFill = any(),
                 onNetworkError = any(),
                 isRequestActive = any()
             )
         } answers {
-            arg<() -> Unit>(6)()
+            arg<() -> Unit>(7)()
+        }
+
+        val result = controller.showAdIfNeeded(activity)
+
+        assertEquals(AdFlowController.AdResult.SkippedByTimeout, result)
+        assertFalse(frequencyManager.isAdBlockerSuspected())
+    }
+
+    @Test
+    fun `une erreur reseau confirmee par le test croise bloque`() = runTest {
+        val frequencyManager = AdFrequencyManager(clock = { 1_000L })
+        val controller = AdFlowController(adManager, frequencyManager) { _ -> true }
+
+        every {
+            adManager.loadAndShow(
+                activity = any(),
+                onAdShowed = any(),
+                onAdDismissed = any(),
+                onFailed = any(),
+                onNoNetwork = any(),
+                onNoFill = any(),
+                onNetworkError = any(),
+                isRequestActive = any()
+            )
+        } answers {
+            arg<() -> Unit>(7)()
         }
 
         val result = controller.showAdIfNeeded(activity)
 
         assertEquals(AdFlowController.AdResult.AdBlockerBlocked, result)
-        assertTrue(frequencyManager.isAdBlockerSuspected())
+        assertFalse(frequencyManager.isAdBlockerSuspected())
+    }
+
+    @Test
+    fun `un no-fill lance la video immediatement sans retry`() = runTest {
+        val controller = AdFlowController(adManager, AdFrequencyManager())
+
+        every {
+            adManager.loadAndShow(
+                activity = any(),
+                onAdShowed = any(),
+                onAdDismissed = any(),
+                onFailed = any(),
+                onNoNetwork = any(),
+                onNoFill = any(),
+                onNetworkError = any(),
+                isRequestActive = any()
+            )
+        } answers {
+            arg<() -> Unit>(5)()
+        }
+
+        val result = controller.showAdIfNeeded(activity)
+
+        assertEquals(AdFlowController.AdResult.SkippedByNoFill, result)
+        verify(exactly = 1) { adManager.loadAndShow(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -174,6 +229,7 @@ class AdFlowControllerTest {
                 onAdDismissed = any(),
                 onFailed = any(),
                 onNoNetwork = any(),
+                onNoFill = any(),
                 onNetworkError = any(),
                 isRequestActive = any()
             )
@@ -189,5 +245,3 @@ class AdFlowControllerTest {
         assertFalse(frequencyManager.isAdBlockerSuspected())
     }
 }
-
-

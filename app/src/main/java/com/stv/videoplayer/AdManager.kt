@@ -184,6 +184,7 @@ class AdManager private constructor(
         onAdDismissed: () -> Unit,
         onFailed: () -> Unit,
         onNoNetwork: () -> Unit,
+        onNoFill: () -> Unit = {},
         isRequestActive: () -> Boolean = { true },
         onNetworkError: () -> Unit = {}
     ) {
@@ -206,7 +207,8 @@ class AdManager private constructor(
                     ad = cachedAd,
                     onAdShowed = onAdShowed,
                     onAdDismissed = onAdDismissed,
-                    onFailed = onFailed,
+                    onNoFill = onNoFill,
+                    onNetworkError = onNetworkError,
                     isRequestActive = isRequestActive
                 )
             }
@@ -222,12 +224,11 @@ class AdManager private constructor(
                 object : InterstitialAdLoadCallback() {
                     override fun onAdFailedToLoad(adError: LoadAdError) {
                         Log.d(TAG, "Ad failed to load: $adError")
-                        if (adError.code == AdRequest.ERROR_CODE_NETWORK_ERROR) {
-                            onNetworkError()
-                        } else if (!NetworkUtils.isNetworkAvailable(appContext)) {
-                            onNoNetwork()
+                        if (adError.code == AdRequest.ERROR_CODE_NO_FILL) {
+                            Log.i(TAG, "AdMob inventory unavailable (NO_FILL code 3)")
+                            onNoFill()
                         } else {
-                            onFailed()
+                            onNetworkError()
                         }
                         preloadInterstitial()
                     }
@@ -243,7 +244,8 @@ class AdManager private constructor(
                             ad = ad,
                             onAdShowed = onAdShowed,
                             onAdDismissed = onAdDismissed,
-                            onFailed = onFailed,
+                            onNoFill = onNoFill,
+                            onNetworkError = onNetworkError,
                             isRequestActive = isRequestActive
                         )
                     }
@@ -257,7 +259,8 @@ class AdManager private constructor(
         ad: InterstitialAd,
         onAdShowed: () -> Unit,
         onAdDismissed: () -> Unit,
-        onFailed: () -> Unit,
+        onNoFill: () -> Unit,
+        onNetworkError: () -> Unit,
         isRequestActive: () -> Boolean
     ) {
         if (!isRequestActive()) {
@@ -278,7 +281,11 @@ class AdManager private constructor(
 
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                 Log.e(TAG, "Ad failed to show: $adError")
-                onFailed()
+                if (adError.code == AdRequest.ERROR_CODE_NO_FILL) {
+                    onNoFill()
+                } else {
+                    onNetworkError()
+                }
                 preloadInterstitial()
             }
         }

@@ -1,6 +1,7 @@
 ﻿package com.stv.videoplayer.features.ads
 
 import android.app.Activity
+import android.content.Context
 import android.util.Log
 import com.stv.videoplayer.AdManager
 import kotlinx.coroutines.CoroutineScope
@@ -17,7 +18,10 @@ import kotlin.coroutines.resume
  */
 class AdFlowController(
     private val adManager: AdManager,
-    private val frequencyManager: AdFrequencyManager = AdFrequencyManager.shared()
+    private val frequencyManager: AdFrequencyManager = AdFrequencyManager.shared(),
+    private val isAdBlockerActive: suspend (Context) -> Boolean = { context ->
+        AdBlockerDetector.isAdBlockerActive(context)
+    }
 ) {
 
     init {
@@ -34,11 +38,6 @@ class AdFlowController(
         bypassCooldown: Boolean = false,
         onAdShowed: () -> Unit = {}
     ): AdResult {
-        if (!bypassCooldown && frequencyManager.isAdBlockerSuspected()) {
-            Log.d(tag, "Ad blocker already suspected -> blocking playback")
-            return AdResult.AdBlockerBlocked
-        }
-
         if (!bypassCooldown && frequencyManager.shouldSkipAd()) {
             Log.d(tag, "Cooldown active -> skipping ad")
             return AdResult.SkippedByCooldown
@@ -50,6 +49,7 @@ class AdFlowController(
 
             when (result) {
                 AdResult.AdDismissed -> return result
+                AdResult.SkippedByNoFill -> return result
                 AdResult.NoNetwork -> return result
                 AdResult.SkippedByTimeout -> return result
                 AdResult.Failed -> {
@@ -75,8 +75,8 @@ class AdFlowController(
             val timeoutJob = CoroutineScope(cont.context).launch {
                 delay(adLoadTimeoutMs)
                 if (cont.isActive) {
-                    Log.w(tag, "Ad load timeout (${adLoadTimeoutMs}ms); keeping playback retryable")
-                    cont.resume(AdResult.SkippedByTimeout)
+                    Log.w(tag, "Ad load timeout (${adLoadTimeoutMs}ms); running cross-check")
+                    resolveNetworkFailure(activity.applicationContext, cont, null)
                 }
             }
 
@@ -100,6 +100,11 @@ class AdFlowController(
                             Log.d(tag, "Ad load/show failed; keeping playback retryable")
                             if (cont.isActive) cont.resume(AdResult.Failed)
                         },
+                        onNoFill = {
+                            timeoutJob.cancel()
+                            Log.i(tag, "AdMob returned no-fill; starting playback without blocking")
+                            if (cont.isActive) cont.resume(AdResult.SkippedByNoFill)
+                        },
                         onNoNetwork = {
                             timeoutJob.cancel()
                             Log.d(tag, "No network")
@@ -108,9 +113,7 @@ class AdFlowController(
                         onNetworkError = {
                             timeoutJob.cancel()
                             if (cont.isActive) {
-                                frequencyManager.markAdBlockerSuspected()
-                                Log.w(tag, "AdMob network error -> ad blocker suspected")
-                                cont.resume(AdResult.AdBlockerBlocked)
+                                resolveNetworkFailure(activity.applicationContext, cont, timeoutJob)
                             }
                         },
                         isRequestActive = { cont.isActive }
@@ -120,8 +123,28 @@ class AdFlowController(
         }
     }
 
+    private fun resolveNetworkFailure(
+        context: Context,
+        cont: kotlinx.coroutines.CancellableContinuation<AdResult>,
+        timeoutJob: kotlinx.coroutines.Job?
+    ) {
+        CoroutineScope(cont.context).launch {
+            val blocked = isAdBlockerActive(context)
+            if (!cont.isActive) return@launch
+            timeoutJob?.cancel()
+            if (blocked) {
+                Log.w(tag, "Ad cross-check confirmed an active ad blocker")
+                cont.resume(AdResult.AdBlockerBlocked)
+            } else {
+                Log.i(tag, "Ad cross-check found no blocker; starting playback")
+                cont.resume(AdResult.SkippedByTimeout)
+            }
+        }
+    }
+
     sealed class AdResult {
         data object AdDismissed : AdResult()
+        data object SkippedByNoFill : AdResult()
         data object SkippedByCooldown : AdResult()
         data object SkippedByTimeout : AdResult()
         data object AdBlockerBlocked : AdResult()
