@@ -4,6 +4,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import java.security.MessageDigest
 /** Signature-based authorization for exported player entry points and sensitive extras. */
 class PermissionHelper(private val context: Context) {
     private companion object {
@@ -45,8 +46,10 @@ class PermissionHelper(private val context: Context) {
             val ownSignatures = getSignatures(
                 packageManager.getPackageInfo(context.packageName, signingInfoFlag())
             )
+            val ownDigests = ownSignatures.map(::sha256)
             val matches = callerSignatures.any { caller ->
-                ownSignatures.any { own -> caller.contentEquals(own) }
+                val callerDigest = sha256(caller)
+                ownDigests.any { ownDigest -> MessageDigest.isEqual(callerDigest, ownDigest) }
             }
             if (!matches) Log.w(TAG, "Signing certificate mismatch for $packageName")
             matches
@@ -65,10 +68,18 @@ class PermissionHelper(private val context: Context) {
     }
     private fun getSignatures(packageInfo: PackageInfo): List<ByteArray> {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.signingInfo?.apkContentsSigners?.map { it.toByteArray() }.orEmpty()
+            packageInfo.signingInfo?.apkContentsSigners?.mapNotNull { it.toByteArray() }
+                ?.takeIf { it.isNotEmpty() }
+                ?: run {
+                    @Suppress("DEPRECATION")
+                    packageInfo.signatures?.mapNotNull { it.toByteArray() }.orEmpty()
+                }
         } else {
             @Suppress("DEPRECATION")
-            packageInfo.signatures?.map { it.toByteArray() }.orEmpty()
+            packageInfo.signatures?.mapNotNull { it.toByteArray() }.orEmpty()
         }
     }
+
+    private fun sha256(signature: ByteArray): ByteArray =
+        MessageDigest.getInstance("SHA-256").digest(signature)
 }

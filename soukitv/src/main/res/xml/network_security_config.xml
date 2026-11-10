@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- RÈGLE PAR DÉFAUT : Autorisé pour charger les logos et images tiers distants -->
+    <!-- RÈGLE PAR DÉFAUT : les flux HTTP multimédia sont autorisés -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />

@@ -13,6 +13,7 @@ import com.example.soukitv.features.home.domain.model.StreamSource
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -49,7 +50,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_returnsNotInstalled_whenNoStvPackageIsPresent() {
+    fun launch_returnsNotInstalled_whenNoStvPackageIsPresent() = runTest {
         val result = launcher().launchChannel(channel)
 
         assertEquals(LaunchResult.NotInstalled, result)
@@ -57,7 +58,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_returnsUpdateRequired_whenVersionCodeIsBelowMinimum() {
+    fun launch_returnsUpdateRequired_whenVersionCodeIsBelowMinimum() = runTest {
         installed(prod, versionCode = 1)
 
         val result = launcher(minVersionCode = 2).launchChannel(channel)
@@ -67,7 +68,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_succeeds_whenVersionCodeEqualsMinimum() {
+    fun launch_succeeds_whenVersionCodeEqualsMinimum() = runTest {
         installed(prod, versionCode = 2)
 
         val result = launcher(minVersionCode = 2).launchChannel(channel)
@@ -77,7 +78,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_targetsPlayStreamActionAndProductionPackage() {
+    fun launch_targetsPlayStreamActionAndProductionPackage() = runTest {
         installed(prod, versionCode = 5)
 
         val result = launcher().launchChannel(channel)
@@ -94,7 +95,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_prefersProductionOverDevWhenBothInstalled() {
+    fun launch_prefersProductionOverDevWhenBothInstalled() = runTest {
         installed(prod, versionCode = 3)
         installed(dev, versionCode = 3)
 
@@ -105,7 +106,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_fallsBackToDevPackageWhenProductionIsMissing() {
+    fun launch_fallsBackToDevPackageWhenProductionIsMissing() = runTest {
         installed(dev, versionCode = 3)
 
         val result = launcher().launchChannel(channel)
@@ -115,7 +116,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_ignoresLegacyPackages() {
+    fun launch_ignoresLegacyPackages() = runTest {
         installed("com.stv.videoplayer", versionCode = 9)
         installed("com.example.stv", versionCode = 9)
 
@@ -123,7 +124,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_putsHttpHeadersInBundleAndRefererExtra() {
+    fun launch_putsHttpHeadersInBundleAndRefererExtra() = runTest {
         installed(prod, versionCode = 2)
         val headers = mapOf(
             "Referer" to "https://site.example/",
@@ -144,7 +145,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_withoutCustomHeaders_stillAddsLockInHeaders() {
+    fun launch_withoutCustomHeaders_stillAddsLockInHeaders() = runTest {
         installed(prod, versionCode = 2)
 
         launcher().launchChannel(channel)
@@ -155,7 +156,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_injectsDynamicAuthSecret() {
+    fun launch_injectsDynamicAuthSecret() = runTest {
         installed(prod, versionCode = 2)
 
         launcher().launchChannel(channel, authSecret = "rotating-secret")
@@ -164,10 +165,10 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_resolvesDispatchUrl_beforeLaunchingWithDirectUrl() {
+    fun launch_resolvesDispatchUrl_beforeLaunchingWithDirectUrl() = runTest {
         installed(prod, versionCode = 2)
-        val dispatchUrl = "http://196.200.156.190/dispatch"
-        val resolvedUrl = "http://196.200.156.184/master.m3u8"
+        val dispatchUrl = "https://balancer.example.com/dispatch"
+        val resolvedUrl = "https://edge1.example.com/master.m3u8"
         var receivedAuth = ""
         var receivedUrl = ""
 
@@ -187,17 +188,17 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_rewritesAllDispatchSourcesWithOneResolvedEdge_andKeepsExternalSourcesIntact() {
+    fun launch_rewritesAllDispatchSourcesWithOneResolvedEdge_andKeepsExternalSourcesIntact() = runTest {
         installed(prod, versionCode = 2)
-        val edgeUrl = "http://196.200.156.184/master.m3u8"
-        val externalUrl = "https://live-tv-example.run.app/live/index.m3u8?token=a%2Fb"
+        val edgeUrl = "https://edge1.example.com/master.m3u8"
+        val externalUrl = "https://external.example.com/stream.m3u8"
         val calls = mutableListOf<String>()
         val match = MatchItem(
-            streamUrl = "http://196.200.156.190/dispatch",
+            streamUrl = "https://balancer.example.com/dispatch",
             sources = listOf(
-                StreamSource("HD", "http://196.200.156.190/dispatch?source=hd"),
+                StreamSource("HD", "https://balancer.example.com/dispatch?source=hd"),
                 StreamSource("External", externalUrl),
-                StreamSource("SD", "https://196.200.156.190/dispatch?source=sd")
+                StreamSource("SD", "https://balancer.example.com/dispatch?source=sd")
             )
         )
 
@@ -209,7 +210,7 @@ class StvPlayerLauncherTest {
         ).launchMatch(match, authSecret = "rotating-secret")
 
         assertEquals(LaunchResult.Launched, result)
-        assertEquals(listOf("http://196.200.156.190/dispatch"), calls)
+        assertEquals(listOf("https://balancer.example.com/dispatch"), calls)
         verify {
             intent.putExtra(
                 StvPlayerLauncher.EXTRA_SOURCES_JSON,
@@ -221,16 +222,16 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_resolvesOneDispatcherSource_whenPrimaryUrlIsExternal() {
+    fun launch_resolvesOneDispatcherSource_whenPrimaryUrlIsExternal() = runTest {
         installed(prod, versionCode = 2)
-        val primaryUrl = "https://external.example/live.m3u8"
-        val edgeUrl = "http://196.200.156.184/master.m3u8"
+        val primaryUrl = "https://external.example.com/stream.m3u8"
+        val edgeUrl = "https://edge1.example.com/master.m3u8"
         var callCount = 0
         val match = MatchItem(
             streamUrl = primaryUrl,
             sources = listOf(
-                StreamSource("Internal HD", "http://196.200.156.190/dispatch?source=hd"),
-                StreamSource("Internal SD", "http://196.200.156.190/dispatch?source=sd")
+                StreamSource("Internal HD", "https://balancer.example.com/dispatch?source=hd"),
+                StreamSource("Internal SD", "https://balancer.example.com/dispatch?source=sd")
             )
         )
 
@@ -254,11 +255,11 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_fallsBackToFirstValidSecondarySource_whenDispatchFails() {
+    fun launch_fallsBackToFirstValidSecondarySource_whenDispatchFails() = runTest {
         installed(prod, versionCode = 2)
         val fallbackUrl = "https://relay.example/master.m3u8"
         val match = MatchItem(
-            streamUrl = "http://196.200.156.190/dispatch",
+            streamUrl = "https://balancer.example.com/dispatch",
             sources = listOf(
                 StreamSource("bad", "file:///invalid"),
                 StreamSource("HD", fallbackUrl)
@@ -275,19 +276,19 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_returnsFailed_whenDispatchTimesOutAndNoFallbackExists() {
+    fun launch_returnsFailed_whenDispatchTimesOutAndNoFallbackExists() = runTest {
         installed(prod, versionCode = 2)
 
         val result = launcher(
             streamDispatcher = StreamDispatcher { _, _ -> throw java.net.SocketTimeoutException("timeout") }
-        ).launchChannel(channel.copy(streamUrl = "https://196.200.156.190/dispatch"))
+        ).launchChannel(channel.copy(streamUrl = "https://balancer.example.com/dispatch"))
 
         assertTrue(result is LaunchResult.Failed)
         verify(exactly = 0) { context.startActivity(any()) }
     }
 
     @Test
-    fun launch_rejectsNonHttpSchemes() {
+    fun launch_rejectsNonHttpSchemes() = runTest {
         installed(prod, versionCode = 2)
 
         listOf("file:///sdcard/a.mp4", "content://x/y", "javascript:alert(1)", "intent://x").forEach { url ->
@@ -298,7 +299,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launchMatch_returnsFailed_whenPrimaryUrlIsNullAndNoValidSecondarySourceExists() {
+    fun launchMatch_returnsFailed_whenPrimaryUrlIsNullAndNoValidSecondarySourceExists() = runTest {
         val match = MatchItem(streamUrl = null)
 
         val result = launcher().launchMatch(match)
@@ -311,7 +312,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launchMatch_returnsFailed_whenPrimaryUrlUsesUnsupportedScheme() {
+    fun launchMatch_returnsFailed_whenPrimaryUrlUsesUnsupportedScheme() = runTest {
         val match = MatchItem(streamUrl = "file:///sdcard/match.mp4")
 
         val result = launcher().launchMatch(match)
@@ -321,7 +322,7 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launchMatch_usesFirstValidSecondarySource_whenPrimaryUrlIsNull() {
+    fun launchMatch_usesFirstValidSecondarySource_whenPrimaryUrlIsNull() = runTest {
         installed(prod, versionCode = 2)
         val secondaryUrl = "https://example.com/secondary.m3u8"
         val match = MatchItem(

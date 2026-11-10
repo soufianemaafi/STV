@@ -37,6 +37,7 @@ class IntentSecurityManager {
         private val ALLOWED_VIDEO_EXTENSIONS = listOf(".m3u8", ".mp4", ".mpd", ".ts", ".webm", ".mkv")
 
         private const val EXTRA_VIDEO_URL = "VIDEO_URL"
+        private const val EXTRA_URL = "url"
         private const val DEEP_LINK_SCHEME = "stv"
         private const val DEEP_LINK_HOST = "play"
         private const val MAX_URL_LENGTH = 2048
@@ -127,7 +128,7 @@ class IntentSecurityManager {
     fun hasVideoExtension(url: String?): Boolean {
         val safeUrl = try {
             url?.lowercase()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         } ?: return false
 
@@ -136,8 +137,8 @@ class IntentSecurityManager {
     }
 
     /**
-     * Extrait l'URL candidate depuis l'Intent : extra explicite `VIDEO_URL`,
-     * deep link interne `stv://play?url=...`, ou data URI directe (`http(s)://...`).
+     * Extrait l'URL candidate depuis l'Intent : extra explicite `VIDEO_URL`, alias `url`,
+      * deep link interne `stv://play?url=...`, ou `intent.dataString` directe (`http(s)://...`).
      * 100% Safe-call : ne crash jamais si les extras/data sont null ou mal formÃ©s.
      */
     private fun extractCandidateUrl(intent: Intent): String? {
@@ -150,7 +151,16 @@ class IntentSecurityManager {
         }
         if (!extraUrl.isNullOrBlank()) return extraUrl
 
-        // 2. Data URI (deep link ou ACTION_VIEW)
+        // 2. Alias historique du contrat IPC.
+        val aliasUrl = try {
+            intent.getStringExtra(EXTRA_URL)
+        } catch (e: Exception) {
+            Log.w(TAG, "Impossible de lire l'extra '$EXTRA_URL'", e)
+            null
+        }
+        if (!aliasUrl.isNullOrBlank()) return aliasUrl
+
+        // 3. Data URI (deep link ou ACTION_VIEW)
         val data = try {
             intent.data
         } catch (e: Exception) {
@@ -163,7 +173,7 @@ class IntentSecurityManager {
                 // Deep link interne stv://play?url=...
                 data.getQueryParameter("url")
             } else {
-                data.toString()
+                intent.dataString
             }
         } catch (e: Exception) {
             Log.w(TAG, "Impossible de rÃ©soudre l'URI depuis intent.data", e)

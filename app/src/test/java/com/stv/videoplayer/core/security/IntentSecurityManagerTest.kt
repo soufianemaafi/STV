@@ -191,6 +191,45 @@ class IntentSecurityManagerTest {
     }
 
     @Test
+    fun `validateIncomingIntent avec extra url valide est accepte`() {
+        val intent = mockk<Intent>()
+        every { intent.getStringExtra("VIDEO_URL") } returns null
+        every { intent.getStringExtra("url") } returns "https://external.example.com/stream.m3u8"
+
+        val result = manager.validateIncomingIntent(intent)
+
+        assertEquals(
+            IntentValidationResult.Valid("https://external.example.com/stream.m3u8"),
+            result
+        )
+    }
+
+    @Test
+    fun `validateIncomingIntent privilegie VIDEO_URL sur alias url`() {
+        val intent = mockk<Intent>()
+        every { intent.getStringExtra("VIDEO_URL") } returns "https://edge1.example.com/master.m3u8"
+        every { intent.getStringExtra("url") } returns "file:///sdcard/secret.mp4"
+
+        val result = manager.validateIncomingIntent(intent)
+
+        assertEquals(
+            IntentValidationResult.Valid("https://edge1.example.com/master.m3u8"),
+            result
+        )
+    }
+
+    @Test
+    fun `validateIncomingIntent avec alias url dangereux est rejete`() {
+        val intent = mockk<Intent>()
+        every { intent.getStringExtra("VIDEO_URL") } returns null
+        every { intent.getStringExtra("url") } returns "content://com.android.providers.media/video/1"
+
+        val result = manager.validateIncomingIntent(intent)
+
+        assertTrue(result is IntentValidationResult.Invalid)
+    }
+
+    @Test
     fun `validateIncomingIntent sans extra et sans data est rejete sans crash`() {
         val intent = mockk<Intent>()
         every { intent.getStringExtra("VIDEO_URL") } returns null
@@ -213,6 +252,27 @@ class IntentSecurityManagerTest {
 
         val result = manager.validateIncomingIntent(intent)
         assertTrue(result is IntentValidationResult.Valid)
+    }
+
+    @Test
+    fun `validateIncomingIntent avec dataString directe valide est acceptee`() {
+        val uri = mockk<Uri>()
+        every { uri.scheme } returns "https"
+        every { uri.host } returns "external.example.com"
+        every { uri.toString() } returns "https://external.example.com/stream.m3u8"
+
+        val intent = mockk<Intent>()
+        every { intent.getStringExtra("VIDEO_URL") } returns null
+        every { intent.getStringExtra("url") } returns null
+        every { intent.data } returns uri
+        every { intent.dataString } returns "https://external.example.com/stream.m3u8"
+
+        val result = manager.validateIncomingIntent(intent)
+
+        assertEquals(
+            IntentValidationResult.Valid("https://external.example.com/stream.m3u8"),
+            result
+        )
     }
 
     @Test

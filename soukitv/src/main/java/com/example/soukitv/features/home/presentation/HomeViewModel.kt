@@ -15,6 +15,8 @@ import com.example.soukitv.features.home.domain.model.isLiveAt
 import com.example.soukitv.features.home.domain.repository.ChannelRepository
 import com.example.soukitv.features.home.domain.repository.FavoritesStore
 import com.example.soukitv.features.home.domain.repository.InMemoryFavoritesStore
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +28,8 @@ import java.util.Calendar
 class HomeViewModel(
     private val repository: ChannelRepository,
     private val stvPlayerLauncher: StvPlayerLauncher,
-    private val favoritesStore: FavoritesStore = InMemoryFavoritesStore()
+    private val favoritesStore: FavoritesStore = InMemoryFavoritesStore(),
+    private val launchDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -165,23 +168,27 @@ class HomeViewModel(
     }
 
     private fun handleSelectChannel(channel: Channel) {
-        handleLaunchResult(
-            stvPlayerLauncher.launchChannel(
-                channel = channel,
-                minStvVersionCode = minStvVersionCode,
-                authSecret = authSecret
+        viewModelScope.launch(launchDispatcher) {
+            handleLaunchResult(
+                stvPlayerLauncher.launchChannel(
+                    channel = channel,
+                    minStvVersionCode = minStvVersionCode,
+                    authSecret = authSecret
+                )
             )
-        )
+        }
     }
 
     private fun handleSelectMatch(match: MatchItem) {
-        handleLaunchResult(
-            stvPlayerLauncher.launchMatch(
-                match = match,
-                minStvVersionCode = minStvVersionCode,
-                authSecret = authSecret
+        viewModelScope.launch(launchDispatcher) {
+            handleLaunchResult(
+                stvPlayerLauncher.launchMatch(
+                    match = match,
+                    minStvVersionCode = minStvVersionCode,
+                    authSecret = authSecret
+                )
             )
-        )
+        }
     }
 
     private fun handleLaunchResult(result: LaunchResult) {

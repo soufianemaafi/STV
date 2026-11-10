@@ -23,11 +23,18 @@ Le projet est un monorepo Android construit sous **Gradle 9.2.1 / AGP 9.0.1** av
    - **Application ID** : `com.example.soukitv`
    - **Rôle** : Application catalogue interactive hors-store (Retrofit 3.0.0, Coil 2.7.0), affichant les matchs en direct, les chaînes IPTV par pays/catégorie et déléguant la lecture vidéo au module `:app` via IPC sécurisé.
 
+### Versioning officiel synchronisé
+
+- **`:app`** : `versionCode = 4`, `versionName = "1.0.3"` — release de production `com.soufcom.stv` publiée sur Google Play Store.
+- **`:soukitv`** : `versionCode = 6`, `versionName = "3.6.0"` — release catalogue hors-store.
+
+Ces valeurs constituent le versioning officiel de référence et ne doivent pas être régressées ou désynchronisées lors d'un audit ou d'un refactoring.
+
 ---
 
 ## 2. 📂 ARBORESCENCE DÉTAILLÉE DES MODULES
 
-### Module `:app` (`com.stv.videoplayer`)
+### Module `:app` (namespace `com.stv.videoplayer`, applicationId `com.soufcom.stv`)
 ```
 app/src/main/java/com/stv/videoplayer/
 ├── STVApplication.kt                    # Initialisation SDK (MobileAds, AdManager)
@@ -156,6 +163,17 @@ soukitv/src/main/java/com/example/soukitv/
 
 ## 4. ⚙️ ANALYSE DÉTAILLÉE DES MODULES
 
+### 4.0. 🔒 RÈGLE D'OR INTANGIBLE — POLITIQUE RÉSEAU DUAL (MÉDIA VS API SENSIBLE)
+
+Cette politique est **intouchable** lors de tout audit, durcissement ou refactoring futur :
+
+- **Cleartext obligatoire pour le streaming multimédia** : `android:usesCleartextTraffic="true"` doit rester présent dans les manifests de `:app` et `:soukitv`, et `cleartextTrafficPermitted="true"` doit rester configuré dans le `base-config` de leurs `network_security_config.xml`. Cette tolérance est indispensable car environ 80 % des flux IPTV tiers mondiaux, des infrastructures de relais et des logos distants utilisent encore `http://`. Désactiver globalement le cleartext rendrait légitimes ces flux illisibles et constitue une régression fonctionnelle interdite.
+- **Redirections cross-protocoles Media3 obligatoires** : `HeaderAwareMediaSourceFactory.kt` doit conserver `DefaultHttpDataSource.Factory.setAllowCrossProtocolRedirects(true)`. De nombreux CDN distribuent une playlist HTTPS qui redirige vers des segments HTTP, ou l'inverse ; passer cette option à `false` casse la lecture vidéo de ces architectures.
+- **Rempart anti-MITM préservé** : la confiance réseau repose sur `<certificates src="system" />`, qui rejette les autorités de certification utilisateur susceptibles d'être injectées par Burp Suite ou Charles Proxy. Cette protection doit rester présente dans les configurations réseau applicatives.
+- **API sensibles sanctuarisées** : les domaines qui transportent des tokens, de la télémétrie ou le catalogue distant — notamment `googleads.g.doubleclick.net`, `pagead2.googlesyndication.com` et `raw.githubusercontent.com` — doivent rester dans des `domain-config` avec `cleartextTrafficPermitted="false"` (HTTPS strict), indépendamment de la tolérance média globale.
+
+La règle est donc duale : **HTTP autorisé pour les médias et ressources distantes non sensibles ; HTTPS strict et ancres système pour les services sensibles**. Il est interdit de remplacer cette séparation par un blocage global du cleartext.
+
 ### Module `:app` (Le Moteur de Lecture)
 1. **Gestion Mémoire & Isolation ExoPlayer (`PlayerViewModel.kt`)** :
    - L'instance d'ExoPlayer est instanciée **exclusivement** avec le contexte `Application` (`AndroidViewModel`), éliminant toute fuite mémoire d'Activity.
@@ -190,8 +208,9 @@ soukitv/src/main/java/com/example/soukitv/
 7. **Sécurité & Contrat IPC (`IntentSecurityManager.kt` / `PermissionHelper.kt`)** :
    - **Action Intent** : `com.soufcom.stv.action.PLAY_STREAM` et `com.stv.videoplayer.action.PLAY_STREAM`.
    - **Schémas autorisés** : `http://` et `https://` strictement (rejet immédiat de `file://`, `content://`, `javascript:`).
-   - **Extras gérés** : `VIDEO_URL`, `title` / `EXTRA_TITLE`, `SKIP_ADS`, `sources_json`, `headers`, `referer`.
-   - **Authentification** : `PermissionHelper` vérifie la signature de l'application appelante avant d'accorder les privilèges `SKIP_ADS`.
+    - **Ordre d'extraction des URLs** : `IntentSecurityManager.kt` essaie successivement `VIDEO_URL`, l'alias `url`, puis `intent.dataString`. Chaque valeur est validée strictement ; les schémas malveillants ou non `http`/`https` sont rejetés immédiatement.
+    - **Extras gérés** : `VIDEO_URL`, `url`, `title` / `EXTRA_TITLE`, `SKIP_ADS`, `sources_json`, `headers`, `referer`.
+    - **Authentification** : `PermissionHelper.kt` compare les empreintes SHA-256 avec `MessageDigest.isEqual` à temps constant. L'extra `SKIP_ADS` est refusé immédiatement aux appelants inconnus ou non signés.
 
 ---
 
@@ -207,10 +226,12 @@ soukitv/src/main/java/com/example/soukitv/
    - Navigation avec `SoukiBottomBar` et barre de recherche/filtrage en temps réel (`SearchAndFilterBar`).
 
 3. **Lancement de Lecteur Distant (`StvPlayerLauncher.kt`)** :
+    - API `suspend` asynchrone pure : toute résolution et émission IPC s'exécute via `withContext(ioDispatcher)`, sans `runBlocking` susceptible de bloquer le thread principal ou l'UI.
    - Tente d'ouvrir `:app` via un Intent explicite `com.soufcom.stv.action.PLAY_STREAM` avec le package `com.soufcom.stv`.
    - Redirection de secours via Deep Link `stv://play?url=...`.
    - Si `:app` n'est pas installée, affiche un dialogue M3 stylisé (`StvErrorDialog`) invitant à l'installation.
-   - **Verrou Cryptographique IPC** : vérification obligatoire de l'empreinte de signature SHA-256 du package `com.soufcom.stv` avant toute émission d'Intent.
+    - **Identité de production immuable** : `com.soufcom.stv` est l'`applicationId` officiel de production de `:app`, publié sur Google Play Store. Le package `com.soufcom.stv.dev` est réservé au développement.
+    - **Verrou Cryptographique IPC** : vérification obligatoire de l'empreinte de signature SHA-256 du package `com.soufcom.stv` avant toute émission d'Intent.
    - Double liste blanche XOR-obfusquée avec la clé `0x5A`, couvrant la nouvelle clé Google Play et la clé historique de NexiPlayer.
    - Blocage immédiat des lecteurs pirates ou re-signés avec retour `LaunchResult.Failed`.
    - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG`.
@@ -231,7 +252,7 @@ soukitv/src/main/java/com/example/soukitv/
 6. **Sécurité IPC & Robustesse** :
    - `StvPlayerLauncher` filtre strictement les schémas `http` et `https`.
    - En l'absence d'URL primaire valide, bascule automatiquement sur la première source secondaire valide.
-   - **Protection Réseau & Anti-MITM (`network_security_config.xml`)** : Rejet strict des certificats pirates/proxys utilisateurs via `<certificates src="system" />` (neutralisation de Burp Suite / Charles Proxy sur les requêtes API), tout en autorisant le trafic média tiers en clair pour assurer un affichage fiable des logos de chaînes et de clubs distants ; architecture prête pour la migration vers le VPS backend dédié.
+    - **Protection Réseau & Anti-MITM (`network_security_config.xml`)** : Rejet strict des certificats pirates/proxys utilisateurs via `<certificates src="system" />` (neutralisation de Burp Suite / Charles Proxy sur les requêtes API), tout en autorisant le trafic média tiers en clair pour assurer un affichage fiable des logos de chaînes et de clubs distants ; les domaines sensibles restent en HTTPS strict conformément à la politique duale de la section 4.0.
 
 7. **Conformité SDK 36** :
    - Suppression de `statusBarColor` dans `Theme.kt`.
@@ -251,7 +272,13 @@ soukitv/src/main/java/com/example/soukitv/
 
 ## 5. 🧪 COUVERTURE DE TESTS UNITAIRES (48 TESTS `:soukitv` PASSÉS)
 
-La dernière validation exécutée le 6 novembre 2026 pour `:soukitv` s'exécute sans émulateur avec un taux de réussite de **100% (48/48 tests)** via `:soukitv:testDebugUnitTest --no-daemon`.
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 48 tests de `:soukitv` passent (192/192). La validation de référence est :
+
+```powershell
+.\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
+```
+
+Les en-têtes XML sont également soumis à une règle stricte : chaque fichier de ressources XML doit commencer en première ligne absolue par `<?xml version="1.0" encoding="utf-8"?>`, sans commentaire, espace ou déclaration dupliquée avant cet en-tête.
 
 - **Module `:app` (144 tests unitaires validés)** :
   - `VideoItemTest` : Validation des entités vidéo.
@@ -282,7 +309,7 @@ La dernière validation exécutée le 6 novembre 2026 pour `:soukitv` s'exécute
 
 ### Exécution de la Suite de Tests Unitaires
 ```powershell
-.\gradlew :app:testDevDebugUnitTest :soukitv:testDebugUnitTest
+.\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
 ```
 
 ### Directives d'écriture de Code (Strict Rules)

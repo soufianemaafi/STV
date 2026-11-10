@@ -17,7 +17,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.security.MessageDigest
@@ -41,7 +41,7 @@ class StvPlayerLauncher(
     private val streamDispatcher: StreamDispatcher = OkHttpStreamDispatcher(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
-    fun launchChannel(
+    suspend fun launchChannel(
         channel: Channel,
         authSecret: String = "",
         minStvVersionCode: Long = minVersionCode
@@ -54,7 +54,7 @@ class StvPlayerLauncher(
             minStvVersionCode = minStvVersionCode
         )
     /** Variante avec en-têtes HTTP optionnels (Referer, User-Agent, jetons Nginx...). */
-    fun launchChannel(
+    suspend fun launchChannel(
         channel: Channel,
         headers: Map<String, String>,
         authSecret: String = "",
@@ -71,12 +71,12 @@ class StvPlayerLauncher(
      * Lance un match. Si [MatchItem.sources] n'est pas vide, la liste est sérialisée en JSON
      * (extra `sources_json`) et la première source devient l'URL par défaut (`VIDEO_URL`).
      */
-    fun launchMatch(
+    suspend fun launchMatch(
         match: MatchItem,
         authSecret: String = "",
         minStvVersionCode: Long = minVersionCode
     ): LaunchResult = launchMatch(match, emptyMap(), authSecret, minStvVersionCode)
-    fun launchMatch(
+    suspend fun launchMatch(
         match: MatchItem,
         headers: Map<String, String>,
         authSecret: String = "",
@@ -100,7 +100,7 @@ class StvPlayerLauncher(
             minStvVersionCode = minStvVersionCode
         )
     }
-    private fun launch(
+    private suspend fun launch(
         channel: Channel,
         sources: List<StreamSource>?,
         headers: Map<String, String>,
@@ -170,8 +170,8 @@ class StvPlayerLauncher(
     }
 
     /** Résout un seul ticket du balancer avant de le transmettre au lecteur. */
-    private fun resolveDispatchUrl(dispatchUrl: String, authSecret: String): String? =
-        runBlocking(ioDispatcher) {
+    private suspend fun resolveDispatchUrl(dispatchUrl: String, authSecret: String): String? =
+        withContext(ioDispatcher) {
             runCatching { streamDispatcher.resolve(dispatchUrl, authSecret) }
                 .getOrNull()
                 ?.trim()

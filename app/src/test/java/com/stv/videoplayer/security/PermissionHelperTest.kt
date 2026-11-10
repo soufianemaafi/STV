@@ -67,9 +67,11 @@ class PermissionHelperTest {
     }
 
     private fun stubPackage(packageName: String, certificate: ByteArray) {
+        val signature = mockk<Signature>()
+        every { signature.toByteArray() } returns certificate
         val info = PackageInfo().apply {
             @Suppress("DEPRECATION")
-            signatures = arrayOf(Signature(certificate))
+            signatures = arrayOf(signature)
         }
         packageInfos[packageName] = info
     }
