@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.soukitv"
+    namespace = "com.soufcom.soukitv"
     compileSdk = 36
 
     // ✅ Charger les propriétés locales (keystore, etc.)
@@ -17,7 +17,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.soukitv"
+        applicationId = "com.soufcom.soukitv"
         minSdk = 24
         targetSdk = 36
         versionCode = 6

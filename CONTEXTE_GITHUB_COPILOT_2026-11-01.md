@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`  
 > **Date de mise à jour** : 01 Novembre 2026  
 > **Version Global Architecture** : V3.0 Clean Architecture + MVI  
-> **Git Release Tag** : `v3.5.0-soukitv-dynamic-lockin` (Novembre 2026)
+> **Git Release Tag** : `v3.6.0-soukitv-phase1-final` (Novembre 2026)
 > **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer)
 
 ---
@@ -20,7 +20,7 @@ Le projet est un monorepo Android construit sous **Gradle 9.2.1 / AGP 9.0.1** av
    - **Flavors** : `dev` (`com.soufcom.stv.dev`) et `prod` (`com.soufcom.stv`).
 
 2. **`:soukitv` (Catalogue de streaming / La Vitrine)** :
-   - **Application ID** : `com.example.soukitv`
+    - **Application ID** : `com.soufcom.soukitv`
    - **Rôle** : Application catalogue interactive hors-store (Retrofit 3.0.0, Coil 2.7.0), affichant les matchs en direct, les chaînes IPTV par pays/catégorie et déléguant la lecture vidéo au module `:app` via IPC sécurisé.
 
 ### Versioning officiel synchronisé
@@ -235,7 +235,7 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
    - Double liste blanche XOR-obfusquée avec la clé `0x5A`, couvrant la nouvelle clé Google Play et la clé historique de NexiPlayer.
    - Blocage immédiat des lecteurs pirates ou re-signés avec retour `LaunchResult.Failed`.
    - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG`.
-    - **Player Lock-in dynamique** : l’application récupère la clé secrète `stvAuthSecret` depuis le JSON distant et l’injecte dans le header `X-STV-Auth` via IPC, avec le User-Agent officiel. Cette authentification empêche le vol de flux par des lecteurs tiers tout en permettant la rotation instantanée de la clé sans mise à jour de l’APK. En l’absence de clé, le contrat reste fonctionnel avec une valeur vide contrôlée.
+     - **Player Lock-in dynamique** : l’application récupère la clé secrète `stvAuthSecret` depuis le JSON distant et l’injecte dans le header `X-STV-Auth` via IPC, avec le User-Agent officiel. Cette authentification empêche le vol de flux par des lecteurs tiers tout en permettant la rotation instantanée de la clé sans mise à jour de l’APK. En l’absence de clé, la stratégie **Fail-Closed** interdit toute résolution de dispatcher et toute émission d’Intent IPC.
     - **Stream Dispatcher** : `core/player/StvPlayerLauncher.kt` résout les tickets internes `/dispatch` avant l’IPC via un `StreamDispatcher` OkHttp exécuté sur `Dispatchers.IO` (timeouts courts de 3 secondes). Le balancer du relais `.190` expose `/dispatch`, exige `X-STV-Auth` et renvoie en environ 1 ms l’adresse directe de l’Edge sélectionné ; il ne transporte aucune vidéo et consomme donc 0 % de la bande passante vidéo.
     - Pour les matchs multi-sources, le ticket est résolu une seule fois en mémoire vive. Toutes les entrées `/dispatch` de `sources_json` sont réécrites avec le même Edge, tandis que les sources externes (Korasport, Cloud Run, etc.) sont conservées strictement inchangées. Cette préparation évite les erreurs de zapping entre sources internes et externes dans NexiPlayer.
 
@@ -252,7 +252,7 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
 6. **Sécurité IPC & Robustesse** :
    - `StvPlayerLauncher` filtre strictement les schémas `http` et `https`.
    - En l'absence d'URL primaire valide, bascule automatiquement sur la première source secondaire valide.
-    - **Protection Réseau & Anti-MITM (`network_security_config.xml`)** : Rejet strict des certificats pirates/proxys utilisateurs via `<certificates src="system" />` (neutralisation de Burp Suite / Charles Proxy sur les requêtes API), tout en autorisant le trafic média tiers en clair pour assurer un affichage fiable des logos de chaînes et de clubs distants ; les domaines sensibles restent en HTTPS strict conformément à la politique duale de la section 4.0.
+     - **Protection Réseau & Anti-MITM (`network_security_config.xml`)** : le cleartext HTTP est toléré pour les flux IPTV et les endpoints de dispatch afin de préserver la compatibilité universelle. Les requêtes HTTPS conservent `<certificates src="system" />`, ce qui exclut les ancres utilisateur pour les domaines protégés ; `raw.githubusercontent.com` reste en HTTPS strict via sa règle dédiée. Le trafic HTTP ne peut par nature pas bénéficier d’une protection certificat.
 
 7. **Conformité SDK 36** :
    - Suppression de `statusBarColor` dans `Theme.kt`.
@@ -270,9 +270,21 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
 
 ---
 
-## 5. 🧪 COUVERTURE DE TESTS UNITAIRES (48 TESTS `:soukitv` PASSÉS)
+## 5. 🛡️ PHASE 1 DE BLINDAGE SÉCURITAIRE — VALIDÉE
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 48 tests de `:soukitv` passent (192/192). La validation de référence est :
+La Phase 1 du durcissement de `:soukitv` est implémentée et validée sur la release `v3.6.0` (`versionCode = 6`) :
+
+- `SecurityEnvironmentChecker.kt` détecte les binaires `su`, les packages Magisk/SuperSU/BusyBox, les builds `test-keys`, les debuggers, le flag `FLAG_DEBUGGABLE`, le port Frida `27042` et les librairies suspectes dans `/proc/self/maps`.
+- En release, un environnement compromis entraîne la fermeture immédiate de l’application avant la création de l’interface.
+- La stratégie **Fail-Closed** sur `stvAuthSecret` rejette toute configuration absente, corrompue ou vide et interdit strictement le lancement d’un flux avec un secret vide.
+- `AutoCropTransparentTransformation` refuse le scan pixel par pixel des bitmaps dépassant `2048 x 2048` afin de limiter les risques de DoS mémoire via des images distantes.
+- Les sauvegardes système sont désactivées avec `android:allowBackup="false"` et des règles restrictives excluant les fichiers, bases, préférences, données device et stockage externe.
+- L’identité de production du catalogue est `com.soufcom.soukitv`.
+- La politique réseau autorise HTTP pour les flux multimédias et le dispatcher IPTV ; les ancres système restent conservées pour les connexions HTTPS protégées et les domaines sensibles restent en HTTPS strict.
+
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (54 TESTS `:soukitv` PASSÉS)
+
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 54 tests de `:soukitv` passent (198/198). La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
@@ -292,15 +304,18 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (48 tests unitaires validés)** :
+- **Module `:soukitv` (54 tests unitaires validés)** :
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
       - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes et la conservation stricte des sources externes.
   - `MappersTest` : Mapping DTO -> Domain (`ChannelMapper`, `MatchItemMapper`).
-  - `HomeViewModelTest` : MVI du catalogue, filtres, recherche et gestion des favoris.
+   - `HomeViewModelTest` : MVI du catalogue, filtres, recherche, gestion des favoris et fail-closed de la configuration distante.
+   - `SecretDecoderTest` : vérification du décodage XOR bidirectionnel.
+   - `AppSignatureVerifierTest` : validation de la comparaison SHA-256 avec `MessageDigest.isEqual`.
+   - `SecurityEnvironmentCheckerTest` : validation JVM du parsing du port Frida et des maps mémoire suspectes.
 
 ---
 
-## 6. 🛠️ COMMANDES DE COMPILATION & MIGRATION
+## 7. 🛠️ COMMANDES DE COMPILATION & MIGRATION
 
 ### Compilation de Production (Release App Bundle)
 ```powershell

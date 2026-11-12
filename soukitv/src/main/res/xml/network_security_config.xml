@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- RÈGLE PAR DÉFAUT : les flux HTTP multimédia sont autorisés -->
+    <!-- RÈGLE PAR DÉFAUT : HTTP autorisé pour les flux IPTV et le dispatcher multimédia -->
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
