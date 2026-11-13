@@ -1,5 +1,6 @@
 package com.soufcom.soukitv.features.home.data
 
+import com.soufcom.soukitv.core.network.NetworkModule
 import com.soufcom.soukitv.core.security.SecretDecoder
 import com.soufcom.soukitv.features.home.data.mapper.toCategories
 import com.soufcom.soukitv.features.home.data.mapper.toDomain
@@ -14,19 +15,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.TimeUnit
 
 class ChannelRepositoryImpl : ChannelRepository {
 
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build()
+    private val httpClient = NetworkModule.createOkHttpClient()
 
     private val apiService: ChannelApiService = Retrofit.Builder()
         .baseUrl(SecretDecoder.decode(REMOTE_BASE_URL))

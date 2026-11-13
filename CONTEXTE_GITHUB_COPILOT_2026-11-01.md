@@ -331,3 +331,169 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
 1. **Zero Hardcoded Strings** : Toute chaîne visible dans l'UI du module `:app` doit utiliser `stringResource(R.string.app_name)` ou une clé centralisée dans `strings.xml`.
 2. **Strict XML Headers** : Les fichiers de ressources XML (`adaptive-icon`, `color`, `vector`) doivent obligatoirement commencer par `<?xml version="1.0" encoding="utf-8"?>` en **première ligne absolue** (sans commentaire préalable).
 3. **MVI Conformance** : Les vues (`Composables` / `Activities`) émettent exclusivement des `UiAction` et observent des `UiState` via `StateFlow`.
+
+---
+
+## 8. 🚀 PHASE 2 : ROADMAP DE PRODUCTION VRAIS VPS & BACKEND DASHBOARD (À FAIRE)
+
+> **Statut** : spécification de déploiement à préparer après validation de la Phase 1. Cette phase doit être déployée progressivement, avec sauvegardes testées, journalisation et procédure de retour arrière. Toute diffusion de flux et tout contenu publié doivent respecter les droits de diffusion applicables, les conditions des fournisseurs et la législation locale ; le choix d’un hébergeur ne doit pas servir à contourner une obligation légale ou une notification d’abus.
+
+### 8.1. Achat et provisioning du VPS Web / API / Balancer unique
+
+#### 8.1.1. Choix de l’hébergeur et prérequis
+
+- Évaluer des fournisseurs acceptant légalement l’exploitation d’un catalogue et de flux autorisés, avec une procédure d’abus clairement documentée. AlexHost et PQ.Hosting peuvent être étudiés comme exemples d’hébergeurs à politique tolérante, sous réserve d’une validation juridique, contractuelle et technique préalable.
+- Choisir une région offrant une latence acceptable pour les utilisateurs et les relais Edge, ainsi qu’un SLA, des snapshots et une bande passante compatibles avec le trafic réel.
+- Dimension initiale recommandée : VPS Linux LTS, 2 vCPU, 4 Go de RAM, SSD NVMe et au moins 50 Go de stockage. Le dimensionnement doit être confirmé par les métriques après une phase de charge contrôlée.
+- Utiliser un compte administrateur nominatif, un utilisateur système `stv`, des clés SSH sans mot de passe, `PermitRootLogin no`, `PasswordAuthentication no`, mises à jour de sécurité automatiques et synchronisation NTP.
+- Ouvrir uniquement les ports nécessaires : `22` limité aux IP d’administration, `80` pour ACME/redirect HTTP, `443` pour Web/API. Le port d’administration SQLite et le port interne du balancer ne doivent jamais être exposés publiquement.
+
+#### 8.1.2. Mutualisation des services
+
+Sur un VPS unique d’environ 4–5 €/mois pour le démarrage, isoler les composants par services et utilisateurs distincts :
+
+```text
+/opt/stv/
+├── web/                 # Landing page et téléchargement de l’APK SoukiTV
+├── api/                 # Backend Dashboard Node.js ou FastAPI
+├── data/                # SQLite, migrations et sauvegardes chiffrées
+├── balancer/            # Nginx et endpoint interne /dispatch
+├── releases/            # APK publié, checksum SHA-256 et métadonnées
+└── secrets/             # Permissions 0600, jamais versionné
+```
+
+- **Landing page** : page HTTPS publique, téléchargement de l’APK, checksum SHA-256, version, changelog et politique de confidentialité.
+- **Backend API Dashboard** : Node.js ou FastAPI derrière Nginx, service systemd dédié, variables dans `cluster.env`, migrations versionnées et SQLite avec WAL activé.
+- **Balancer Nginx** : endpoint `/dispatch` minimal, sans exposition de la topologie Edge, avec rate limiting, logs structurés, timeouts courts et proxy interne vers le service de résolution.
+- Séparer les permissions Unix : le processus Web/API ne doit pas pouvoir modifier arbitrairement l’APK publié ou les fichiers de configuration Nginx.
+- Prévoir dès le départ une sauvegarde chiffrée hors VPS de SQLite, des certificats, des configurations et des checksums ; tester régulièrement la restauration.
+
+#### 8.1.3. Cloudflare et accès d’administration
+
+- Déclarer le domaine dans Cloudflare et activer le proxy orange pour la landing page et l’API publique afin de masquer l’IP d’origine, bénéficier du cache APK et profiter de la protection DDoS/WAF.
+- Ne pas supposer que le proxy Cloudflare protège automatiquement les flux média ou les relais Edge : documenter séparément les DNS utilisés pour le streaming et vérifier la compatibilité des protocoles.
+- Protéger `admin.votredomaine.com` avec Cloudflare Access / Zero Trust : liste d’e-mails autorisés, MFA, session courte, journalisation des connexions et politique de device si disponible.
+- Un code PIN seul ne doit pas être le facteur d’authentification principal. Si un PIN opérateur est nécessaire, le stocker sous forme de hash Argon2id/bcrypt, le limiter par rate limiting et l’associer à une identité e-mail déjà authentifiée.
+- Ajouter une allowlist d’IP pour les opérations critiques, un compte de secours hors bande et une procédure de révocation immédiate des sessions administrateur.
+
+### 8.2. Migration du catalogue GitHub vers le backend Dashboard
+
+#### 8.2.1. Abandon des fichiers statiques
+
+- Retirer progressivement la dépendance de production à `matches.json`, `channels.json` et `config.json` hébergés sur GitHub.
+- Conserver temporairement un miroir signé en lecture seule uniquement pour le rollback, sans secret permanent ni configuration divergente.
+- Ne jamais stocker `X-STV-Auth` statique dans GitHub, dans l’APK ou dans le catalogue public.
+
+#### 8.2.2. API REST cible
+
+Proposer une API versionnée, documentée OpenAPI et protégée par HTTPS :
+
+```text
+GET  /api/v1/catalog/config
+GET  /api/v1/catalog/channels
+GET  /api/v1/catalog/matches
+POST /api/v1/dispatch/ticket
+GET  /api/v1/health
+```
+
+- Les réponses doivent inclure `schemaVersion`, `generatedAt`, `expiresAt`, `etag` et une version monotone afin de prévenir le rollback de contenu.
+- Valider côté serveur les schémas, domaines, tailles, types MIME, nombre de sources et expiration des URLs.
+- Refuser les URLs de flux non autorisées, les credentials dans les URLs, les ports inattendus et les redirections vers des hôtes non approuvés.
+- Ajouter `ETag`/`If-None-Match`, pagination ou compression lorsque le volume du catalogue augmente.
+- Publier des erreurs génériques côté client et conserver les détails dans les logs serveur sans journaliser les tokens.
+
+#### 8.2.3. Fonctionnalités du Dashboard
+
+Le Dashboard web doit permettre à un opérateur autorisé de :
+
+- ajouter, modifier, désactiver et supprimer une chaîne ou un match en un clic ;
+- gérer les catégories, pays, logos, horaires, qualités et sources de secours ;
+- activer une source sans toucher au code mobile ni à l’APK ;
+- prévisualiser et valider les URLs avant publication ;
+- planifier la publication et l’expiration d’un match ;
+- consulter l’historique, l’auteur, la date et la raison de chaque modification ;
+- restaurer une version précédente du catalogue ;
+- invalider immédiatement un Edge, un ticket ou une session suspecte.
+
+Toute écriture doit être transactionnelle, auditée et protégée contre les conflits concurrents. SQLite convient au lancement, mais un passage vers PostgreSQL doit être prévu si les écritures, l’audit ou la haute disponibilité dépassent les limites du VPS unique.
+
+### 8.3. Passage de HTTP à HTTPS — sécurité de transport stricte
+
+La Phase 1 conserve la compatibilité HTTP pour l’IPTV universelle. Après migration et validation de tous les relais, la Phase 2 doit supprimer cette tolérance :
+
+1. Définir dans `cluster.env` :
+
+   ```dotenv
+   ENABLE_SSL="true"
+   STREAM_PROTOCOL="https"
+   ```
+
+2. Utiliser Certbot/Let's Encrypt avec renouvellement automatique et test de renouvellement planifié.
+3. Générer et installer les certificats pour le balancer/API et chaque relais Edge, par exemple `edge1.votredomaine.com`.
+4. Configurer Nginx en TLS moderne : TLS 1.2/1.3, suites fortes, OCSP stapling si applicable, redirection HTTP vers HTTPS pour Web/API et en-têtes HSTS uniquement lorsque tous les sous-domaines sont effectivement compatibles.
+5. Vérifier les chaînes de certificats, les dates d’expiration, le SNI, les renouvellements et les horloges sur chaque VPS.
+6. Passer les URLs du catalogue, `/dispatch`, les playlists et les segments à `https://`, puis mettre `cleartextTrafficPermitted="false"` et `android:usesCleartextTraffic="false"` dans une release mobile dédiée après validation terrain.
+
+Le trafic HTTP ne doit rester actif que pendant la fenêtre de migration contrôlée. Le statut de chaque Edge, son certificat, sa version de configuration et sa dernière rotation doivent être visibles depuis le Dashboard.
+
+## ROADMAP : BLINDAGE PRODUCTION (Phase 2)
+
+La structure Kotlin de `:soukitv` prépare dès maintenant l'activation du blindage de production, sans imposer de pinning ou de dépendance NDK pendant la Phase 1.
+
+### SSL Pinning avec `CertificatePinner`
+
+- `core/security/NetworkSecurityProvider.kt` définit le contrat d'injection de la politique TLS et expose un fournisseur désactivé par défaut (`certificatePinner() = null`).
+- `core/network/NetworkModule.kt` est l'unique point de construction du `OkHttpClient` utilisé par Retrofit. Il applique un `CertificatePinner` uniquement lorsqu'un fournisseur actif en retourne un.
+- Lorsque les VPS réels seront provisionnés et que les certificats Let's Encrypt ou Cloudflare seront générés, une implémentation de `NetworkSecurityProvider` pourra charger les empreintes SHA-256 depuis `cluster.env`, par exemple :
+
+  ```dotenv
+  ENABLE_SSL_PINNING="true"
+  API_CERT_PIN="sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  ```
+
+- L'activation devra être précédée d'une validation de la chaîne, du renouvellement automatique et d'une stratégie de rotation avec empreinte de secours. Tant que ces prérequis ne sont pas validés, le fournisseur reste désactivé afin de ne pas casser le catalogue GitHub ni les flux IPTV existants.
+
+### Coffre-fort natif JNI/NDK
+
+- `core/security/NativeSecurityBridge.kt` stabilise dès maintenant le contrat Kotlin (`getAuthKey()` et `verifyIntegrity()`) pour les futures implémentations C/C++.
+- La Phase 1 ne charge aucune bibliothèque native et conserve les contrôles Kotlin existants. En Phase 2, l'implémentation JNI pourra déplacer progressivement le XOR, la signature et le masquage des clés vers le NDK sans modifier les appelants ni l'architecture MVI.
+- Le chargement de la bibliothèque, la gestion des erreurs JNI et les tests d'intégrité devront être ajoutés uniquement après définition du modèle de menace, des ABI supportées et du pipeline de compilation natif.
+
+Ces deux mécanismes sont donc prêts à être activés dès que les certificats de production (Let's Encrypt / Cloudflare) seront générés sur les VPS et que leur rotation aura été testée en staging.
+
+### 8.4. Évolution vers des tokens éphémères JWT / HMAC
+
+#### 8.4.1. Remplacement du secret statique
+
+- Supprimer le secret global permanent `X-STV-Auth`.
+- À chaque appel `/dispatch`, demander au backend un ticket court signé pour le contenu et l’action concernés.
+- Durée cible : 5 minutes maximum, avec `iat`, `exp`, `jti`, `iss`, `aud`, `channelId`, `sessionId` et contraintes de version.
+- Lier le ticket à une empreinte d’installation ou à une clé générée dans Android Keystore lorsque cela est compatible avec le modèle de support ; ne jamais utiliser un identifiant matériel illégal ou non réinitialisable.
+
+#### 8.4.2. JWT ou HMAC
+
+- **JWT asymétrique recommandé** : le backend signe avec une clé privée conservée hors du code mobile ; les services de validation utilisent uniquement la clé publique.
+- **HMAC possible** pour un service interne, avec clés stockées dans un secret manager et rotation planifiée. La clé HMAC ne doit jamais être embarquée dans `soukitv`.
+- Publier un `kid` pour permettre la rotation de clés sans interrompre les sessions valides.
+- Valider strictement issuer, audience, signature, expiration, horloge, contenu demandé et version minimale du client.
+
+#### 8.4.3. Anti-rejeu et révocation
+
+- Refuser tout `jti` déjà consommé pour les tickets à usage unique ; utiliser Redis ou une table SQLite indexée au démarrage.
+- Ajouter rate limiting par compte, session, installation et IP ; détecter les rafales et les patterns de scraping.
+- Révoquer les sessions, installations, clés Edge ou versions mobiles compromises depuis le Dashboard.
+- Ne jamais écrire un JWT, une signature HMAC, une URL Edge complète ou un header `X-STV-Auth` dans Logcat, les logs Nginx ou l’audit fonctionnel.
+- Répondre par une erreur générique au client et conserver uniquement un identifiant de corrélation non sensible côté serveur.
+
+### 8.5. Ordre de déploiement et critères de sortie
+
+1. Provisionner le VPS et restaurer une landing page sans données sensibles.
+2. Déployer l’API en environnement staging avec SQLite, migrations et sauvegarde restaurée à blanc.
+3. Déployer le balancer avec `/dispatch` derrière authentification de staging et rate limiting.
+4. Connecter un Edge de test et vérifier HTTPS, certificats, expiration et rotation.
+5. Migrer une petite partie du catalogue, comparer les réponses GitHub/backend et activer un rollback documenté.
+6. Activer les tickets éphémères, mesurer les rejets d’expiration et les tentatives de rejeu.
+7. Basculer progressivement les utilisateurs, surveiller latence, erreurs, DDoS, CPU, mémoire, disque et taux de succès de lecture.
+8. Désactiver les anciens endpoints GitHub et le secret statique uniquement après confirmation des métriques et de la restauration.
+
+**Critères de sortie Phase 2** : zéro secret permanent dans l’APK ou le catalogue public, `/dispatch` exclusivement authentifié par ticket court, HTTPS actif sur tous les services et Edges, accès Dashboard protégé par Zero Trust/MFA, sauvegarde-restauration testée, logs sans secrets, rollback reproductible et audit de sécurité de préproduction terminé.
