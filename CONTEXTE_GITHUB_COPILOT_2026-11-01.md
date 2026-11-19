@@ -1,11 +1,12 @@
-# 📋 CONTEXTE PROJET GITHUB COPILOT — 01 NOVEMBRE 2026 (V3.0)
+# 📋 CONTEXTE PROJET GITHUB COPILOT — 19 NOVEMBRE 2026 (V4.0)
 
-> **Projet** : STV Ecosystem Monorepo  
-> **Repository** : `D:\STV`  
-> **Date de mise à jour** : 01 Novembre 2026  
-> **Version Global Architecture** : V3.0 Clean Architecture + MVI  
-> **Git Release Tag** : `v3.6.0-soukitv-phase1-final` (Novembre 2026)
-> **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer)
+> **Projet** : STV Ecosystem Monorepo
+> **Repository** : `D:\STV`
+> **Date de mise à jour** : 19 Novembre 2026
+> **Version Global Architecture** : V4.0 — Phase 1 Production-Ready (Clean Architecture + MVI)
+> **Git Release Tag** : `v3.6.0-soukitv-phase1-final` (19 Novembre 2026)
+> **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer - Google Play Store)
+> **Production Release `:soukitv`** : `v3.6.0` — **Version Code 6** (Catalogue Hors-Store)
 
 ---
 
@@ -88,58 +89,70 @@ app/src/main/java/com/stv/videoplayer/
     └── NetworkUtils.kt                  # Vérification état réseau
 ```
 
-### Module `:soukitv` (`com.example.soukitv`)
+### Module `:soukitv` (namespace `com.soufcom.soukitv`, applicationId `com.soufcom.soukitv`)
 ```
-soukitv/src/main/java/com/example/soukitv/
-├── MainActivity.kt                      # Point d'entrée catalogue
+soukitv/src/main/java/com/soufcom/soukitv/
+├── MainActivity.kt                      # Point d'entrée catalogue (contrôles signature & environnement)
 ├── core/
+│   ├── network/
+│   │   └── NetworkModule.kt             # Factory OkHttpClient unique (timeouts, retry, hook CertificatePinner)
 │   ├── player/
-│   │   └── StvPlayerLauncher.kt         # Lanceur IPC de PlayerActivity (:app)
+│   │   └── StvPlayerLauncher.kt         # Lanceur IPC explicite suspend vers PlayerActivity (:app)
 │   └── security/
-│       ├── AppSignatureVerifier.kt      # Contrôle d'intégrité de signature XOR-obfusqué (Anti-Repackaging)
-│       └── SecretDecoder.kt              # Décodage XOR des endpoints réseau obfusqués
+│       ├── AppSignatureVerifier.kt      # Contrôle d'intégrité signature SHA-256 XOR-obfusqué (MessageDigest.isEqual)
+│       ├── NetworkSecurityProvider.kt   # Contrat TLS CertificatePinner (désactivé Phase 1)
+│       ├── SecretDecoder.kt             # Décodage XOR 0x4B des endpoints distants
+│       └── SecurityEnvironmentChecker.kt# Détection Root, Magisk, test-keys, Debugger, Frida (port 27042, maps)
 ├── features/home/
 │   ├── data/
 │   │   ├── model/
-│   │   │   ├── ChannelDto.kt            # DTO Chaîne
-│   │   │   ├── MatchItemDto.kt          # DTO Match & Sources
-│   │   │   └── RemoteCatalogConfigDto.kt# DTO Configuration distante
+│   │   │   ├── CatalogCategoryDto.kt    # DTO Métadonnées Catégorie (name, imageUrl)
+│   │   │   ├── ChannelDto.kt            # DTO Chaîne (id, name, logoUrl, streamUrl, categories...)
+│   │   │   ├── ChannelsCatalogResponseDto.kt # DTO Réponse catalogue hiérarchique
+│   │   │   ├── MatchItemDto.kt          # DTO Match & StreamSourceDto
+│   │   │   └── RemoteCatalogConfigDto.kt# DTO Configuration distante (minStvVersionCode, stvAuthSecret)
 │   │   ├── mapper/
-│   │   │   ├── ChannelMapper.kt         # Mapping DTO -> Domain
+│   │   │   ├── ChannelMapper.kt         # Mapping DTO -> Domain (hiérarchie, déduplication, safe URLs)
 │   │   │   └── MatchItemMapper.kt       # Mapping DTO -> Domain
 │   │   ├── remote/
-│   │   │   └── ChannelApiService.kt     # Interface Retrofit 3.0.0
-│   │   ├── ChannelRepositoryImpl.kt     # Implémentation Repository réseau
-│   │   └── SharedPrefsFavoritesStore.kt # Persistance favoris
+│   │   │   └── ChannelApiService.kt     # Interface Retrofit 3.0.0 avec timestamps anti-cache
+│   │   ├── ChannelRepositoryImpl.kt     # Implémentation Repository réseau (Fail-Closed stvAuthSecret)
+│   │   └── SharedPrefsFavoritesStore.kt # Persistance locale des favoris
 │   ├── domain/
 │   │   ├── model/
-│   │   │   ├── Category.kt              # Modèle Catégorie
-│   │   │   ├── Channel.kt               # Modèle Chaîne
-│   │   │   └── MatchItem.kt             # Modèle Match
+│   │   │   ├── Category.kt              # Modèle Catégorie (displayName, channelCount, imageUrl)
+│   │   │   ├── Channel.kt               # Modèle Chaîne (categories, primaryCategory, streamUrl...)
+│   │   │   ├── MatchItem.kt             # Modèle Match (sources, isLiveAt)
+│   │   │   └── RemoteConfig.kt          # Modèle Configuration distante
 │   │   └── repository/
-│   │       ├── ChannelRepository.kt     # Interface Repository
+│   │       ├── ChannelRepository.kt     # Interface Repository (Flows réactifs)
 │   │       └── FavoritesStore.kt        # Interface Favoris
 │   └── presentation/
 │       ├── components/
-│       │   ├── AutoCropTransparentTransformation.kt # Rogne les bordures transparentes des logos
-│       │   ├── CategoryCard.kt          # Carte catégorie
-│       │   ├── ChannelTile.kt           # Tuile chaîne
-│       │   ├── ChannelsTab.kt           # Onglet chaînes par pays/catégorie
-│       │   ├── CountryCard.kt           # Carte pays
-│       │   ├── InfoCard.kt              # Carte info
-│       │   ├── LogoImage.kt             # Image Coil avec transformation
-│       │   ├── MatchCard.kt             # Carte match en direct
-│       │   ├── MatchesTab.kt            # Onglet matchs du jour
-│       │   ├── SearchAndFilterBar.kt    # Barre de recherche & filtres
-│       │   ├── Shimmer.kt               # Placeholders de chargement
-│       │   ├── SoukiBottomBar.kt        # Navigation inférieure
-│       │   ├── OfflineErrorView.kt       # Écran d'erreur hors-ligne natif M3 avec bouton Réessayer
-│       │   └── StvErrorDialog.kt        # Dialogue erreur d'installation :app
+│       │   ├── AutoCropTransparentTransformation.kt # Coil Transformation (guard MAX_SCAN_DIMENSION = 2048px)
+│       │   ├── CategoryCard.kt          # Carte catégorie cinéma (remember ImageRequest, fallback sombre)
+│       │   ├── ChannelTile.kt           # Tuile chaîne compacte 136.dp (SoukiLogoImage, cœur favori déporté)
+│       │   ├── ChannelsTab.kt           # Onglet chaînes (grille adaptative 2 colonnes, mode plat/arborescent)
+│       │   ├── CountryCard.kt           # Carte pays (navigation 2e niveau)
+│       │   ├── InfoCard.kt              # Carte informative
+│       │   ├── LogoImage.kt             # Image Coil avec transformation et cache mémoire
+│       │   ├── MatchCard.kt             # Carte match en direct (scores, badge live, chaînes)
+│       │   ├── MatchesTab.kt            # Onglet matchs du jour (tri chronologique)
+│       │   ├── OfflineErrorView.kt      # Écran d'erreur hors-ligne M3 hermétique (zéro fuite technique)
+│       │   ├── SearchAndFilterBar.kt    # Barre recherche rétractable Glassmorphism (FocusRequester) & FilterChips
+│       │   ├── Shimmer.kt               # Squelettes de chargement Shimmer
+│       │   ├── SoukiBottomBar.kt        # Barre de navigation inférieure M3
+│       │   └── StvErrorDialog.kt        # Dialogue M3 d'installation/mise à jour STV Player
 │       ├── HomeUiAction.kt              # Actions MVI catalogue
-│       ├── HomeUiState.kt               # États MVI catalogue
-│       └── HomeViewModel.kt             # ViewModel MVI du catalogue
-└── ui/home/
-    └── HomeScreen.kt                    # Écran principal SoukiTV
+│       ├── HomeUiState.kt               # États MVI fermés catalogue (Loading, Success, Error hermétique)
+│       └── HomeViewModel.kt             # ViewModel MVI catalogue (navigation 2 niveaux, recherche, favoris)
+├── ui/
+│   ├── home/
+│   │   └── HomeScreen.kt                # Écran principal SoukiTV (Scaffold M3, PullToRefresh, BackHandler)
+│   └── theme/
+│       ├── Color.kt                     # Palette rouge cinéma / dark surface
+│       ├── Theme.kt                     # Définition SoukiTVTheme
+│       └── Type.kt                      # Typographie Compose
 ```
 
 ---
@@ -227,12 +240,16 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
     - `Channel.categories` conserve tous les chemins multi-taggués et `primaryCategory` fournit le libellé
       d'affichage. Une chaîne est dédupliquée par identifiant dans la recherche globale et dans les compteurs.
     - La navigation de l'onglet Chaînes est à deux niveaux : racines dans l'ordre JSON, puis sous-catégories
-      `Parent/Enfant`, avec masquage des catégories vides et retour vers le parent via `BackHandler`/TopBar.
+      `Parent/Enfant` (ex: `Arabe/Maroc`, `International/France`), avec masquage des catégories vides et retour vers le parent via `BackHandler`/TopBar.
+    - Gestion robuste des `streamUrl: null` ou vides (ex: entrée match non diffusée ou chaîne temporairement inactive) : le mapper et le launcher éliminent proprement ces éléments sans crash.
 
-2. **Interface Utilisateur & Expérience Visuelle** :
-   - Composants Material 3 avec onglets Matchs du jour et Chaînes IPTV par catégorie/pays.
-   - `AutoCropTransparentTransformation` : Transformation Coil personnalisée analysant la matrice de pixels pour rogner les zones transparentes autour des logos de chaînes/clubs.
-   - Navigation avec `SoukiBottomBar` et barre de recherche/filtrage en temps réel (`SearchAndFilterBar`).
+2. **Interface Utilisateur & Expérience Visuelle Cinéma (Material 3)** :
+   - Design « Cinematic Streaming Premium » :
+     * `CategoryCard` : visuel distant (`imageUrl`) mémorisé par `remember`, fallback sombre `#242424` vers `#141414` avec badge cinéma translucide accentué par `#C41E3A`, radius extérieur unifié de `10.dp`, footer compact `#181818` (titre et compteur de chaînes).
+     * `ChannelTile` : grille 2 colonnes avec hauteur compacte de `136.dp`, fond rectangulaire `#202020`, `ContentScale.Fit` avec padding `12.dp`, séparateur `0.5.dp` `#2E2E2E`, footer `#161616` et bouton favori cœur déporté à droite (animé avec rebond `Animatable`).
+     * `SearchAndFilterBar` : loupe déployable avec `AnimatedVisibility`, fond Glassmorphism `Color.White.copy(alpha = 0.08f)`, bordure fine, curseur rouge, focus clavier automatique via `FocusRequester` et `FilterChip` horizontaux scrollables.
+   - `AutoCropTransparentTransformation` : Transformation Coil personnalisée avec garde mémoire strict `MAX_SCAN_DIMENSION = 2048px` empêchant tout DoS mémoire OOM sur images distantes volumineuses.
+   - `OfflineErrorView` : écran d'erreur hors-ligne M3 hermétique, avec bouton Réessayer et zéro fuite de détails techniques.
 
 3. **Lancement de Lecteur Distant (`StvPlayerLauncher.kt`)** :
     - API `suspend` asynchrone pure : toute résolution et émission IPC s'exécute via `withContext(ioDispatcher)`, sans `runBlocking` susceptible de bloquer le thread principal ou l'UI.
@@ -243,7 +260,7 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
     - **Verrou Cryptographique IPC** : vérification obligatoire de l'empreinte de signature SHA-256 du package `com.soufcom.stv` avant toute émission d'Intent.
    - Double liste blanche XOR-obfusquée avec la clé `0x5A`, couvrant la nouvelle clé Google Play et la clé historique de NexiPlayer.
    - Blocage immédiat des lecteurs pirates ou re-signés avec retour `LaunchResult.Failed`.
-   - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG`.
+   - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG` (éliminé par R8 en release).
      - **Player Lock-in dynamique** : l’application récupère la clé secrète `stvAuthSecret` depuis le JSON distant et l’injecte dans le header `X-STV-Auth` via IPC, avec le User-Agent officiel. Cette authentification empêche le vol de flux par des lecteurs tiers tout en permettant la rotation instantanée de la clé sans mise à jour de l’APK. En l’absence de clé, la stratégie **Fail-Closed** interdit toute résolution de dispatcher et toute émission d’Intent IPC.
     - **Stream Dispatcher** : `core/player/StvPlayerLauncher.kt` résout les tickets internes `/dispatch` avant l’IPC via un `StreamDispatcher` OkHttp exécuté sur `Dispatchers.IO` (timeouts courts de 3 secondes). Le balancer du relais `.190` expose `/dispatch`, exige `X-STV-Auth` et renvoie en environ 1 ms l’adresse directe de l’Edge sélectionné ; il ne transporte aucune vidéo et consomme donc 0 % de la bande passante vidéo.
     - Pour les matchs multi-sources, le ticket est résolu une seule fois en mémoire vive. Toutes les entrées `/dispatch` de `sources_json` sont réécrites avec le même Edge, tandis que les sources externes (Korasport, Cloud Run, etc.) sont conservées strictement inchangées. Cette préparation évite les erreurs de zapping entre sources internes et externes dans NexiPlayer.
@@ -253,10 +270,11 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
    - Timeouts explicites sur `OkHttpClient` : connexion `10s`, lecture `15s`, écriture `15s`, avec retry réseau activé.
    - Pull-to-Refresh universel dans `HomeScreen`, actif sur les états `Loading`, `Error` et `Success`.
    - `StvErrorDialog` strictement découplé des erreurs réseau et réservé aux prompts d'installation ou de mise à jour du lecteur STV.
+   - **Herméticité UI** : dans `HomeViewModel`, `LaunchResult.Failed` et tout échec de configuration renvoient des messages génériques sécurisés (`"Impossible de lancer la lecture. Veuillez réessayer."` ou message réseau générique). Zéro exception Android interne, zéro nom de classe ni fragment de stacktrace n'est exposé à l'utilisateur.
 
 5. **Performances & Mémoire** :
-   - Mémorisation avec `remember` de `AutoCropTransparentTransformation` et de `ImageRequest` dans `LogoImage`.
-   - Clés légères sans concaténation de chaînes dans `MatchesTab` pour limiter les allocations lors du défilement.
+   - Mémorisation avec `remember` de `AutoCropTransparentTransformation` et de `ImageRequest` dans `CategoryCard` et `LogoImage`.
+   - Clés légères sans concaténation de chaînes dans `MatchesTab` et `ChannelsTab` pour limiter les allocations lors du défilement.
 
 6. **Sécurité IPC & Robustesse** :
    - `StvPlayerLauncher` filtre strictement les schémas `http` et `https`.
@@ -267,14 +285,17 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
    - Suppression de `statusBarColor` dans `Theme.kt`.
    - Gestion native Edge-to-Edge du contraste des icônes système via `WindowCompat`.
 
-8. **Sécurité & Intégrité Applicative (`AppSignatureVerifier.kt`)** :
+8. **Sécurité & Intégrité Applicative (`AppSignatureVerifier.kt` / `SecurityEnvironmentChecker.kt`)** :
    - Protection Anti-Repackaging sans chaîne hexadécimale en clair : l'empreinte SHA-256 est stockée dans un `ByteArray` masqué via XOR `0x5A`.
    - Comparaison à temps constant avec `MessageDigest.isEqual` après extraction rétrocompatible des certificats de signature Android.
-   - Fermeture immédiate de l'application au démarrage de `MainActivity` si l'APK a été altéré ou re-signé.
-   - Génération explicitement activée via `buildConfig = true` dans `build.gradle.kts`, avec bypass automatique en mode `BuildConfig.DEBUG`.
+   - `SecurityEnvironmentChecker` : détection des binaires `su` (5 chemins), 7 packages hostiles/root (Magisk, SuperSU, BusyBox...), builds `test-keys`, debuggers, flag `FLAG_DEBUGGABLE`, port Frida 27042 (parse `/proc/net/tcp` et `/proc/net/tcp6`) et bibliothèques injectées dans `/proc/self/maps`.
+   - Fermeture immédiate de l'application au démarrage de `MainActivity` (`finishAffinity()` + `System.exit(0)`) si l'APK a été altéré ou que l'environnement est compromis.
+   - Signature release v2 + v3 + v4 activée dans `build.gradle.kts`.
+   - Règles R8 complètes dans `proguard-rules.pro` protégeant l'ensemble des DTOs Gson et Retrofit.
 
 9. **Obfuscation des Endpoints & Anti-JADX (`SecretDecoder.kt`)** :
    - Élimination totale des chaînes d'URLs distantes en clair dans le bytecode source du repository.
+   - Masquage binaire XOR dynamique avec la clé `0x4B`, empêchant la recherche textuelle directe des endpoints dans Jadx-GUI/Apktool.
    - Masquage binaire XOR dynamique avec la clé `0x4B`, empêchant la recherche textuelle directe des endpoints dans Jadx-GUI/Apktool.
 
 ---
@@ -297,6 +318,29 @@ La Phase 1 du durcissement de `:soukitv` est implémentée et validée sur la re
 - **[B3 — MAJEUR résolu]** `HomeViewModel.kt` : le chemin `LaunchResult.Failed` n'expose plus jamais `result.message` (exception Android brute) dans `HomeUiState.Error`. Un message générique localisé est utilisé à la place (`"Impossible de lancer la lecture. Veuillez réessayer."`).
 - **[B4 — PROPRETÉ résolu]** `NativeSecurityBridge.kt` supprimé de la release Phase 1 : les stubs `external fun` non chargés trahissaient l'architecture JNI Phase 2 à un reverse engineer. Le contrat sera réintroduit avec l'implémentation C/C++ complète en Phase 2 NDK.
 - **[B7 — SIGNATURE résolu]** `build.gradle.kts` : activation explicite de `enableV2Signing = true`, `enableV3Signing = true`, `enableV4Signing = true` dans `signingConfigs { create("release") }`. L'APK release est désormais signé avec les schémas v2, v3 (rotation Android 9+) et v4.
+
+### 5.1. 📡 Infrastructure Streaming Validée (Lab & Scripts `cluster.env`)
+
+L'infrastructure de relais et de diffusion multimédia est conçue et validée pour garantir haute disponibilité, isolation et consommation réseau minimale côté balancer :
+
+1. **Cœur d'acquisition & Transcodage (Robot FFmpeg + MediaMTX RTMP)** :
+   - Ingestion des flux source via FFmpeg avec cadence temps réel forcée (`-re` à 1.00x).
+   - Analyse dynamique des flux via `ffprobe` et cartographie explicite des flux audio/vidéo séparés (`-map 0:p:X` pour les canaux vidéo et audio distincts).
+   - Publication locale vers le serveur d'ingestion MediaMTX via RTMP avec bufferisation contrôlée.
+
+2. **Relais Edges (MediaMTX RAM + Nginx Zero-Copy)** :
+   - Stockage HLS en mémoire vive pure (`tmpfs` / RAM) avec configuration `sourceOnDemand: no` pour éliminer toute latence de premier accès.
+   - Fenêtre glissante de 45 segments HLS de 2 secondes (~1:30 min de buffer continu en RAM).
+   - Serveur web frontal Nginx optimisé Zero-Copy (`sendfile on; tcp_nopush on; tcp_nodelay on;`), dimensionné pour un million de sockets (`worker_rlimit_nofile 1048576; worker_connections 65535;`).
+   - Bouclier de sécurité `X-STV-Auth` validé par Nginx sur la racine `/` et sur les endpoints de flux `/live/`, rejetant toute requête non authentifiée.
+   - Playlists 16:9 dynamiques et endpoint de diagnostic `/dispatch_target/` pour le failover immédiat.
+
+3. **Balancer de Charge (Nginx upstream avec Failover Actif)** :
+   - Balancement Nginx basé sur `upstream` avec directive `ip_hash` (affinité de session client) et bascule instantanée `proxy_next_upstream error timeout http_502 http_503 http_504`.
+   - Vrai failover actif transparent sans interruption de lecture pour le client.
+   - Consommation réseau du Balancer : **0 % de bande passante vidéo** (seuls les tickets JSON de redirection de ~1 ms transitent par `/dispatch` ; les flux HLS sont délivrés directement de l'Edge vers le lecteur).
+
+---
 
 ## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (64 TESTS `:soukitv` PASSÉS)
 
