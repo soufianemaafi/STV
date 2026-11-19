@@ -1,6 +1,6 @@
 package com.soufcom.soukitv.features.home.data.remote
 
-import com.soufcom.soukitv.features.home.data.model.ChannelDto
+import com.soufcom.soukitv.features.home.data.model.ChannelsCatalogResponseDto
 import com.soufcom.soukitv.features.home.data.model.MatchItemDto
 import com.soufcom.soukitv.features.home.data.model.RemoteCatalogConfigDto
 import retrofit2.http.GET
@@ -16,7 +16,7 @@ interface ChannelApiService {
     suspend fun getChannels(
         @Url fullUrl: String,
         @Query("t") timestamp: Long = System.currentTimeMillis()
-    ): List<ChannelDto>
+    ): ChannelsCatalogResponseDto
 
     @GET("")
     suspend fun getMatches(

@@ -14,6 +14,10 @@ sealed interface HomeUiState {
         val currentTab: NavigationTab = NavigationTab.MATCHES,
         val matches: List<MatchItem> = emptyList(),
         val categories: List<Category> = emptyList(),
+        /** Chemin courant : null à la racine, sinon une catégorie ou un dossier. */
+        val currentCategoryPath: String? = null,
+        /** Enfants visibles du dossier courant, déjà filtrés des catégories vides. */
+        val visibleCategories: List<Category> = emptyList(),
         val activeCategoryDetail: Category? = null,
         val activeCountryDetail: String? = null,
         val isDarkTheme: Boolean = true,

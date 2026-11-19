@@ -21,6 +21,8 @@
     <string name="filter_all">Tous</string>
     <string name="search_placeholder">Rechercher une chaîne, un match…</string>
     <string name="search_clear">Effacer la recherche</string>
+    <string name="search_open">Ouvrir la recherche</string>
+    <string name="search_close">Fermer la recherche</string>
     <string name="empty_search_results">Aucun résultat</string>
     <string name="error_stv_not_installed">STV Player est requis pour lire ce contenu.</string>
     <string name="theme_light_mode">Activer le mode clair</string>

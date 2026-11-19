@@ -219,6 +219,15 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
    - `ChannelApiService` effectue des requêtes REST vers la configuration distante JSON GitHub.
    - Robustesse null-safe : `ChannelDto`, `MatchItemDto` et `RemoteCatalogConfigDto` tolèrent les champs absents ou malformés.
    - Mapping strict vers les entités de domaine (`Channel`, `MatchItem`, `Category`).
+    - Le fichier `channels.json` est un objet `ChannelsCatalogResponseDto` :
+      `categories: [{ name, imageUrl }]` puis `channels: [{ id, name, logoUrl, streamUrl, categories }]`.
+      `category` reste accepté uniquement comme fallback legacy.
+    - Une chaîne est rejetée si `id`, `name` ou `streamUrl` est nul/vide. Les URLs d'images de catégories
+      sont limitées à `http://` et `https://` avec un hôte valide.
+    - `Channel.categories` conserve tous les chemins multi-taggués et `primaryCategory` fournit le libellé
+      d'affichage. Une chaîne est dédupliquée par identifiant dans la recherche globale et dans les compteurs.
+    - La navigation de l'onglet Chaînes est à deux niveaux : racines dans l'ordre JSON, puis sous-catégories
+      `Parent/Enfant`, avec masquage des catégories vides et retour vers le parent via `BackHandler`/TopBar.
 
 2. **Interface Utilisateur & Expérience Visuelle** :
    - Composants Material 3 avec onglets Matchs du jour et Chaînes IPTV par catégorie/pays.
@@ -270,9 +279,9 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
 
 ---
 
-## 5. 🛡️ PHASE 1 DE BLINDAGE SÉCURITAIRE — VALIDÉE
+## 5. 🛡️ PHASE 1 DE BLINDAGE SÉCURITAIRE — VALIDÉE ✅ (Audit 2026-11-19)
 
-La Phase 1 du durcissement de `:soukitv` est implémentée et validée sur la release `v3.6.0` (`versionCode = 6`) :
+La Phase 1 du durcissement de `:soukitv` est implémentée et validée sur la release `v3.6.0` (`versionCode = 6`). **Audit de sécurité complet réalisé le 2026-11-19 — verdict FEU VERT** après application des correctifs suivants :
 
 - `SecurityEnvironmentChecker.kt` détecte les binaires `su`, les packages Magisk/SuperSU/BusyBox, les builds `test-keys`, les debuggers, le flag `FLAG_DEBUGGABLE`, le port Frida `27042` et les librairies suspectes dans `/proc/self/maps`.
 - En release, un environnement compromis entraîne la fermeture immédiate de l’application avant la création de l’interface.
@@ -282,9 +291,16 @@ La Phase 1 du durcissement de `:soukitv` est implémentée et validée sur la re
 - L’identité de production du catalogue est `com.soufcom.soukitv`.
 - La politique réseau autorise HTTP pour les flux multimédias et le dispatcher IPTV ; les ancres système restent conservées pour les connexions HTTPS protégées et les domaines sensibles restent en HTTPS strict.
 
-## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (54 TESTS `:soukitv` PASSÉS)
+### Correctifs appliqués lors de l'audit 2026-11-19
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 54 tests de `:soukitv` passent (198/198). La validation de référence est :
+- **[B1 — CRITIQUE résolu]** `proguard-rules.pro` : ajout de `-keep class com.soufcom.soukitv.features.home.data.model.** { *; }` pour protéger les 5 DTOs Gson/Retrofit (`ChannelsCatalogResponseDto`, `CatalogCategoryDto`, `ChannelDto`, `MatchItemDto`, `RemoteCatalogConfigDto`, `StreamSourceDto`) ainsi que `-keepattributes Signature`, `-keepattributes *Annotation*`, `-keepattributes EnclosingMethod`, `-dontwarn` et `-keep class retrofit2.**/gson.**`.
+- **[B3 — MAJEUR résolu]** `HomeViewModel.kt` : le chemin `LaunchResult.Failed` n'expose plus jamais `result.message` (exception Android brute) dans `HomeUiState.Error`. Un message générique localisé est utilisé à la place (`"Impossible de lancer la lecture. Veuillez réessayer."`).
+- **[B4 — PROPRETÉ résolu]** `NativeSecurityBridge.kt` supprimé de la release Phase 1 : les stubs `external fun` non chargés trahissaient l'architecture JNI Phase 2 à un reverse engineer. Le contrat sera réintroduit avec l'implémentation C/C++ complète en Phase 2 NDK.
+- **[B7 — SIGNATURE résolu]** `build.gradle.kts` : activation explicite de `enableV2Signing = true`, `enableV3Signing = true`, `enableV4Signing = true` dans `signingConfigs { create("release") }`. L'APK release est désormais signé avec les schémas v2, v3 (rotation Android 9+) et v4.
+
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (64 TESTS `:soukitv` PASSÉS)
+
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 64 tests de `:soukitv` passent (208/208). La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
@@ -304,7 +320,7 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (54 tests unitaires validés)** :
+- **Module `:soukitv` (64 tests unitaires validés)** :
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
       - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes et la conservation stricte des sources externes.
   - `MappersTest` : Mapping DTO -> Domain (`ChannelMapper`, `MatchItemMapper`).
@@ -455,8 +471,8 @@ La structure Kotlin de `:soukitv` prépare dès maintenant l'activation du blind
 
 ### Coffre-fort natif JNI/NDK
 
-- `core/security/NativeSecurityBridge.kt` stabilise dès maintenant le contrat Kotlin (`getAuthKey()` et `verifyIntegrity()`) pour les futures implémentations C/C++.
-- La Phase 1 ne charge aucune bibliothèque native et conserve les contrôles Kotlin existants. En Phase 2, l'implémentation JNI pourra déplacer progressivement le XOR, la signature et le masquage des clés vers le NDK sans modifier les appelants ni l'architecture MVI.
+- `NativeSecurityBridge.kt` a été **supprimé de la release Phase 1** (audit 2026-11-19 — correctif B4). En Phase 2 NDK, le fichier sera réintroduit avec l'implémentation C/C++ complète : chargement `System.loadLibrary("stvsecurity")`, implémentation `getAuthKey()` et `verifyIntegrity()` en natif, gestion des erreurs JNI et tests d'intégrité. Le contrat Kotlin reste inchangé dans son interface publique.
+- La Phase 2 NDK déplacera progressivement le XOR, la vérification de signature et le masquage des clés vers le NDK sans modifier les appelants ni l'architecture MVI.
 - Le chargement de la bibliothèque, la gestion des erreurs JNI et les tests d'intégrité devront être ajoutés uniquement après définition du modèle de menace, des ABI supportées et du pipeline de compilation natif.
 
 Ces deux mécanismes sont donc prêts à être activés dès que les certificats de production (Let's Encrypt / Cloudflare) seront générés sur les VPS et que leur rotation aura été testée en staging.
@@ -497,3 +513,19 @@ Ces deux mécanismes sont donc prêts à être activés dès que les certificats
 8. Désactiver les anciens endpoints GitHub et le secret statique uniquement après confirmation des métriques et de la restauration.
 
 **Critères de sortie Phase 2** : zéro secret permanent dans l’APK ou le catalogue public, `/dispatch` exclusivement authentifié par ticket court, HTTPS actif sur tous les services et Edges, accès Dashboard protégé par Zero Trust/MFA, sauvegarde-restauration testée, logs sans secrets, rollback reproductible et audit de sécurité de préproduction terminé.
+
+## UI/UX Design Cinéma
+
+La version actuelle de `:soukitv` adopte une direction « Cinematic Streaming Premium », inspirée des catalogues Netflix/Shahid :
+
+- `Category.imageUrl` est un champ nullable (`String?`) alimenté par le DTO et le mapper. Seules les URLs absolues `http://` et `https://` avec un hôte valide sont conservées ; les autres valeurs deviennent `null`.
+- `CategoryCard` utilise une image Coil mémorisée par `remember`, un `crossfade`, `ContentScale.Crop`, une bordure `1.dp` `#333333`, une élévation de `6.dp` et un radius extérieur unifié de `10.dp`.
+- La carte est séparée en deux zones : une zone visuelle supérieure sans texte ni scrim agressif, puis un footer `#181818` compact réservé au titre et au compteur.
+- Une image absente ou en échec affiche un fallback `#242424` vers `#141414` avec un badge cinéma translucide accentué par `#C41E3A`. Aucun badge « Live » n'est utilisé.
+- Les titres de catégorie sont en `titleSmall`/`14.sp`, semi-gras, et les compteurs en `labelSmall`/`11.sp` gris `#A0A0A0`, afin de préserver les logos et les visuels de catégorie.
+- `ChannelsGridContent` utilise deux colonnes avec un espacement horizontal et vertical de `10.dp` afin d'offrir une largeur suffisante aux titres de chaînes et d'éviter les troncatures prématurées.
+- `ChannelTile` reprend le pattern image/footer dans une hauteur compacte de `136.dp` : logo centré avec padding `12.dp`, fond rectangulaire `#202020`, séparateur `0.5.dp` `#2E2E2E`, puis footer `#161616` avec padding horizontal `10.dp`/vertical `8.dp`, titre compact et bouton favori déporté à droite. Le sous-titre de catégorie redondant est supprimé.
+- `CategoryCard` et `ChannelTile` partagent désormais un radius extérieur minimaliste de `10.dp`. La zone logo de `ChannelTile` reste rectangulaire, sans `RoundedCornerShape` ni `clip` interne, avec `ContentScale.Fit` et `padding(12.dp)` pour éviter de rogner les logos.
+- Le favori actif utilise `#C41E3A` et l'état inactif `#808080`, sans recouvrement de la zone logo.
+- La recherche est rétractable : une loupe `IconButton` de la TopBar déploie `SearchAndFilterBar` avec `AnimatedVisibility`, fond Glassmorphism `Color.White.copy(alpha = 0.08f)`, bordure fine, curseur rouge et focus clavier automatique via `FocusRequester`.
+- Le bouton de fermeture vide la requête et referme la barre ; les `FilterChip` restent dans une `LazyRow` sous la recherche, avec l'état actif en `#C41E3A`.

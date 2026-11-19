@@ -1,6 +1,7 @@
 package com.soufcom.soukitv.features.home.data.mapper
 
 import com.soufcom.soukitv.features.home.data.model.ChannelDto
+import com.soufcom.soukitv.features.home.data.model.ChannelsCatalogResponseDto
 import com.soufcom.soukitv.features.home.data.model.MatchItemDto
 import com.soufcom.soukitv.features.home.data.model.StreamSourceDto
 import com.soufcom.soukitv.features.home.domain.model.Category
@@ -26,6 +27,73 @@ class MappersTest {
     }
 
     @Test
+    fun channelDto_mapsCategoryImageUrlToDomainAndCategory() {
+        val dto = ChannelDto(
+            id = "7",
+            name = "France 24",
+            streamUrl = "https://s/live.m3u8",
+            category = "News",
+            imageUrl = " https://images/news.jpg "
+        )
+
+        val channel = dto.toDomain()!!
+
+        assertEquals("https://images/news.jpg", channel.categoryImageUrl)
+        assertEquals("https://images/news.jpg", listOf(channel).toCategories().single().imageUrl)
+    }
+
+    @Test
+    fun channelDto_acceptsHttpImageUrl() {
+        val channel = ChannelDto(
+            id = "7",
+            name = "News",
+            streamUrl = "https://s/live.m3u8",
+            category = "News",
+            imageUrl = "http://images.example.com/news.jpg"
+        ).toDomain()!!
+
+        assertEquals("http://images.example.com/news.jpg", channel.categoryImageUrl)
+    }
+
+    @Test
+    fun channelDto_missingOrNullImageUrl_mapsToNull() {
+        val withoutImage = ChannelDto(
+            id = "news-1",
+            name = "News",
+            streamUrl = "https://s/live.m3u8",
+            category = "News"
+        ).toDomain()!!
+        val withNullImage = ChannelDto(
+            id = "news-2",
+            name = "News",
+            streamUrl = "https://s/live-2.m3u8",
+            category = "News",
+            imageUrl = null
+        ).toDomain()!!
+
+        assertNull(withoutImage.categoryImageUrl)
+        assertNull(withNullImage.categoryImageUrl)
+        assertNull(listOf(withoutImage).toCategories().single().imageUrl)
+    }
+
+    @Test
+    fun channelDto_rejectsNonHttpImageSchemes() {
+        val invalidSchemes = listOf("file:///tmp/news.jpg", "javascript:alert(1)", "//images/news.jpg")
+
+        invalidSchemes.forEach { invalidUrl ->
+            val channel = ChannelDto(
+                id = "news-${invalidUrl.hashCode()}",
+                name = "News",
+                streamUrl = "https://s/$invalidUrl.m3u8",
+                category = "News",
+                imageUrl = invalidUrl
+            ).toDomain()!!
+
+            assertNull("Schéma accepté à tort : $invalidUrl", channel.categoryImageUrl)
+        }
+    }
+
+    @Test
     fun channelDto_withoutNameOrStreamUrl_isRejected() {
         assertNull(ChannelDto(id = "1", name = null, streamUrl = "https://s").toDomain())
         assertNull(ChannelDto(id = "1", name = "X", streamUrl = " ").toDomain())
@@ -33,9 +101,9 @@ class MappersTest {
 
     @Test
     fun channelDto_appliesSafeDefaultsForMissingOptionalFields() {
-        val channel = ChannelDto(name = "X", streamUrl = "https://s/x.m3u8").toDomain()!!
+        val channel = ChannelDto(id = "x", name = "X", streamUrl = "https://s/x.m3u8").toDomain()!!
 
-        assertEquals("https://s/x.m3u8", channel.id)
+        assertEquals("x", channel.id)
         assertEquals("", channel.logoUrl)
         assertEquals(DEFAULT_CATEGORY_NAME, channel.category)
         assertNull(channel.country)
@@ -44,7 +112,7 @@ class MappersTest {
     @Test
     fun channelDtoList_dropsInvalidEntriesAndGroupsByCategory() {
         val dtos = listOf(
-            ChannelDto("1", "A", "", "https://s/a", "News"),
+            ChannelDto("1", "A", "", "https://s/a", "News", null, "https://images/news.jpg"),
             ChannelDto("2", null, "", "https://s/b", "News"),
             ChannelDto("3", "C", "", "https://s/c", "Sports"),
             ChannelDto("4", "D", "", "https://s/d", "News")
@@ -54,7 +122,7 @@ class MappersTest {
 
         assertEquals(listOf("News", "Sports"), categories.map { it.name })
         assertEquals(listOf("1", "4"), categories[0].channels.map { it.id })
-        assertTrue(categories[1] is Category)
+        assertEquals("Sports", categories[1].name)
     }
 
     @Test
@@ -94,6 +162,40 @@ class MappersTest {
         assertEquals("News", dtos[0].category)
         assertNull(dtos[1].streamUrl)
         assertEquals(1, dtos.toDomain().size)
+    }
+
+    @Test
+    fun gson_parsesHierarchicalCatalog_andMapsMultiTaggingInDeclaredOrder() {
+        val json = """
+            {
+              "categories": [
+                {"name":"Arabe","imageUrl":null},
+                {"name":"Arabe/Qatar","imageUrl":"https://images/qatar.jpg"},
+                {"name":"News","imageUrl":"javascript:bad"}
+              ],
+              "channels": [
+                {"id":"shared","name":"Shared","streamUrl":"https://s/shared","categories":["Arabe/Qatar","News"]},
+                {"id":"invalid","name":"Ignored","streamUrl":null,"categories":["News"]}
+              ]
+            }
+        """.trimIndent()
+
+        val response = Gson().fromJson(json, ChannelsCatalogResponseDto::class.java)
+        val mapped = response.toCategories()
+
+        assertEquals(listOf("Arabe", "Arabe/Qatar", "News"), mapped.map { it.name })
+        assertEquals(listOf("shared"), mapped[1].channels.map { it.id })
+        assertEquals(listOf("shared"), mapped[2].channels.map { it.id })
+        assertEquals("https://images/qatar.jpg", mapped[1].imageUrl)
+        assertNull(mapped[2].imageUrl)
+        assertEquals(0, mapped[0].channelCount)
+    }
+
+    @Test
+    fun channelDto_requiresIdNameAndStreamUrl() {
+        assertNull(ChannelDto(name = "X", streamUrl = "https://s/x").toDomain())
+        assertNull(ChannelDto(id = " ", name = "X", streamUrl = "https://s/x").toDomain())
+        assertNull(ChannelDto(id = "x", name = "X", streamUrl = null).toDomain())
     }
 
     @Test

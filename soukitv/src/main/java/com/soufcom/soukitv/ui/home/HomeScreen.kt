@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,6 +25,10 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -45,6 +51,8 @@ import com.soufcom.soukitv.features.home.presentation.components.StvErrorDialog
 import com.soufcom.soukitv.ui.theme.SoukiDarkSurface
 import com.soufcom.soukitv.ui.theme.SoukiRed
 
+private val CinematicRed = androidx.compose.ui.graphics.Color(0xFFC41E3A)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -55,9 +63,10 @@ fun HomeScreen(
     val currentUiState by viewModel.uiState.collectAsState()
     val activeDetail = (currentUiState as? HomeUiState.Success)?.activeCategoryDetail
     val activeCountry = (currentUiState as? HomeUiState.Success)?.activeCountryDetail
+    val currentCategoryPath = (currentUiState as? HomeUiState.Success)?.currentCategoryPath
     val activeTab = (currentUiState as? HomeUiState.Success)?.currentTab
 
-    BackHandler(enabled = activeDetail != null || activeCountry != null) {
+    BackHandler(enabled = currentCategoryPath != null || activeDetail != null || activeCountry != null) {
         viewModel.onAction(HomeUiAction.NavigateBack)
     }
 
@@ -69,6 +78,13 @@ fun HomeScreen(
     val isLoading = currentUiState is HomeUiState.Loading
     val stvPromptType = success?.stvPromptType
     val selectedTab = success?.currentTab ?: NavigationTab.MATCHES
+    val isChannelsRoot = selectedTab == NavigationTab.CHANNELS &&
+        activeDetail == null &&
+        activeCountry == null
+    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(isChannelsRoot) {
+        if (!isChannelsRoot) isSearchExpanded = false
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -76,19 +92,57 @@ fun HomeScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.app_name),
+                        text = currentCategoryPath?.substringAfterLast('/')
+                            ?: stringResource(R.string.app_name),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Black,
                             fontSize = 24.sp,
                             letterSpacing = 1.sp
                         ),
-                        color = MaterialTheme.colorScheme.primary
+                        color = CinematicRed
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 ),
+                navigationIcon = if (currentCategoryPath != null) {
+                    {
+                        IconButton(onClick = {
+                            viewModel.onAction(HomeUiAction.NavigateBack)
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.action_back),
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                } else {
+                    {}
+                },
                 actions = {
+                    if (isChannelsRoot) {
+                        IconButton(
+                            onClick = {
+                                if (isSearchExpanded) {
+                                    viewModel.onAction(HomeUiAction.SearchQuery(""))
+                                }
+                                isSearchExpanded = !isSearchExpanded
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = stringResource(
+                                    if (isSearchExpanded) {
+                                        R.string.search_close
+                                    } else {
+                                        R.string.search_open
+                                    }
+                                ),
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
                     val isDarkTheme = success?.isDarkTheme ?: true
                     IconButton(
                         onClick = { viewModel.onAction(HomeUiAction.ToggleTheme) }
@@ -154,8 +208,7 @@ fun HomeScreen(
                     success != null -> {
                         val loaded = success
                         Column(modifier = Modifier.fillMaxSize()) {
-                            val inRootLevel = loaded.activeCategoryDetail == null &&
-                                loaded.activeCountryDetail == null
+                            val inRootLevel = loaded.currentCategoryPath == null
                             if (inRootLevel && loaded.currentTab == NavigationTab.CHANNELS) {
                                 SearchAndFilterBar(
                                     query = loaded.searchQuery,
@@ -166,7 +219,9 @@ fun HomeScreen(
                                     },
                                     onFilterSelected = {
                                         viewModel.onAction(HomeUiAction.SelectFilter(it))
-                                    }
+                                    },
+                                    isSearchExpanded = isSearchExpanded,
+                                    onSearchExpandedChange = { isSearchExpanded = it }
                                 )
                             }
                             if (loaded.currentTab == NavigationTab.MATCHES) {
@@ -181,20 +236,13 @@ fun HomeScreen(
                                 )
                             } else {
                                 ChannelsTab(
-                                    categories = loaded.categories,
-                                    activeCategory = loaded.activeCategoryDetail,
-                                    activeCountry = loaded.activeCountryDetail,
+                                    visibleCategories = loaded.visibleCategories,
+                                    currentCategoryPath = loaded.currentCategoryPath,
                                     isFlatMode = loaded.isFlatChannelMode,
                                     flatChannels = loaded.visibleChannels,
                                     favorites = loaded.favorites,
                                     onCategoryClick = { category ->
                                         viewModel.onAction(HomeUiAction.SelectCategoryDetail(category))
-                                    },
-                                    onCountryClick = { country ->
-                                        viewModel.onAction(HomeUiAction.SelectCountry(country))
-                                    },
-                                    onBackClick = {
-                                        viewModel.onAction(HomeUiAction.NavigateBack)
                                     },
                                     onChannelClick = { channel ->
                                         viewModel.onAction(HomeUiAction.SelectChannel(channel))

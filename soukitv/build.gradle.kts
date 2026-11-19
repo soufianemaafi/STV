@@ -37,6 +37,13 @@ android {
             storePassword = properties.getProperty("KEYSTORE_SOUKI_PASSWORD")
             keyAlias = properties.getProperty("KEYSTORE_SOUKI_ALIAS")
             keyPassword = properties.getProperty("KEYSTORE_SOUKI_PASSWORD")
+            // [B7] Schémas de signature explicites
+            // v2 : compatibilité Android 7/8 (minSdk 24)
+            // v3 : sécurité renforcée + rotation de clé Android 9+
+            // v4 : installation incrémentale ADB (Android 11+)
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
         }
     }
 

@@ -1,75 +1,150 @@
 package com.soufcom.soukitv.features.home.presentation.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Category
-import androidx.compose.material.icons.rounded.ChildCare
-import androidx.compose.material.icons.rounded.Flag
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Newspaper
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Science
-import androidx.compose.material.icons.rounded.SportsSoccer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.soufcom.soukitv.R
 import com.soufcom.soukitv.features.home.domain.model.Category
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+
+private val CategoryFallbackColor = Color(0xFF1E1E1E)
+private val CategoryBorderColor = Color(0xFF333333)
+private val CategorySubtitleColor = Color(0xFFA0A0A0)
+private val CategoryFooterColor = Color(0xFF181818)
+private val CategoryShape = RoundedCornerShape(10.dp)
 
 @Composable
 fun CategoryCard(
     category: Category,
     onCategoryClick: (Category) -> Unit
 ) {
-    SoukiInfoCard(
-        title = category.name,
-        channelCount = category.channels.size,
-        onClick = { onCategoryClick(category) }
-    ) {
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .background(Color.White.copy(alpha = 0.05f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = categoryIcon(category.name),
-                contentDescription = null,
-                tint = Color(0xFFF2F2F8),
-                modifier = Modifier.size(32.dp)
-            )
-        }
+    val context = LocalContext.current
+    var imageLoadFailed by remember(category.imageUrl) {
+        mutableStateOf(category.imageUrl == null)
     }
-}
-
-/** Icône vectorielle épurée selon le genre de la catégorie. */
-internal fun categoryIcon(name: String): ImageVector {
-    val lower = name.lowercase()
-    return when {
-        "actualité" in lower || "actualite" in lower || "news" in lower || "bfm" in lower ||
-            "أخبار" in lower -> Icons.Rounded.Newspaper
-        "sport" in lower || "رياض" in lower -> Icons.Rounded.SportsSoccer
-        "cinéma" in lower || "cinema" in lower || "série" in lower || "film" in lower ||
-            "أفلام" in lower -> Icons.Rounded.Movie
-        "jeunesse" in lower || "kid" in lower || "enfant" in lower || "أطفال" in lower -> Icons.Rounded.ChildCare
-        "religion" in lower || "spirituel" in lower || "culture" in lower || "quran" in lower ||
-            "قرآن" in lower -> Icons.AutoMirrored.Rounded.MenuBook
-        "musique" in lower || "radio" in lower || "music" in lower -> Icons.Rounded.MusicNote
-        "science" in lower || "docu" in lower -> Icons.Rounded.Science
-        "international" in lower -> Icons.Rounded.Public
-        "tv" in lower || "live" in lower -> Icons.Rounded.PlayArrow
-        "maghreb" in lower || "maroc" in lower || "égypte" in lower || "egypte" in lower ||
-            "émirat" in lower || "emirat" in lower || "uae" in lower || "afghanistan" in lower -> Icons.Rounded.Flag
-        else -> Icons.Rounded.Category
+    val imageRequest = remember(category.imageUrl) {
+        ImageRequest.Builder(context)
+            .data(category.imageUrl)
+            .crossfade(true)
+            .build()
+    }
+    Card(
+        onClick = { onCategoryClick(category) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(160.dp),
+        shape = CategoryShape,
+        colors = CardDefaults.cardColors(containerColor = CategoryFallbackColor),
+        border = BorderStroke(1.dp, CategoryBorderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                if (!imageLoadFailed && category.imageUrl != null) {
+                    AsyncImage(
+                        model = imageRequest,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        onError = { imageLoadFailed = true }
+                    )
+                }
+                if (imageLoadFailed) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color(0xFF242424), Color(0xFF141414))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(
+                                    Color(0xFFC41E3A).copy(alpha = 0.18f),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Movie,
+                                contentDescription = null,
+                                tint = Color(0xFFC41E3A).copy(alpha = 0.72f),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CategoryFooterColor)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = category.displayName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.channel_count,
+                        category.channelCount,
+                        category.channelCount
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp,
+                    color = CategorySubtitleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 

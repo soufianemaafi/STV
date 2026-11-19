@@ -1,4 +1,5 @@
 package com.soufcom.soukitv.features.home.presentation.components
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -6,8 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,27 +19,34 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.soufcom.soukitv.features.home.domain.model.Channel
-import com.soufcom.soukitv.ui.theme.SoukiRed
 import kotlinx.coroutines.launch
-/** Carte chaîne épurée : logo, nom en gras et bouton favori avec micro-animation d'échelle. */
+
+private val ChannelCardColor = Color(0xFF161616)
+private val ChannelLogoColor = Color(0xFF202020)
+private val ChannelFooterColor = Color(0xFF161616)
+private val ChannelBorderColor = Color(0xFF333333)
+private val ChannelCardShape = RoundedCornerShape(10.dp)
+private val FavoriteAccent = Color(0xFFC41E3A)
+private val FavoriteInactive = Color(0xFF808080)
+
+/** Carte chaîne premium : logo dégagé, titre lisible et favori dans le footer. */
 @Composable
 fun ChannelTile(
     channel: Channel,
@@ -50,55 +57,61 @@ fun ChannelTile(
 ) {
     Card(
         onClick = { onChannelClick(channel) },
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(6.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline)
+        modifier = modifier
+            .fillMaxWidth()
+            .height(136.dp),
+        shape = ChannelCardShape,
+        colors = CardDefaults.cardColors(containerColor = ChannelCardColor),
+        border = BorderStroke(1.dp, ChannelBorderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Box {
-            Column(
-                modifier = Modifier.padding(10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(ChannelLogoColor)
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1.3f)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(10.dp)
-                ) {
-                    SoukiLogoImage(
-                        url = channel.logoUrl,
-                        contentDescription = channel.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = channel.name,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
+                SoukiLogoImage(
+                    url = channel.logoUrl,
+                    contentDescription = channel.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
                 )
             }
-            FavoriteButton(
-                isFavorite = isFavorite,
-                onClick = { onToggleFavorite(channel) },
-                modifier = Modifier.align(Alignment.TopEnd)
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = Color(0xFF2E2E2E)
             )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(ChannelFooterColor)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = channel.name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                FavoriteButton(
+                    isFavorite = isFavorite,
+                    onClick = { onToggleFavorite(channel) },
+                    modifier = Modifier.size(36.dp)
+                )
+            }
         }
     }
 }
 /**
- * Bouton cœur : AUCUN fond, AUCUNE forme (ni cercle ni carré).
- * Un fin halo sombre derrière l'icône la détache de n'importe quel logo.
- * Rebond d'échelle à chaque clic.
+ * Bouton cœur compact du footer avec rebond d'échelle à chaque clic.
  */
 @Composable
 fun FavoriteButton(
@@ -123,31 +136,18 @@ fun FavoriteButton(
                 )
             }
         },
-        modifier = modifier.size(40.dp)
+        modifier = modifier.size(36.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.scale(scale.value)
         ) {
-            // Halo : même icône, légèrement plus grande, sombre et translucide.
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = FavoriteHalo,
-                modifier = Modifier.size(25.dp)
-            )
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (isFavorite) FavoriteActive else FavoriteInactive,
-                modifier = Modifier.size(21.dp)
+                tint = if (isFavorite) FavoriteAccent else FavoriteInactive,
+                modifier = Modifier.size(22.dp)
             )
         }
     }
 }
-/** Contour sombre discret autour de l'icône (pas un fond). */
-private val FavoriteHalo = Color.Black.copy(alpha = 0.45f)
-/** Favori actif : rouge Cinema (#E50914). */
-private val FavoriteActive = SoukiRed
-/** Favori inactif : gris élégant (#A1A1AA). */
-private val FavoriteInactive = Color(0xFFA1A1AA)

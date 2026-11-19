@@ -42,6 +42,7 @@ class HomeViewModel(
     private var currentTab: NavigationTab = NavigationTab.MATCHES
     private var activeCategoryDetail: Category? = null
     private var activeCountryDetail: String? = null
+    private var currentCategoryPath: String? = null
     private var isDarkTheme: Boolean = true
     private var searchQuery: String = ""
     private var matchFilter: String? = null
@@ -76,11 +77,13 @@ class HomeViewModel(
                 searchQuery = ""
                 activeCategoryDetail = null
                 activeCountryDetail = null
+                currentCategoryPath = null
                 refreshState()
             }
             is HomeUiAction.SelectCategoryDetail -> {
                 activeCategoryDetail = action.category
                 activeCountryDetail = null
+                currentCategoryPath = action.category.name
                 refreshState()
             }
             is HomeUiAction.SelectCountry -> {
@@ -90,6 +93,12 @@ class HomeViewModel(
             HomeUiAction.NavigateBack -> {
                 if (activeCountryDetail != null) {
                     activeCountryDetail = null
+                } else if (currentCategoryPath?.contains('/') == true) {
+                    currentCategoryPath = currentCategoryPath?.substringBeforeLast('/')
+                    activeCategoryDetail = findCategory(currentCategoryPath)
+                } else if (currentCategoryPath != null) {
+                    currentCategoryPath = null
+                    activeCategoryDetail = null
                 } else if (activeCategoryDetail != null) {
                     activeCategoryDetail = null
                 }
@@ -150,10 +159,11 @@ class HomeViewModel(
                         matches = todayMatches.sortedBy { it.time }
                         minStvVersionCode = remoteConfig.minVersionCode
                         authSecret = validatedAuthSecret
-                        // Re-resout la categorie ouverte sur le nouveau catalogue.
-                        activeCategoryDetail = activeCategoryDetail?.let { open ->
-                            categories.firstOrNull { it.name == open.name }
+                        currentCategoryPath = currentCategoryPath?.takeIf { path ->
+                            categoryPaths().contains(path)
                         }
+                        // Re-résout le chemin ouvert sur le nouveau catalogue.
+                        activeCategoryDetail = currentCategoryPath?.let(::findCategory)
                         if (activeCountryDetail != null && activeCategoryDetail == null) {
                             activeCountryDetail = null
                         }
@@ -216,7 +226,12 @@ class HomeViewModel(
             }
             is LaunchResult.Failed -> {
                 if (_uiState.value !is HomeUiState.Success) {
-                    _uiState.value = HomeUiState.Error(result.message)
+                    // [B3] Ne jamais exposer result.message en production :
+                    // e.message peut contenir des noms de classes Android internes
+                    // (ActivityNotFoundException, etc.) visibles par instrumentation.
+                    _uiState.value = HomeUiState.Error(
+                        "Impossible de lancer la lecture. Veuillez réessayer."
+                    )
                 }
             }
         }
@@ -258,7 +273,9 @@ class HomeViewModel(
         val matchOptions = matches
             .mapNotNull { it.tournament?.takeIf(String::isNotBlank) }
             .distinct()
-        val channelOptions = categories.map { it.name }
+        val channelOptions = rootCategoryPaths().filter { path ->
+            categoryForPath(path)?.channelCount?.let { it > 0 } == true
+        }
         if (matchFilter !in matchOptions) matchFilter = null
         if (channelFilter !in channelOptions) channelFilter = null
 
@@ -273,22 +290,49 @@ class HomeViewModel(
         val minutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         val liveIds = matches.filter { it.isLiveAt(minutes) }.mapNotNull { it.id }.toSet()
 
-        val flat = !isMatches && (query.isNotEmpty() || channelFilter != null)
+        val currentPath = currentCategoryPath
+        val currentHasChildren = currentPath?.let(::hasChildren) == true
+        val flat = !isMatches && (
+            query.isNotEmpty() ||
+                channelFilter != null ||
+                (currentPath != null && !currentHasChildren)
+            )
         val visibleChannels = if (flat) {
-            categories
-                .filter { channelFilter == null || it.name == channelFilter }
-                .flatMap { it.channels }
-                .distinctBy { it.id }
-                .filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+            val allChannels = allCatalogChannels()
+            allChannels
+                .filter { channel ->
+                    val filterMatches = channelFilter == null || channel.categories.any {
+                        it == channelFilter || it.startsWith("$channelFilter/")
+                    }
+                    val pathMatches = currentPath == null ||
+                        channel.categories.any { it == currentPath }
+                    val queryMatches = query.isEmpty() || listOf(
+                        channel.name,
+                        channel.primaryCategory,
+                        channel.categories.joinToString(" ")
+                    ).any { it.contains(query, ignoreCase = true) }
+                    filterMatches && pathMatches && queryMatches
+                }
                 .sortedByDescending { it.id in favorites }
         } else {
             emptyList()
         }
 
+        val visibleCategories = when {
+            isMatches -> emptyList()
+            currentPath == null -> rootCategoryPaths().mapNotNull(::categoryForPath)
+            currentHasChildren -> categoryPaths()
+                .filter { it.substringBeforeLast('/') == currentPath && it != currentPath }
+                .mapNotNull(::categoryForPath)
+            else -> emptyList()
+        }.filter { it.channelCount > 0 }
+
         _uiState.value = HomeUiState.Success(
             currentTab = currentTab,
             matches = matches,
             categories = categories,
+            currentCategoryPath = currentPath,
+            visibleCategories = visibleCategories,
             activeCategoryDetail = activeCategoryDetail,
             activeCountryDetail = activeCountryDetail,
             isDarkTheme = isDarkTheme,
@@ -303,6 +347,44 @@ class HomeViewModel(
             isRefreshing = isRefreshing
         )
     }
+
+    private fun allCatalogChannels(): List<Channel> =
+        categories.flatMap { it.channels }.distinctBy { it.id }
+
+    private fun categoryPaths(): List<String> {
+        val paths = LinkedHashSet<String>()
+        categories.forEach { category ->
+            val parts = category.name.split('/').filter(String::isNotBlank)
+            parts.indices.forEach { index ->
+                paths += parts.take(index + 1).joinToString("/")
+            }
+        }
+        return paths.toList()
+    }
+
+    private fun rootCategoryPaths(): List<String> =
+        categoryPaths().filterNot { '/' in it }
+
+    private fun hasChildren(path: String): Boolean =
+        categoryPaths().any { it.startsWith("$path/") }
+
+    private fun categoryForPath(path: String): Category? {
+        val declared = categories.firstOrNull { it.name == path }
+        val channels = allCatalogChannels().filter { channel ->
+            channel.categories.any { it == path || it.startsWith("$path/") }
+        }
+        return if (channels.isEmpty()) {
+            null
+        } else {
+            Category(
+                name = path,
+                channels = channels,
+                imageUrl = declared?.imageUrl
+            )
+        }
+    }
+
+    private fun findCategory(path: String?): Category? = path?.let(::categoryForPath)
 
 }
 

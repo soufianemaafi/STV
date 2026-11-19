@@ -33,7 +33,7 @@ class ChannelRepositoryImpl : ChannelRepository {
         emit(
             withContext(Dispatchers.IO) {
                 apiService.getChannels(SecretDecoder.decode(REMOTE_CHANNELS_URL))
-            }.toDomain().toCategories()
+            }.toCategories()
         )
     }
 

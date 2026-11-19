@@ -14,6 +14,11 @@ data class ChannelDto(
     @SerializedName("logoUrl") val logoUrl: String? = null,
     @SerializedName("streamUrl") val streamUrl: String? = null,
     @SerializedName("category") val category: String? = null,
-    @SerializedName("country") val country: String? = null
+    @SerializedName("country") val country: String? = null,
+    @SerializedName(
+        value = "imageUrl",
+        alternate = ["categoryImageUrl", "category_image_url"]
+    ) val imageUrl: String? = null,
+    @SerializedName("categories") val categories: List<String>? = null
 )
 

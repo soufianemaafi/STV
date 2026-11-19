@@ -280,6 +280,64 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun hierarchicalNavigation_rootToParentToLeafAndBack() {
+        val shared = Channel(
+            id = "shared",
+            name = "Shared News",
+            logoUrl = "",
+            streamUrl = "https://example.com/shared.m3u8",
+            categories = listOf("Arabe/Qatar", "News"),
+            primaryCategory = "Arabe/Qatar"
+        )
+        val hierarchical = listOf(
+            Category("Arabe", listOf(shared)),
+            Category("Arabe/Qatar", listOf(shared)),
+            Category("Arabe/Maroc", emptyList()),
+            Category("News", listOf(shared))
+        )
+        val viewModel = viewModel(categories = hierarchical)
+
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+        assertEquals(listOf("Arabe", "News"), viewModel.success().visibleCategories.map { it.name })
+
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(viewModel.success().visibleCategories.first()))
+        assertEquals("Arabe", viewModel.success().currentCategoryPath)
+        assertEquals(listOf("Arabe/Qatar"), viewModel.success().visibleCategories.map { it.name })
+
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(viewModel.success().visibleCategories.first()))
+        assertEquals("Arabe/Qatar", viewModel.success().currentCategoryPath)
+        assertEquals(listOf("shared"), viewModel.success().visibleChannels.map { it.id })
+
+        viewModel.onAction(HomeUiAction.NavigateBack)
+        assertEquals("Arabe", viewModel.success().currentCategoryPath)
+        viewModel.onAction(HomeUiAction.NavigateBack)
+        assertNull(viewModel.success().currentCategoryPath)
+    }
+
+    @Test
+    fun globalSearch_deduplicatesChannelPresentInSeveralCategories() {
+        val shared = Channel(
+            id = "shared",
+            name = "Shared News",
+            logoUrl = "",
+            streamUrl = "https://example.com/shared.m3u8",
+            categories = listOf("Arabe/Qatar", "News"),
+            primaryCategory = "Arabe/Qatar"
+        )
+        val viewModel = viewModel(
+            categories = listOf(
+                Category("Arabe/Qatar", listOf(shared)),
+                Category("News", listOf(shared))
+            )
+        )
+
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+        viewModel.onAction(HomeUiAction.SearchQuery("shared"))
+
+        assertEquals(listOf("shared"), viewModel.success().visibleChannels.map { it.id })
+    }
+
+    @Test
     fun retry_keepsContentAndEndsWithIsLoadingFalse() {
         val viewModel = viewModel()
 

@@ -1,11 +1,25 @@
 package com.soufcom.soukitv.features.home.data.mapper
 
+import java.net.URI
 import com.soufcom.soukitv.features.home.data.model.ChannelDto
+import com.soufcom.soukitv.features.home.data.model.ChannelsCatalogResponseDto
 import com.soufcom.soukitv.features.home.domain.model.Category
 import com.soufcom.soukitv.features.home.domain.model.Channel
 
 /** Catégorie par défaut quand le JSON distant n'en précise pas. */
 const val DEFAULT_CATEGORY_NAME = "Autres"
+
+/** Retourne uniquement une URL d’image absolue HTTP(S) exploitable par Coil. */
+private fun String?.toSafeImageUrl(): String? {
+    val candidate = this?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return runCatching {
+        URI(candidate).takeIf { uri ->
+            (uri.scheme.equals("http", ignoreCase = true) ||
+                uri.scheme.equals("https", ignoreCase = true)) &&
+                !uri.host.isNullOrBlank()
+        }?.toString()
+    }.getOrNull()
+}
 
 /**
  * Convertit un [ChannelDto] en [Channel] du Domain.
@@ -15,24 +29,73 @@ const val DEFAULT_CATEGORY_NAME = "Autres"
  * L'identifiant retombe sur l'URL du flux si le JSON n'en fournit pas.
  */
 fun ChannelDto.toDomain(): Channel? {
+    val safeId = id?.trim().orEmpty()
     val safeName = name?.trim().orEmpty()
     val safeStreamUrl = streamUrl?.trim().orEmpty()
-    if (safeName.isEmpty() || safeStreamUrl.isEmpty()) return null
+    if (safeId.isEmpty() || safeName.isEmpty() || safeStreamUrl.isEmpty()) return null
+
+    val safeCategories = (categories.orEmpty() + category.orEmpty())
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .distinct()
+        .ifEmpty { listOf(DEFAULT_CATEGORY_NAME) }
+    val primaryCategory = safeCategories.first()
 
     return Channel(
-        id = id?.trim().takeUnless { it.isNullOrEmpty() } ?: safeStreamUrl,
+        id = safeId,
         name = safeName,
         logoUrl = logoUrl?.trim().orEmpty(),
         streamUrl = safeStreamUrl,
-        category = category?.trim().takeUnless { it.isNullOrEmpty() } ?: DEFAULT_CATEGORY_NAME,
-        country = country?.trim()?.takeIf { it.isNotEmpty() }
+        category = primaryCategory,
+        country = country?.trim()?.takeIf { it.isNotEmpty() },
+        categoryImageUrl = imageUrl.toSafeImageUrl(),
+        categories = safeCategories,
+        primaryCategory = primaryCategory
     )
 }
 
 /** Convertit une liste de DTO en ignorant les entrées invalides. */
 fun List<ChannelDto>.toDomain(): List<Channel> = mapNotNull { it.toDomain() }
 
-/** Regroupe des chaînes du Domain par catégorie (ordre d'apparition conservé). */
+/** Convertit la réponse hiérarchique en catégories dans l'ordre déclaré. */
+fun ChannelsCatalogResponseDto.toCategories(): List<Category> {
+    val validChannels = channels.orEmpty().toDomain()
+        .groupBy { it.id }
+        .values
+        .map { sameId ->
+            val first = sameId.first()
+            first.copy(categories = sameId.flatMap { it.categories }.distinct())
+        }
+    val declaredNames = categories.orEmpty()
+        .mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) }
+        .distinct()
+    val channelNames = validChannels.flatMap { it.categories }.distinct()
+    val orderedNames = (declaredNames + channelNames).distinct()
+    val metadataByName = categories.orEmpty().associateBy { it.name?.trim() }
+
+    return orderedNames.map { name ->
+        Category(
+            name = name,
+            channels = validChannels.filter { name in it.categories },
+            imageUrl = metadataByName[name]?.imageUrl.toSafeImageUrl()
+                ?: validChannels.filter { name in it.categories }
+                .firstOrNull { !it.categoryImageUrl.isNullOrBlank() }
+                ?.categoryImageUrl
+        )
+    }
+}
+
+/** Regroupe une liste legacy de chaînes par catégorie, dans l'ordre d'apparition. */
 fun List<Channel>.toCategories(): List<Category> =
-    groupBy { it.category }.map { (name, channels) -> Category(name, channels) }
+    flatMap { channel ->
+        channel.categories.ifEmpty { listOf(channel.primaryCategory) }.map { it to channel }
+    }
+        .groupBy({ it.first }, { it.second })
+        .map { (name, channels) ->
+            Category(
+                name = name,
+                channels = channels.distinctBy { it.id },
+                imageUrl = channels.firstOrNull { !it.categoryImageUrl.isNullOrBlank() }?.categoryImageUrl
+            )
+        }
 
