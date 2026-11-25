@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import androidx.core.content.pm.PackageInfoCompat
 import com.soufcom.soukitv.BuildConfig
+import com.soufcom.soukitv.core.security.defaultTrustedHosts
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import com.soufcom.soukitv.features.home.domain.model.Channel
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
 import com.soufcom.soukitv.features.home.domain.model.StreamSource
@@ -44,28 +46,32 @@ class StvPlayerLauncher(
     suspend fun launchChannel(
         channel: Channel,
         authSecret: String = "",
-        minStvVersionCode: Long = minVersionCode
+        minStvVersionCode: Long = minVersionCode,
+        trustedHosts: Set<String> = defaultTrustedHosts()
     ): LaunchResult =
         launch(
             channel = channel,
             sources = null,
             headers = emptyMap(),
             authSecret = authSecret,
-            minStvVersionCode = minStvVersionCode
+            minStvVersionCode = minStvVersionCode,
+            trustedHosts = trustedHosts
         )
     /** Variante avec en-têtes HTTP optionnels (Referer, User-Agent, jetons Nginx...). */
     suspend fun launchChannel(
         channel: Channel,
         headers: Map<String, String>,
         authSecret: String = "",
-        minStvVersionCode: Long = minVersionCode
+        minStvVersionCode: Long = minVersionCode,
+        trustedHosts: Set<String> = defaultTrustedHosts()
     ): LaunchResult =
         launch(
             channel = channel,
             sources = null,
             headers = headers,
             authSecret = authSecret,
-            minStvVersionCode = minStvVersionCode
+            minStvVersionCode = minStvVersionCode,
+            trustedHosts = trustedHosts
         )
     /**
      * Lance un match. Si [MatchItem.sources] n'est pas vide, la liste est sérialisée en JSON
@@ -74,13 +80,15 @@ class StvPlayerLauncher(
     suspend fun launchMatch(
         match: MatchItem,
         authSecret: String = "",
-        minStvVersionCode: Long = minVersionCode
-    ): LaunchResult = launchMatch(match, emptyMap(), authSecret, minStvVersionCode)
+        minStvVersionCode: Long = minVersionCode,
+        trustedHosts: Set<String> = defaultTrustedHosts()
+    ): LaunchResult = launchMatch(match, emptyMap(), authSecret, minStvVersionCode, trustedHosts)
     suspend fun launchMatch(
         match: MatchItem,
         headers: Map<String, String>,
         authSecret: String = "",
-        minStvVersionCode: Long = minVersionCode
+        minStvVersionCode: Long = minVersionCode,
+        trustedHosts: Set<String> = defaultTrustedHosts()
     ): LaunchResult {
         val primaryUrl = match.streamUrl?.trim().orEmpty()
         val sources = match.sources
@@ -97,7 +105,8 @@ class StvPlayerLauncher(
             sources = sources,
             headers = headers,
             authSecret = authSecret,
-            minStvVersionCode = minStvVersionCode
+            minStvVersionCode = minStvVersionCode,
+            trustedHosts = trustedHosts
         )
     }
     private suspend fun launch(
@@ -105,7 +114,8 @@ class StvPlayerLauncher(
         sources: List<StreamSource>?,
         headers: Map<String, String>,
         authSecret: String,
-        minStvVersionCode: Long
+        minStvVersionCode: Long,
+        trustedHosts: Set<String>
     ): LaunchResult {
         // Rejeter immédiatement les URLs vides ou non HTTP(S), avant toute résolution de package.
         if (!isAllowedUrl(channel.streamUrl)) {
@@ -114,31 +124,37 @@ class StvPlayerLauncher(
         if (authSecret.isBlank()) {
             return LaunchResult.Failed(SECURITY_CONFIGURATION_ERROR_MESSAGE)
         }
+        val dispatchTrustedHosts = trustedHosts.map { it.trim().lowercase() }.toSet()
         val dispatchUrl = sequenceOf(channel.streamUrl)
             .plus(sources.orEmpty().asSequence().map(StreamSource::url))
-            .firstOrNull(::requiresDispatch)
+            .firstOrNull { requiresDispatch(it, dispatchTrustedHosts) }
         val resolvedEdgeUrl = dispatchUrl?.let {
             resolveDispatchUrl(it, authSecret)
         }
+        val sessionTrustedHosts = dispatchTrustedHosts + listOfNotNull(
+            resolvedEdgeUrl?.let(::hostOf)
+        )
         val rewrittenSources = sources?.map { source ->
-            if (requiresDispatch(source.url) && resolvedEdgeUrl != null) {
+            if (requiresDispatch(source.url, dispatchTrustedHosts) && resolvedEdgeUrl != null) {
                 source.copy(url = resolvedEdgeUrl)
             } else {
                 source
             }
         }
         val resolvedPrimaryUrl = when {
-            requiresDispatch(channel.streamUrl) -> resolvedEdgeUrl
+            requiresDispatch(channel.streamUrl, dispatchTrustedHosts) -> resolvedEdgeUrl
             else -> channel.streamUrl
         }
         val fallbackUrl = sources
             .orEmpty()
-            .firstOrNull { !requiresDispatch(it.url) }
+            .firstOrNull { !requiresDispatch(it.url, dispatchTrustedHosts) }
             ?.url
         val finalUrl = resolvedPrimaryUrl
             ?: fallbackUrl
             ?: return LaunchResult.Failed("Impossible de résoudre le flux vidéo.")
         val resolvedChannel = channel.copy(streamUrl = finalUrl)
+        val includeAuth = (listOf(finalUrl) + rewrittenSources.orEmpty().map(StreamSource::url))
+            .any { hostOf(it) in sessionTrustedHosts }
         // 1. Package cible : production en priorité stricte, puis dev.
         val target = TARGET_PACKAGES.firstNotNullOfOrNull { packageName ->
             installedVersionCode(packageName)?.let { packageName to it }
@@ -162,7 +178,7 @@ class StvPlayerLauncher(
                 if (!rewrittenSources.isNullOrEmpty()) {
                     putExtra(EXTRA_SOURCES_JSON, sourcesToJson(rewrittenSources))
                 }
-                putHeaders(this, headers, authSecret)
+                putHeaders(this, headers, authSecret, includeAuth)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
@@ -181,14 +197,28 @@ class StvPlayerLauncher(
                 ?.takeIf(::isAllowedUrl)
         }
 
-    private fun requiresDispatch(url: String): Boolean =
-        url.contains("/dispatch", ignoreCase = true)
+    /** `/dispatch` n'est traité comme tel que sur un hôte STV de confiance (http/https). */
+    private fun requiresDispatch(url: String, trustedHosts: Set<String>): Boolean {
+        val parsed = url.trim().toHttpUrlOrNull() ?: return false
+        val path = parsed.encodedPath
+        return parsed.host.lowercase() in trustedHosts &&
+            (path == "/dispatch" || path.startsWith("/dispatch/"))
+    }
+
+    private fun hostOf(url: String): String? =
+        url.trim().toHttpUrlOrNull()?.host?.lowercase()
+
     /** Convertit la Map d'en-têtes en Bundle (`headers`) + extra `referer` pour compatibilité. */
-    private fun putHeaders(intent: Intent, headers: Map<String, String>, authSecret: String) {
+    private fun putHeaders(
+        intent: Intent,
+        headers: Map<String, String>,
+        authSecret: String,
+        includeAuth: Boolean
+    ) {
         val clean = headers.filter { (key, value) -> key.isNotBlank() && value.isNotBlank() }
         val bundle = bundleFactory().apply {
             clean.forEach { (key, value) -> putString(key.trim(), value) }
-            putString("X-STV-Auth", authSecret)
+            if (includeAuth) putString("X-STV-Auth", authSecret)
             putString("User-Agent", OFFICIAL_USER_AGENT)
         }
         intent.putExtra(EXTRA_HEADERS, bundle)
@@ -332,6 +362,8 @@ private class OkHttpStreamDispatcher(
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(3, TimeUnit.SECONDS)
         .writeTimeout(3, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
 ) : StreamDispatcher {
     override fun resolve(dispatchUrl: String, authSecret: String): String? {

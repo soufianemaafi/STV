@@ -11,7 +11,9 @@ data class RemoteCatalogConfigDto(
     @SerializedName("minStvVersionCode")
     val minStvVersionCode: Long = DEFAULT_MIN_STV_VERSION_CODE,
     @SerializedName("stvAuthSecret")
-    val stvAuthSecret: String? = null
+    val stvAuthSecret: String? = null,
+    @SerializedName("trustedHosts")
+    val trustedHosts: List<String>? = null
 ) {
     companion object {
         const val DEFAULT_MIN_STV_VERSION_CODE = 2L

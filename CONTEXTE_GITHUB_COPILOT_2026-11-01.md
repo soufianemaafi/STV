@@ -1,10 +1,10 @@
-# 📋 CONTEXTE PROJET GITHUB COPILOT — 19 NOVEMBRE 2026 (V4.0)
+# 📋 CONTEXTE PROJET GITHUB COPILOT — 25 NOVEMBRE 2026 (V4.0)
 
 > **Projet** : STV Ecosystem Monorepo
 > **Repository** : `D:\STV`
-> **Date de mise à jour** : 19 Novembre 2026
+> **Date de mise à jour** : 25 Novembre 2026
 > **Version Global Architecture** : V4.0 — Phase 1 Production-Ready (Clean Architecture + MVI)
-> **Git Release Tag** : `v3.6.0-soukitv-phase1-final` (19 Novembre 2026)
+> **Git Release Tag** : `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) — maintien de `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
 > **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer - Google Play Store)
 > **Production Release `:soukitv`** : `v3.6.0` — **Version Code 6** (Catalogue Hors-Store)
 
@@ -102,6 +102,7 @@ soukitv/src/main/java/com/soufcom/soukitv/
 │       ├── AppSignatureVerifier.kt      # Contrôle d'intégrité signature SHA-256 XOR-obfusqué (MessageDigest.isEqual)
 │       ├── NetworkSecurityProvider.kt   # Contrat TLS CertificatePinner (désactivé Phase 1)
 │       ├── SecretDecoder.kt             # Décodage XOR 0x4B des endpoints distants
+│       ├── TrustedHosts.kt              # Liste fallback obfusquée XOR 0x4B des hôtes STV de confiance, sans IP en clair
 │       └── SecurityEnvironmentChecker.kt# Détection Root, Magisk, test-keys, Debugger, Frida (port 27042, maps)
 ├── features/home/
 │   ├── data/
@@ -230,6 +231,8 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
 ### Module `:soukitv` (Le Catalogue de Streaming)
 1. **Récupération de Données Réseau** :
    - `ChannelApiService` effectue des requêtes REST vers la configuration distante JSON GitHub.
+   - `ChannelApiService.getRemoteConfig()` utilise désormais `@Query("t") timestamp: Long`; `ChannelRepositoryImpl` passe explicitement `timestamp = System.currentTimeMillis()` aux appels `getRemoteConfig`, `getChannels` et `getMatches`, afin d'éviter le cache CDN lors d'une rotation urgente de `stvAuthSecret`.
+   - `RemoteCatalogConfigDto` prend en charge le champ optionnel `trustedHosts`, rétrocompatible avec les configurations JSON sans ce champ. `RemoteConfig` transporte désormais cet ensemble d'hôtes. Les valeurs sont nettoyées avec `trim`/`lowercase` et les chaînes vides ou `*` sont supprimées ; si la liste reste vide, `ChannelRepositoryImpl` utilise automatiquement `TrustedHosts.defaultTrustedHosts()` comme fallback obfusqué.
    - Robustesse null-safe : `ChannelDto`, `MatchItemDto` et `RemoteCatalogConfigDto` tolèrent les champs absents ou malformés.
    - Mapping strict vers les entités de domaine (`Channel`, `MatchItem`, `Category`).
     - Le fichier `channels.json` est un objet `ChannelsCatalogResponseDto` :
@@ -261,8 +264,12 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
    - Double liste blanche XOR-obfusquée avec la clé `0x5A`, couvrant la nouvelle clé Google Play et la clé historique de NexiPlayer.
    - Blocage immédiat des lecteurs pirates ou re-signés avec retour `LaunchResult.Failed`.
    - Comparaison à temps constant via `MessageDigest.isEqual` et bypass automatique en mode `BuildConfig.DEBUG` (éliminé par R8 en release).
-     - **Player Lock-in dynamique** : l’application récupère la clé secrète `stvAuthSecret` depuis le JSON distant et l’injecte dans le header `X-STV-Auth` via IPC, avec le User-Agent officiel. Cette authentification empêche le vol de flux par des lecteurs tiers tout en permettant la rotation instantanée de la clé sans mise à jour de l’APK. En l’absence de clé, la stratégie **Fail-Closed** interdit toute résolution de dispatcher et toute émission d’Intent IPC.
-    - **Stream Dispatcher** : `core/player/StvPlayerLauncher.kt` résout les tickets internes `/dispatch` avant l’IPC via un `StreamDispatcher` OkHttp exécuté sur `Dispatchers.IO` (timeouts courts de 3 secondes). Le balancer du relais `.190` expose `/dispatch`, exige `X-STV-Auth` et renvoie en environ 1 ms l’adresse directe de l’Edge sélectionné ; il ne transporte aucune vidéo et consomme donc 0 % de la bande passante vidéo.
+     - **Player Lock-in dynamique** : l’application récupère la clé secrète `stvAuthSecret` depuis le JSON distant et l’injecte dans le header `X-STV-Auth` via IPC uniquement pour les flux autorisés, avec le User-Agent officiel. Cette authentification empêche le vol de flux par des lecteurs tiers tout en permettant la rotation instantanée de la clé sans mise à jour de l’APK. En l’absence de clé, la stratégie **Fail-Closed** interdit toute résolution de dispatcher et toute émission d’Intent IPC.
+     - **Stream Dispatcher** : `core/player/StvPlayerLauncher.kt` résout les tickets internes `/dispatch` uniquement lorsque l’URL utilise `http` ou `https`, que son hôte appartient à `trustedHosts` et que le chemin encodé vaut exactement `/dispatch` ou commence par `/dispatch/`. Une URL externe contenant `/dispatch` mais appartenant à un autre hôte reste un flux externe normal : elle ne passe jamais par le dispatcher et ne reçoit jamais `X-STV-Auth`.
+     - `OkHttpStreamDispatcher` désactive `followRedirects` et `followSslRedirects` pour garantir qu'une redirection HTTP ne puisse pas exporter `X-STV-Auth` hors du balancer autorisé.
+     - Lorsqu'une résolution `/dispatch` réussit, l'hôte Edge retourné est ajouté dynamiquement à `sessionTrustedHosts` pour l'appel courant. L'Intent IPC vers NexiPlayer injecte `X-STV-Auth` dans `headers` uniquement si l'URL finale principale ou une source retenue appartient à `sessionTrustedHosts` ; les flux IPTV externes pur-entiers conservent `User-Agent`, `referer` et les autres headers valides sans fuite du secret.
+     - Résolution exécutée via un `StreamDispatcher` OkHttp sur `Dispatchers.IO` (timeouts courts de 3 secondes). Le balancer STV exposant `/dispatch` exige `X-STV-Auth` et renvoie l’adresse directe de l’Edge sélectionné ; il ne transporte aucune vidéo et consomme donc 0 % de la bande passante vidéo.
+     - `HomeViewModel.kt` conserve `remoteConfig.trustedHosts` et le transmet à `launchChannel` et `launchMatch`.
     - Pour les matchs multi-sources, le ticket est résolu une seule fois en mémoire vive. Toutes les entrées `/dispatch` de `sources_json` sont réécrites avec le même Edge, tandis que les sources externes (Korasport, Cloud Run, etc.) sont conservées strictement inchangées. Cette préparation évite les erreurs de zapping entre sources internes et externes dans NexiPlayer.
 
 4. **Résilience MVI & Réseau** :
@@ -342,13 +349,15 @@ L'infrastructure de relais et de diffusion multimédia est conçue et validée p
 
 ---
 
-## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (64 TESTS `:soukitv` PASSÉS)
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (72 TESTS `:soukitv` PASSÉS)
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 64 tests de `:soukitv` passent (208/208). La validation de référence est :
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 72 tests de `:soukitv` passent (216/216). La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
 ```
+
+Le build Release `:soukitv:assembleRelease` avec R8, `shrinkResources` et signature v2/v3/v4 a été validé sur appareil physique le 25 Novembre 2026.
 
 Les en-têtes XML sont également soumis à une règle stricte : chaque fichier de ressources XML doit commencer en première ligne absolue par `<?xml version="1.0" encoding="utf-8"?>`, sans commentaire, espace ou déclaration dupliquée avant cet en-tête.
 
@@ -364,9 +373,11 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (64 tests unitaires validés)** :
+- **Module `:soukitv` (72 tests unitaires validés)** :
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
-      - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes et la conservation stricte des sources externes.
+      - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes, la conservation stricte des sources externes et l’isolement de `X-STV-Auth`.
+      - Nouveaux cas validés : URL `/dispatch` sur hôte non autorisé sans appel du dispatcher ni injection du secret, chaînes et matchs externes avec `User-Agent` sans `X-STV-Auth`, URL `/dispatch` autorisée avec résolution et injection du secret, et hôtes Edge résolus dans `sessionTrustedHosts`.
+   - `TrustedHostsMappingTest` : valeur présente/absente de `trustedHosts`, normalisation des entrées, retrait des chaînes vides ou `*` et vérification du fallback obfusqué. Le décodage exact du fallback XOR `0x4B` est également couvert par les tests du launcher.
   - `MappersTest` : Mapping DTO -> Domain (`ChannelMapper`, `MatchItemMapper`).
    - `HomeViewModelTest` : MVI du catalogue, filtres, recherche, gestion des favoris et fail-closed de la configuration distante.
    - `SecretDecoderTest` : vérification du décodage XOR bidirectionnel.

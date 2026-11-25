@@ -2,6 +2,7 @@ package com.soufcom.soukitv.features.home.data
 
 import com.soufcom.soukitv.core.network.NetworkModule
 import com.soufcom.soukitv.core.security.SecretDecoder
+import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.features.home.data.mapper.toCategories
 import com.soufcom.soukitv.features.home.data.mapper.toDomain
 import com.soufcom.soukitv.features.home.data.model.RemoteCatalogConfigDto
@@ -18,6 +19,14 @@ import kotlinx.coroutines.withContext
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
+/** Hôtes nettoyés du JSON ; repli obfusqué si absent ou vide. */
+internal fun RemoteCatalogConfigDto.toTrustedHosts(): Set<String> =
+    trustedHosts.orEmpty()
+        .map { it.trim().lowercase() }
+        .filter { it.isNotEmpty() && it != "*" }
+        .toSet()
+        .ifEmpty { defaultTrustedHosts() }
+
 class ChannelRepositoryImpl : ChannelRepository {
 
     private val httpClient = NetworkModule.createOkHttpClient()
@@ -32,7 +41,10 @@ class ChannelRepositoryImpl : ChannelRepository {
     override fun getCategories(): Flow<List<Category>> = flow {
         emit(
             withContext(Dispatchers.IO) {
-                apiService.getChannels(SecretDecoder.decode(REMOTE_CHANNELS_URL))
+                apiService.getChannels(
+                    SecretDecoder.decode(REMOTE_CHANNELS_URL),
+                    timestamp = System.currentTimeMillis()
+                )
             }.toCategories()
         )
     }
@@ -40,7 +52,10 @@ class ChannelRepositoryImpl : ChannelRepository {
     override fun getRemoteConfig(): Flow<RemoteConfig> = flow {
         val dto = try {
             withContext(Dispatchers.IO) {
-                apiService.getRemoteConfig(SecretDecoder.decode(REMOTE_CONFIG_URL))
+                apiService.getRemoteConfig(
+                    SecretDecoder.decode(REMOTE_CONFIG_URL),
+                    timestamp = System.currentTimeMillis()
+                )
             }
         } catch (throwable: Exception) {
             if (throwable is CancellationException) throw throwable
@@ -57,7 +72,8 @@ class ChannelRepositoryImpl : ChannelRepository {
                 minVersionCode = dto.minStvVersionCode
                     .takeIf { it > 0L }
                     ?: RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE,
-                authSecret = authSecret
+                authSecret = authSecret,
+                trustedHosts = dto.toTrustedHosts()
             )
         )
     }
@@ -67,7 +83,10 @@ class ChannelRepositoryImpl : ChannelRepository {
     override fun getMatches(): Flow<List<MatchItem>> = flow {
         emit(
             withContext(Dispatchers.IO) {
-                apiService.getMatches(SecretDecoder.decode(REMOTE_MATCHES_URL))
+                apiService.getMatches(
+                    SecretDecoder.decode(REMOTE_MATCHES_URL),
+                    timestamp = System.currentTimeMillis()
+                )
             }.toDomain()
         )
     }

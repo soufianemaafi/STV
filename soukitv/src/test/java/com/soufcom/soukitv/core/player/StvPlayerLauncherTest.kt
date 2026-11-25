@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import com.soufcom.soukitv.core.player.StvPlayerLauncher.LaunchResult
+import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.features.home.domain.model.Channel
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
 import com.soufcom.soukitv.features.home.domain.model.StreamSource
@@ -25,6 +26,7 @@ class StvPlayerLauncherTest {
     private val prod = "com.soufcom.stv"
     private val dev = "com.soufcom.stv.dev"
     private val testAuthSecret = "test-auth-secret"
+    private val trusted = setOf("balancer.example.com")
 
     private val context: Context = mockk(relaxed = true)
     private val packageManager: PackageManager = mockk()
@@ -89,7 +91,7 @@ class StvPlayerLauncherTest {
         verify { intent.setPackage("com.soufcom.stv") }
         verify { intent.setDataAndType(uri, "video/*") }
         verify { intent.putExtra("title", "France 24") }
-        verify { bundle.putString("X-STV-Auth", testAuthSecret) }
+        verify(exactly = 0) { bundle.putString("X-STV-Auth", any()) }
         verify { bundle.putString("User-Agent", "NexiPlayer-Official-Client/v3.0") }
         verify { intent.putExtra("headers", bundle) }
         verify { context.startActivity(intent) }
@@ -162,15 +164,6 @@ class StvPlayerLauncherTest {
     }
 
     @Test
-    fun launch_injectsDynamicAuthSecret() = runTest {
-        installed(prod, versionCode = 2)
-
-        launcher().launchChannel(channel, authSecret = "rotating-secret")
-
-        verify { bundle.putString("X-STV-Auth", "rotating-secret") }
-    }
-
-    @Test
     fun launch_resolvesDispatchUrl_beforeLaunchingWithDirectUrl() = runTest {
         installed(prod, versionCode = 2)
         val dispatchUrl = "https://balancer.example.com/dispatch"
@@ -184,7 +177,7 @@ class StvPlayerLauncherTest {
                 receivedAuth = authSecret
                 resolvedUrl
             }
-        ).launchChannel(channel.copy(streamUrl = dispatchUrl), authSecret = "dynamic-secret")
+        ).launchChannel(channel.copy(streamUrl = dispatchUrl), authSecret = "dynamic-secret", trustedHosts = trusted)
 
         assertEquals(LaunchResult.Launched, result)
         assertEquals(dispatchUrl, receivedUrl)
@@ -213,7 +206,7 @@ class StvPlayerLauncherTest {
                 calls += url
                 edgeUrl
             }
-        ).launchMatch(match, authSecret = "rotating-secret")
+        ).launchMatch(match, authSecret = "rotating-secret", trustedHosts = trusted)
 
         assertEquals(LaunchResult.Launched, result)
         assertEquals(listOf("https://balancer.example.com/dispatch"), calls)
@@ -246,7 +239,7 @@ class StvPlayerLauncherTest {
                 callCount++
                 edgeUrl
             }
-        ).launchMatch(match, authSecret = testAuthSecret)
+        ).launchMatch(match, authSecret = testAuthSecret, trustedHosts = trusted)
 
         assertEquals(LaunchResult.Launched, result)
         assertEquals(1, callCount)
@@ -274,7 +267,7 @@ class StvPlayerLauncherTest {
 
         val result = launcher(
             streamDispatcher = StreamDispatcher { _, _ -> null }
-        ).launchMatch(match, authSecret = testAuthSecret)
+        ).launchMatch(match, authSecret = testAuthSecret, trustedHosts = trusted)
 
         assertEquals(LaunchResult.Launched, result)
         verify { intent.putExtra(StvPlayerLauncher.EXTRA_VIDEO_URL, fallbackUrl) }
@@ -289,7 +282,8 @@ class StvPlayerLauncherTest {
             streamDispatcher = StreamDispatcher { _, _ -> throw java.net.SocketTimeoutException("timeout") }
         ).launchChannel(
             channel.copy(streamUrl = "https://balancer.example.com/dispatch"),
-            authSecret = testAuthSecret
+            authSecret = testAuthSecret,
+            trustedHosts = trusted
         )
 
         assertTrue(result is LaunchResult.Failed)
@@ -302,7 +296,8 @@ class StvPlayerLauncherTest {
 
         val httpResult = launcher().launchChannel(
             channel.copy(streamUrl = "http://example.com/live.m3u8"),
-            authSecret = testAuthSecret
+            authSecret = testAuthSecret,
+            trustedHosts = trusted
         )
         assertEquals(LaunchResult.Launched, httpResult)
 
@@ -317,7 +312,7 @@ class StvPlayerLauncherTest {
     fun launchMatch_returnsFailed_whenPrimaryUrlIsNullAndNoValidSecondarySourceExists() = runTest {
         val match = MatchItem(streamUrl = null)
 
-        val result = launcher().launchMatch(match, authSecret = testAuthSecret)
+        val result = launcher().launchMatch(match, authSecret = testAuthSecret, trustedHosts = trusted)
 
         assertEquals(
             LaunchResult.Failed("Aucun flux vidéo disponible pour cet événement."),
@@ -330,7 +325,7 @@ class StvPlayerLauncherTest {
     fun launchMatch_returnsFailed_whenPrimaryUrlUsesUnsupportedScheme() = runTest {
         val match = MatchItem(streamUrl = "file:///sdcard/match.mp4")
 
-        val result = launcher().launchMatch(match, authSecret = testAuthSecret)
+        val result = launcher().launchMatch(match, authSecret = testAuthSecret, trustedHosts = trusted)
 
         assertTrue(result is LaunchResult.Failed)
         verify(exactly = 0) { context.startActivity(any()) }
@@ -348,11 +343,101 @@ class StvPlayerLauncherTest {
             )
         )
 
-        val result = launcher().launchMatch(match, authSecret = testAuthSecret)
+        val result = launcher().launchMatch(match, authSecret = testAuthSecret, trustedHosts = trusted)
 
         assertEquals(LaunchResult.Launched, result)
         verify { intent.putExtra(StvPlayerLauncher.EXTRA_VIDEO_URL, secondaryUrl) }
         verify(exactly = 1) { context.startActivity(intent) }
+    }
+
+    @Test
+    fun launch_injectsDynamicAuthSecret_forTrustedDispatch() = runTest {
+        installed(prod, versionCode = 2)
+
+        launcher(streamDispatcher = StreamDispatcher { _, _ -> "https://edge1.example.com/m.m3u8" })
+            .launchChannel(
+                channel.copy(streamUrl = "https://balancer.example.com/dispatch"),
+                authSecret = "rotating-secret",
+                trustedHosts = trusted
+            )
+
+        verify { bundle.putString("X-STV-Auth", "rotating-secret") }
+    }
+
+    @Test
+    fun defaultTrustedHosts_decodesObfuscatedFallbackHosts() {
+        assertEquals(
+            setOf("196.200.156.190", "196.200.156.184", "196.200.156.186"),
+            defaultTrustedHosts()
+        )
+    }
+
+    @Test
+    fun launch_dispatchPathOnUntrustedHost_isPlayedAsExternal_withoutAuth() = runTest {
+        installed(prod, versionCode = 2)
+        val url = "https://evil.example.org/dispatch?x=1"
+        var called = false
+
+        val result = launcher(streamDispatcher = StreamDispatcher { _, _ -> called = true; "https://edge.example.com/a" })
+            .launchChannel(channel.copy(streamUrl = url), authSecret = testAuthSecret, trustedHosts = trusted)
+
+        assertEquals(LaunchResult.Launched, result)
+        assertTrue(!called)
+        verify { intent.putExtra(StvPlayerLauncher.EXTRA_VIDEO_URL, url) }
+        verify(exactly = 0) { bundle.putString("X-STV-Auth", any()) }
+        verify { bundle.putString("User-Agent", StvPlayerLauncher.OFFICIAL_USER_AGENT) }
+    }
+
+    @Test
+    fun launch_externalChannelAndMatch_haveUserAgentButNoAuth() = runTest {
+        installed(prod, versionCode = 2)
+
+        val channelResult = launcher().launchChannel(channel, authSecret = testAuthSecret)
+        val matchResult = launcher().launchMatch(
+            MatchItem(
+                streamUrl = "https://external.example.com/a.m3u8",
+                sources = listOf(StreamSource("HD", "https://other.example.com/b.m3u8"))
+            ),
+            authSecret = testAuthSecret,
+            trustedHosts = trusted
+        )
+
+        assertEquals(LaunchResult.Launched, channelResult)
+        assertEquals(LaunchResult.Launched, matchResult)
+        verify(atLeast = 2) { bundle.putString("User-Agent", StvPlayerLauncher.OFFICIAL_USER_AGENT) }
+        verify(exactly = 0) { bundle.putString("X-STV-Auth", any()) }
+    }
+
+    @Test
+    fun launch_dispatchSubPathOnTrustedHost_callsDispatcherAndSendsAuth() = runTest {
+        installed(prod, versionCode = 2)
+        var called = false
+
+        val result = launcher(streamDispatcher = StreamDispatcher { _, _ -> called = true; "https://edge1.example.com/m.m3u8" })
+            .launchChannel(
+                channel.copy(streamUrl = "https://BALANCER.example.com/dispatch/abc"),
+                authSecret = testAuthSecret,
+                trustedHosts = trusted
+            )
+
+        assertEquals(LaunchResult.Launched, result)
+        assertTrue(called)
+        verify { bundle.putString("X-STV-Auth", testAuthSecret) }
+    }
+
+    @Test
+    fun launch_dispatchLookalikePath_isNotDispatch() = runTest {
+        installed(prod, versionCode = 2)
+        var called = false
+
+        launcher(streamDispatcher = StreamDispatcher { _, _ -> called = true; null })
+            .launchChannel(
+                channel.copy(streamUrl = "https://balancer.example.com/dispatcher/x"),
+                authSecret = testAuthSecret,
+                trustedHosts = trusted
+            )
+
+        assertTrue(!called)
     }
 
     @Suppress("DEPRECATION")

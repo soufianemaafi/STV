@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.soufcom.soukitv.core.player.StvPlayerLauncher
+import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.soufcom.soukitv.features.home.data.ChannelRepositoryImpl
 import com.soufcom.soukitv.features.home.data.SharedPrefsFavoritesStore
@@ -51,6 +52,7 @@ class HomeViewModel(
         runCatching { favoritesStore.load() }.getOrDefault(emptySet())
     private var minStvVersionCode: Long = StvPlayerLauncher.MIN_STV_VERSION_CODE
     private var authSecret: String = ""
+    private var trustedHosts: Set<String> = defaultTrustedHosts()
 
     init {
         loadChannels()
@@ -159,6 +161,7 @@ class HomeViewModel(
                         matches = todayMatches.sortedBy { it.time }
                         minStvVersionCode = remoteConfig.minVersionCode
                         authSecret = validatedAuthSecret
+                        trustedHosts = remoteConfig.trustedHosts.ifEmpty { defaultTrustedHosts() }
                         currentCategoryPath = currentCategoryPath?.takeIf { path ->
                             categoryPaths().contains(path)
                         }
@@ -197,7 +200,8 @@ class HomeViewModel(
                 stvPlayerLauncher.launchChannel(
                     channel = channel,
                     minStvVersionCode = minStvVersionCode,
-                    authSecret = authSecret
+                    authSecret = authSecret,
+                    trustedHosts = trustedHosts
                 )
             )
         }
@@ -209,7 +213,8 @@ class HomeViewModel(
                 stvPlayerLauncher.launchMatch(
                     match = match,
                     minStvVersionCode = minStvVersionCode,
-                    authSecret = authSecret
+                    authSecret = authSecret,
+                    trustedHosts = trustedHosts
                 )
             )
         }

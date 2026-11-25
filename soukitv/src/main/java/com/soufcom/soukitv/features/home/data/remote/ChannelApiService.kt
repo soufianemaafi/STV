@@ -10,7 +10,10 @@ import retrofit2.http.Url
 /** API distante : ne manipule que des DTOs ; le mapping vers le Domain est fait par le repository. */
 interface ChannelApiService {
     @GET("")
-    suspend fun getRemoteConfig(@Url fullUrl: String): RemoteCatalogConfigDto
+    suspend fun getRemoteConfig(
+        @Url fullUrl: String,
+        @Query("t") timestamp: Long = System.currentTimeMillis()
+    ): RemoteCatalogConfigDto
 
     @GET("")
     suspend fun getChannels(
