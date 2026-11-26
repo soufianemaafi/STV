@@ -275,6 +275,68 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun searchInsideParentCategory_includesSubCategoriesAndExcludesOthers() {
+        val twoM = Channel(
+            id = "2m", name = "2M", logoUrl = "", streamUrl = "https://example.com/2m.m3u8",
+            categories = listOf("Arabe/Maroc"), country = "Maroc"
+        )
+        val nile = Channel(
+            id = "nile", name = "Nile Maroc News", logoUrl = "", streamUrl = "https://example.com/n.m3u8",
+            categories = listOf("Arabe/Egypte")
+        )
+        val outside = Channel(
+            id = "outside", name = "Maroc Info", logoUrl = "", streamUrl = "https://example.com/o.m3u8",
+            categories = listOf("News")
+        )
+        val viewModel = viewModel(
+            categories = listOf(
+                Category("Arabe/Maroc", listOf(twoM)),
+                Category("Arabe/Egypte", listOf(nile)),
+                Category("News", listOf(outside))
+            )
+        )
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+        val arabe = viewModel.success().visibleCategories.first { it.name == "Arabe" }
+        viewModel.onAction(HomeUiAction.SelectCategoryDetail(arabe))
+
+        viewModel.onAction(HomeUiAction.SearchQuery("maroc"))
+
+        val state = viewModel.success()
+        assertEquals("Arabe", state.currentCategoryPath)
+        assertTrue(state.isFlatChannelMode)
+        assertEquals(listOf("nile", "2m"), state.visibleChannels.map { it.id })
+
+        viewModel.onAction(HomeUiAction.SearchQuery("2m"))
+        assertEquals(listOf("2m"), viewModel.success().visibleChannels.map { it.id })
+    }
+
+    @Test
+    fun search_keepsFavoritesFirstWhileKeepingRelevanceInsideEachGroup() {
+        val exact = channel("exact", "Sport", "Sports")
+        val prefix = channel("prefix", "Sport News", "Sports")
+        val contains = channel("contains", "Eurosport", "Sports")
+        val category = channel("category", "Arryadia", "Sports")
+        val viewModel = viewModel(
+            categories = listOf(Category("Sports", listOf(category, contains, prefix, exact)))
+        )
+        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
+
+        viewModel.onAction(HomeUiAction.SearchQuery("sport"))
+        assertEquals(
+            listOf("exact", "prefix", "contains", "category"),
+            viewModel.success().visibleChannels.map { it.id }
+        )
+
+        viewModel.onAction(HomeUiAction.ToggleFavorite("category"))
+        viewModel.onAction(HomeUiAction.ToggleFavorite("contains"))
+
+        assertEquals(
+            listOf("contains", "category", "exact", "prefix"),
+            viewModel.success().visibleChannels.map { it.id }
+        )
+    }
+
+    @Test
     fun selectFilter_filtersChannelsByCategory() {
         val viewModel = viewModel()
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))

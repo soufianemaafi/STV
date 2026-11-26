@@ -4,9 +4,9 @@
 > **Repository** : `D:\STV`
 > **Date de mise à jour** : 26 Novembre 2026
 > **Version Global Architecture** : V4.0 — Phase 1 Production-Ready (Clean Architecture + MVI)
-> **Git Release Tag** : `v3.6.1-soukitv` (26 Novembre 2026) — maintien des jalons `v3.6.0-soukitv-p2-ux-data`, `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
+> **Git Release Tag** : `v3.6.2-soukitv` (26 Novembre 2026) — maintien des jalons `v3.6.1-soukitv`, `v3.6.0-soukitv-p2-ux-data`, `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
 > **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer - Google Play Store)
-> **Production Release `:soukitv`** : `v3.6.1` — **Version Code 7** (`versionCode = 7`, `versionName = "3.6.1"`) (Catalogue Hors-Store)
+> **Production Release `:soukitv`** : `v3.6.2` — **Version Code 8** (`versionCode = 8`, `versionName = "3.6.2"`) (Catalogue Hors-Store)
 
 ---
 
@@ -27,7 +27,7 @@ Le projet est un monorepo Android construit sous **Gradle 9.2.1 / AGP 9.0.1** av
 ### Versioning officiel synchronisé
 
 - **`:app`** : `versionCode = 4`, `versionName = "1.0.3"` — release de production `com.soufcom.stv` publiée sur Google Play Store.
-- **`:soukitv`** : `versionCode = 7`, `versionName = "3.6.1"` — release catalogue hors-store.
+- **`:soukitv`** : `versionCode = 8`, `versionName = "3.6.2"` — release catalogue hors-store.
 
 Ces valeurs constituent le versioning officiel de référence et ne doivent pas être régressées ou désynchronisées lors d'un audit ou d'un refactoring.
 
@@ -126,6 +126,7 @@ soukitv/src/main/java/com/soufcom/soukitv/
 │   │   │   ├── Channel.kt               # Modèle Chaîne (categories, primaryCategory, streamUrl...)
 │   │   │   ├── MatchItem.kt             # Modèle Match (sources, isLiveAt)
 │   │   │   └── RemoteConfig.kt          # Modèle Configuration distante
+│   │   ├── ChannelSearchEngine.kt      # Recherche intelligente Kotlin pure, pré-indexée par HomeViewModel
 │   │   └── repository/
 │   │       ├── ChannelRepository.kt     # Interface Repository (Flows réactifs)
 │   │       └── FavoritesStore.kt        # Interface Favoris
@@ -260,6 +261,27 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
     - Priorité 3 finalisée dans `v3.6.1-soukitv` : suppression du code mort de l'ancienne navigation pays
       (`CountryCard.kt`, `HomeUiAction.SelectCountry`, `HomeUiState.activeCountryDetail`) sans modification
       des métadonnées domaine/DTO `Channel.country` et `ChannelDto.country`.
+    - **Moteur de recherche intelligent `:soukitv`** : `ChannelSearchEngine.kt` est un composant Kotlin pur
+      (zéro dépendance Android) qui pré-indexe une seule fois les chaînes dédupliquées `catalogChannels`
+      dans `HomeViewModel.kt`. La normalisation NFD retire les accents latins et les diacritiques, unifie
+      les formes arabes complémentaires (`ة -> ه`, `ى -> ي`, `ؤ -> و`, `ئ -> ي`) et normalize les
+      hamzas/tashkeel, les espaces multiples, la ponctuation et la casse avec `Locale.ROOT`. Les formes
+      compactes et les tokens mixtes lettres/chiffres permettent par exemple `"bein1"` de trouver
+      `"beIN 1"` ou `"beIN Sports 1"` sans couper les suites numériques (`"mbc1"` ne matche pas `"MBC 12"`).
+      La recherche multi-mots combine nom, catégories, segments `Parent/Enfant`, `primaryCategory` et `country`
+      dans n'importe quel ordre ; la tolérance Levenshtein est limitée aux tokens >= 4 caractères sans chiffre,
+      avec une distance maximale de 1 pour 4-6 caractères et 2 pour 7 caractères ou plus.
+    - **Classement intelligent** : les scores décroissants sont exact `100`, préfixe du nom `90`,
+      début de mot/contient compact `80/70`, multi-mots dans le nom `60`, catégorie/pays `40` et faute
+      de frappe fuzzy `10`. Le tri reste stable à score égal ; `HomeViewModel` épingle les favoris en tête
+      avec `sortedByDescending { it.id in favorites }` tout en conservant la pertinence à l'intérieur des
+      groupes favoris et non-favoris.
+    - `HomeViewModel.kt` applique la recherche uniquement sur l'onglet Chaînes dans le sous-ensemble autorisé
+      par `channelFilter` (racine + sous-chemins) et `currentCategoryPath` (catégorie courante ou sous-catégories
+      `startsWith("$currentCategoryPath/")`). `HomeScreen.kt` expose la loupe sur toute la navigation Chaînes
+      (racine et `Parent/Enfant`, jamais sur Matchs), affiche les `FilterChip` uniquement à la racine,
+      déploie la barre dès que nécessaire et ferme d'abord la recherche dans `BackHandler` avant
+      `NavigateBack` ou le retour vers l'onglet Matchs.
     - `AndroidManifest.xml` conserve `com.soufcom.stv` / `com.soufcom.stv.dev` ainsi que les packages root,
       Magisk, SuperSU et BusyBox utilisés par `SecurityEnvironmentChecker`, tandis que les quatre packages
       hérités `com.stv.videoplayer*` / `com.example.stv*` ont été retirés de `<queries>`.
@@ -383,15 +405,15 @@ L'infrastructure de relais et de diffusion multimédia est conçue et validée p
 
 ---
 
-## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (227/227 TESTS PASSÉS)
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (244/244 TESTS PASSÉS)
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les **148 tests de `:app`** et les **79 tests de `:soukitv`** passent (**227/227**, 0 échec, 0 erreur). La validation de référence est :
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les **148 tests de `:app`** et les **96 tests de `:soukitv`** passent (**244/244**, 0 échec, 0 erreur). La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
 ```
 
-L'APK `:soukitv:assembleRelease` `v3.6.1` (`versionCode = 7`) avec R8, `shrinkResources` et signature v2/v3/v4 a été compilé, installé et validé sur appareil physique le 26 Novembre 2026.
+L'APK `:soukitv:assembleRelease` `v3.6.2` (`versionCode = 8`) avec le moteur de recherche a été compilé, installé et validé sur appareil physique le 26 Novembre 2026.
 
 Les en-têtes XML sont également soumis à une règle stricte : chaque fichier de ressources XML doit commencer en première ligne absolue par `<?xml version="1.0" encoding="utf-8"?>`, sans commentaire, espace ou déclaration dupliquée avant cet en-tête.
 
@@ -407,7 +429,8 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (79 tests unitaires validés)** :
+- **Module `:soukitv` (96 tests unitaires validés)** :
+   - `ChannelSearchEngineTest` : normalisation NFD, accents latins, diacritiques/tatweel/unification arabe, casse, espaces multiples, formes compactes, suites numériques, recherche multi-mots, classement par pertinence, déduplication et tolérance Levenshtein sans faux positifs sur les acronymes courts ou les tokens avec chiffres.
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
       - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes, la conservation stricte des sources externes et l’isolement de `X-STV-Auth`.
       - Nouveaux cas validés : URL `/dispatch` sur hôte non autorisé sans appel du dispatcher ni injection du secret, chaînes et matchs externes avec `User-Agent` sans `X-STV-Auth`, URL `/dispatch` autorisée avec résolution et injection du secret, et hôtes Edge résolus dans `sessionTrustedHosts`.

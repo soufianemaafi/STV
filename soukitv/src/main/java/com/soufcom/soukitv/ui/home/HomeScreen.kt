@@ -68,6 +68,16 @@ fun HomeScreen(
     val currentCategoryPath = (currentUiState as? HomeUiState.Success)?.currentCategoryPath
     val activeTab = (currentUiState as? HomeUiState.Success)?.currentTab
 
+    val success = currentUiState as? HomeUiState.Success
+    val isLoading = currentUiState is HomeUiState.Loading
+    val stvPromptType = success?.stvPromptType
+    val selectedTab = success?.currentTab ?: NavigationTab.MATCHES
+    val isChannelsTab = selectedTab == NavigationTab.CHANNELS
+    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(isChannelsTab) {
+        if (!isChannelsTab) isSearchExpanded = false
+    }
+
     BackHandler(enabled = currentCategoryPath != null || activeDetail != null) {
         viewModel.onAction(HomeUiAction.NavigateBack)
     }
@@ -76,15 +86,12 @@ fun HomeScreen(
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.MATCHES))
     }
 
-    val success = currentUiState as? HomeUiState.Success
-    val isLoading = currentUiState is HomeUiState.Loading
-    val stvPromptType = success?.stvPromptType
-    val selectedTab = success?.currentTab ?: NavigationTab.MATCHES
-    val isChannelsRoot = selectedTab == NavigationTab.CHANNELS &&
-        activeDetail == null
-    var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(isChannelsRoot) {
-        if (!isChannelsRoot) isSearchExpanded = false
+    // Déclaré en dernier : prioritaire, ferme la recherche avant tout autre retour arrière.
+    val isSearchActive = isChannelsTab &&
+        (isSearchExpanded || !success?.searchQuery.isNullOrBlank())
+    BackHandler(enabled = isSearchActive) {
+        viewModel.onAction(HomeUiAction.SearchQuery(""))
+        isSearchExpanded = false
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -133,7 +140,7 @@ fun HomeScreen(
                     {}
                 },
                 actions = {
-                    if (isChannelsRoot) {
+                    if (isChannelsTab) {
                         IconButton(
                             onClick = {
                                 if (isSearchExpanded) {
@@ -221,10 +228,12 @@ fun HomeScreen(
                         val loaded = success
                         Column(modifier = Modifier.fillMaxSize()) {
                             val inRootLevel = loaded.currentCategoryPath == null
-                            if (inRootLevel && loaded.currentTab == NavigationTab.CHANNELS) {
+                            if (loaded.currentTab == NavigationTab.CHANNELS &&
+                                (inRootLevel || isSearchExpanded)
+                            ) {
                                 SearchAndFilterBar(
                                     query = loaded.searchQuery,
-                                    filters = loaded.filterOptions,
+                                    filters = if (inRootLevel) loaded.filterOptions else emptyList(),
                                     selectedFilter = loaded.selectedCategoryFilter,
                                     onQueryChange = {
                                         viewModel.onAction(HomeUiAction.SearchQuery(it))

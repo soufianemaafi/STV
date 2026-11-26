@@ -9,6 +9,8 @@ import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.soufcom.soukitv.features.home.data.ChannelRepositoryImpl
 import com.soufcom.soukitv.features.home.data.SharedPrefsFavoritesStore
+import com.soufcom.soukitv.features.home.domain.ChannelSearchEngine
+import com.soufcom.soukitv.features.home.domain.IndexedChannel
 import com.soufcom.soukitv.features.home.domain.model.Category
 import com.soufcom.soukitv.features.home.domain.model.Channel
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
@@ -40,6 +42,8 @@ class HomeViewModel(
 
     private var loadJob: Job? = null
     private var categories: List<Category> = emptyList()
+    private var catalogChannels: List<Channel> = emptyList()
+    private var searchIndex: List<IndexedChannel> = emptyList()
     private var matches: List<MatchItem> = emptyList()
     private var currentTab: NavigationTab = NavigationTab.MATCHES
     private var activeCategoryDetail: Category? = null
@@ -158,6 +162,9 @@ class HomeViewModel(
                             .takeIf(String::isNotEmpty)
                             ?: throw SecurityException("Remote security configuration unavailable")
                         this@HomeViewModel.categories = categories
+                        // Dédupliqué par id puis indexé une seule fois par chargement du catalogue.
+                        catalogChannels = categories.flatMap { it.channels }.distinctBy { it.id }
+                        searchIndex = ChannelSearchEngine.index(catalogChannels)
                         // Tri chronologique numérique ; heures absentes ou invalides en fin de liste.
                         matches = todayMatches.sortedBy { it.parseStartMinutes() ?: Int.MAX_VALUE }
                         minStvVersionCode = remoteConfig.minVersionCode
@@ -306,22 +313,23 @@ class HomeViewModel(
                 (currentPath != null && !currentHasChildren)
             )
         val visibleChannels = if (flat) {
-            val allChannels = allCatalogChannels()
-            allChannels
-                .filter { channel ->
-                    val filterMatches = channelFilter == null || channel.categories.any {
-                        it == channelFilter || it.startsWith("$channelFilter/")
-                    }
-                    val pathMatches = currentPath == null ||
-                        channel.categories.any { it == currentPath }
-                    val queryMatches = query.isEmpty() || listOf(
-                        channel.name,
-                        channel.primaryCategory,
-                        channel.categories.joinToString(" ")
-                    ).any { it.contains(query, ignoreCase = true) }
-                    filterMatches && pathMatches && queryMatches
+            val scope = searchIndex.filter { indexed ->
+                val categoryPaths = indexed.channel.categories
+                val filterMatches = channelFilter == null || categoryPaths.any {
+                    it == channelFilter || it.startsWith("$channelFilter/")
                 }
-                .sortedByDescending { it.id in favorites }
+                val pathMatches = currentPath == null || categoryPaths.any {
+                    it == currentPath || it.startsWith("$currentPath/")
+                }
+                filterMatches && pathMatches
+            }
+            val ranked = if (query.isEmpty()) {
+                scope.map { it.channel }
+            } else {
+                ChannelSearchEngine.search(scope, query)
+            }
+            // Tri stable : favoris en tête, pertinence conservée dans chaque groupe.
+            ranked.sortedByDescending { it.id in favorites }
         } else {
             emptyList()
         }
@@ -356,8 +364,7 @@ class HomeViewModel(
         )
     }
 
-    private fun allCatalogChannels(): List<Channel> =
-        categories.flatMap { it.channels }.distinctBy { it.id }
+    private fun allCatalogChannels(): List<Channel> = catalogChannels
 
     private fun categoryPaths(): List<String> {
         val paths = LinkedHashSet<String>()
