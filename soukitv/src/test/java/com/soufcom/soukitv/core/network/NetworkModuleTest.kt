@@ -2,6 +2,7 @@ package com.soufcom.soukitv.core.network
 
 import com.soufcom.soukitv.core.security.NetworkSecurityProvider
 import okhttp3.CertificatePinner
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -9,6 +10,11 @@ class NetworkModuleTest {
     @Test
     fun `default client has no active certificate pins`() {
         assertTrue(NetworkModule.createOkHttpClient().certificatePinner.pins.isEmpty())
+    }
+
+    @Test
+    fun `client ignores system proxies`() {
+        assertEquals(java.net.Proxy.NO_PROXY, NetworkModule.createOkHttpClient().proxy)
     }
 
     @Test

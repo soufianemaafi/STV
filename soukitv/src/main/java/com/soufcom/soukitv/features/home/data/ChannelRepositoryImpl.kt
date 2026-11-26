@@ -1,6 +1,7 @@
 package com.soufcom.soukitv.features.home.data
 
 import com.soufcom.soukitv.core.network.NetworkModule
+import com.soufcom.soukitv.core.security.AppIntegrityGuard
 import com.soufcom.soukitv.core.security.SecretDecoder
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.features.home.data.mapper.toCategories
@@ -27,7 +28,9 @@ internal fun RemoteCatalogConfigDto.toTrustedHosts(): Set<String> =
         .toSet()
         .ifEmpty { defaultTrustedHosts() }
 
-class ChannelRepositoryImpl : ChannelRepository {
+class ChannelRepositoryImpl(
+    private val integrityGuard: AppIntegrityGuard? = null
+) : ChannelRepository {
 
     private val httpClient = NetworkModule.createOkHttpClient()
 
@@ -39,6 +42,7 @@ class ChannelRepositoryImpl : ChannelRepository {
         .create(ChannelApiService::class.java)
 
     override fun getCategories(): Flow<List<Category>> = flow {
+        ensureTrusted()
         emit(
             withContext(Dispatchers.IO) {
                 apiService.getChannels(
@@ -50,6 +54,7 @@ class ChannelRepositoryImpl : ChannelRepository {
     }
 
     override fun getRemoteConfig(): Flow<RemoteConfig> = flow {
+        ensureTrusted()
         val dto = try {
             withContext(Dispatchers.IO) {
                 apiService.getRemoteConfig(
@@ -81,6 +86,7 @@ class ChannelRepositoryImpl : ChannelRepository {
 
     /** Matchs du jour récupérés depuis [REMOTE_MATCHES_URL] sur Dispatchers.IO. */
     override fun getMatches(): Flow<List<MatchItem>> = flow {
+        ensureTrusted()
         emit(
             withContext(Dispatchers.IO) {
                 apiService.getMatches(
@@ -89,6 +95,13 @@ class ChannelRepositoryImpl : ChannelRepository {
                 )
             }.toDomain()
         )
+    }
+
+    private suspend fun ensureTrusted() {
+        val guard = integrityGuard ?: return
+        if (!withContext(Dispatchers.IO) { guard.isTrusted() }) {
+            throw SecurityException("Application integrity check failed")
+        }
     }
 
     companion object {

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.soufcom.soukitv.core.player.StvPlayerLauncher
+import com.soufcom.soukitv.core.security.DefaultAppIntegrityGuard
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.soufcom.soukitv.features.home.data.ChannelRepositoryImpl
@@ -410,10 +411,12 @@ class HomeViewModelFactory(
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
+            val appContext = context.applicationContext
+            val integrityGuard = DefaultAppIntegrityGuard(appContext)
             return HomeViewModel(
-                repository = ChannelRepositoryImpl(),
-                stvPlayerLauncher = StvPlayerLauncher(context.applicationContext),
-                favoritesStore = SharedPrefsFavoritesStore(context.applicationContext)
+                repository = ChannelRepositoryImpl(integrityGuard),
+                stvPlayerLauncher = StvPlayerLauncher(appContext, integrityGuard = integrityGuard),
+                favoritesStore = SharedPrefsFavoritesStore(appContext)
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

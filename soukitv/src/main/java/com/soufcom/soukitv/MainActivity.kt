@@ -13,28 +13,24 @@ import androidx.activity.enableEdgeToEdge
 import com.soufcom.soukitv.features.home.presentation.HomeUiState
 import com.soufcom.soukitv.features.home.presentation.HomeViewModel
 import com.soufcom.soukitv.features.home.presentation.HomeViewModelFactory
-import com.soufcom.soukitv.core.security.AppSignatureVerifier
-import com.soufcom.soukitv.core.security.SecurityEnvironmentChecker
-import com.soufcom.soukitv.BuildConfig
+import com.soufcom.soukitv.core.security.AppIntegrityGuard
+import com.soufcom.soukitv.core.security.DefaultAppIntegrityGuard
+import android.os.Process
 
 class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModelFactory(applicationContext)
     }
 
+    private val integrityGuard: AppIntegrityGuard by lazy {
+        DefaultAppIntegrityGuard(applicationContext)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (!AppSignatureVerifier.isGenuine(this)) {
-            finishAffinity()
-            return
-        }
-        if (!BuildConfig.DEBUG && !SecurityEnvironmentChecker.isEnvironmentSafe(this)) {
-            finishAffinity()
-            System.exit(0)
-            return
-        }
+        if (!enforceIntegrity()) return
         setContent {
             val uiState by homeViewModel.uiState.collectAsState()
             val isDarkTheme = (uiState as? HomeUiState.Success)?.isDarkTheme ?: true
@@ -43,5 +39,19 @@ class MainActivity : ComponentActivity() {
                 HomeScreen(viewModel = homeViewModel)
             }
         }
+    }
+
+    // Re-contrôle à chaque retour au premier plan : couvre un attachement tardif (Frida, debugger).
+    override fun onResume() {
+        super.onResume()
+        enforceIntegrity()
+    }
+
+    private fun enforceIntegrity(): Boolean {
+        if (integrityGuard.isTrusted()) return true
+        finishAffinity()
+        Process.killProcess(Process.myPid())
+        System.exit(1)
+        return false
     }
 }

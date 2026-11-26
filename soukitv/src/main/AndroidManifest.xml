@@ -15,6 +15,25 @@
         <package android:name="com.koushikdutta.superuser" />
         <package android:name="stericson.busybox" />
         <package android:name="ru.meefik.busybox" />
+        <package android:name="com.emanuelef.remote_capture" />
+        <package android:name="com.guoshi.httpcanary" />
+        <package android:name="com.guoshi.httpcanary.premium" />
+        <package android:name="app.greyshirts.sslcapture" />
+        <package android:name="com.minhui.networkcapture" />
+        <package android:name="com.egorovandreyrm.pcapremote" />
+        <package android:name="com.chelpus.lackypatch" />
+        <package android:name="com.dimonvideo.luckypatcher" />
+        <package android:name="com.forpda.lp" />
+        <package android:name="ru.sxbuido.luckypatcher" />
+        <package android:name="io.github.vvb2060.magisk" />
+        <package android:name="org.meowcat.edxposed.manager" />
+        <package android:name="org.lsposed.manager" />
+        <package android:name="com.reqable.android" />
+        <package android:name="com.network.proxy" />
+        <package android:name="tech.httptoolkit.android.v1" />
+        <package android:name="jp.co.taosoftware.android.packetcapture" />
+        <package android:name="bin.mt.plus" />
+        <package android:name="bin.mt.plus.canary" />
     </queries>
 
     <application

@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`
 > **Date de mise à jour** : 26 Novembre 2026
 > **Version Global Architecture** : V4.0 — Phase 1 Production-Ready (Clean Architecture + MVI)
-> **Git Release Tag** : `v3.6.2-soukitv` (26 Novembre 2026) — maintien des jalons `v3.6.1-soukitv`, `v3.6.0-soukitv-p2-ux-data`, `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
+> **Git Release Tag** : `v3.6.2-soukitv-sec-step1` (26 Novembre 2026) — maintien des jalons précédents `v3.6.2-soukitv`, `v3.6.1-soukitv`, `v3.6.0-soukitv-p2-ux-data`, `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
 > **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer - Google Play Store)
 > **Production Release `:soukitv`** : `v3.6.2` — **Version Code 8** (`versionCode = 8`, `versionName = "3.6.2"`) (Catalogue Hors-Store)
 
@@ -99,6 +99,7 @@ soukitv/src/main/java/com/soufcom/soukitv/
 │   ├── player/
 │   │   └── StvPlayerLauncher.kt         # Lanceur IPC explicite suspend vers PlayerActivity (:app)
 │   └── security/
+│       ├── AppIntegrityGuard.kt         # Point de contrôle injectable et implémentation par défaut de l'intégrité
 │       ├── AppSignatureVerifier.kt      # Contrôle d'intégrité signature SHA-256 XOR-obfusqué (MessageDigest.isEqual)
 │       ├── NetworkSecurityProvider.kt   # Contrat TLS CertificatePinner (désactivé Phase 1)
 │       ├── SecretDecoder.kt             # Décodage XOR 0x4B des endpoints distants
@@ -361,6 +362,25 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
    - Masquage binaire XOR dynamique avec la clé `0x4B`, empêchant la recherche textuelle directe des endpoints dans Jadx-GUI/Apktool.
    - Masquage binaire XOR dynamique avec la clé `0x4B`, empêchant la recherche textuelle directe des endpoints dans Jadx-GUI/Apktool.
 
+### Sécurité Étape 1 — Pré-NDK (`:soukitv`, validée le 26 Novembre 2026)
+
+- **Blocage des proxies HTTP système** :
+  - `NetworkModule.kt` et `OkHttpStreamDispatcher` dans `StvPlayerLauncher.kt` configurent les deux `OkHttpClient` avec `.proxy(Proxy.NO_PROXY)`. Les proxies HTTP système utilisés par Burp, Charles et mitmproxy sont ainsi ignorés.
+- **Détection d'environnement élargie (`SecurityEnvironmentChecker.kt` / `<queries>` du manifest)** :
+  - Détection des proxies HTTP système via `System.getProperty("http.proxyHost")`, `System.getProperty("https.proxyHost")` et `ConnectivityManager.defaultProxy`, sans blocage global des VPN grand public légitimes ni de `NetworkCapabilities.TRANSPORT_VPN`.
+  - Détection élargie des packages hostiles : Root, Magisk, SuperSU, BusyBox, LSPosed, EdXposed et outils de sniffing/patching incluant PCAPdroid, HttpCanary, Packet Capture, NetCapture, PCAP Remote, Reqable, ProxyPin, HTTP Toolkit, tPacketCapture, Lucky Patcher et MT Manager. Les identifiants correspondants sont déclarés dans le bloc `<queries>` pour la visibilité Android 11+.
+  - Détection Frida/Hooks/Debug avancée : lecture des noms de threads sous `/proc/self/task/*/comm` (`gum-js-loop`, `gmain`, `gdbus`, `frida` et variantes), rejet si `TracerPid` est supérieur à zéro dans `/proc/self/status`, enrichissement des marqueurs `/proc/self/maps` (`lsposed`, `lspd`, `riru`, `zygisk`, `substrate`, `edxp`, `magisk`), détection des classes et frames Xposed, LSPosed et Substrate.
+  - Détection ciblée des émulateurs PC avec les marqueurs QEMU/AVD (`emulator`, `simulator`, `google_sdk`, `sdk_gphone`), `goldfish`, `ranchu`, `vbox86`, BlueStacks, Nox, LDPlayer, MEmu et Genymotion, sans marqueur générique susceptible d'entraîner un faux positif sur Xiaomi Mi Box, Fire TV, Shield TV ou une box Amlogic/Realtek.
+  - Détection basique du clonage et des conteneurs virtuels via `context.filesDir.absolutePath`, les marqueurs VirtualApp (`io.va.exposed`, `com.lbe.parallel`, `com.excelliance.dualaid`, `virtualapp`), le profil `999` et les formats de chemin anormaux hors `/data/user/` / `/data/data/`.
+- **Défense en profondeur (`AppIntegrityGuard` / `DefaultAppIntegrityGuard`)** :
+  - `DefaultAppIntegrityGuard` combine la signature de l'APK via `AppSignatureVerifier.isGenuine()` et l'environnement via `SecurityEnvironmentChecker.isEnvironmentSafe()`, avec maintien de l'exception `BuildConfig.DEBUG` pour le développement et les tests JVM.
+  - `MainActivity` effectue le contrôle dans `onCreate()` et `onResume()`. En cas d'échec, elle appelle `finishAffinity()`, `Process.killProcess(Process.myPid())` puis `System.exit(1)`.
+  - `HomeViewModelFactory` injecte `AppIntegrityGuard` dans `ChannelRepositoryImpl` et `StvPlayerLauncher`. Un environnement compromis refuse le chargement de la configuration/du catalogue et bloque la résolution `/dispatch` ainsi que l'émission de l'Intent IPC avant toute transmission de `X-STV-Auth`.
+- **Durcissement R8 de la release** :
+  - `soukitv/proguard-rules.pro` ajoute `-repackageclasses 'o'` et `-allowaccessmodification`.
+  - `-assumenosideeffects` supprime en Release les appels `android.util.Log` et `kotlin.io.ConsoleKt.print/println`.
+  - Les règles Gson, DTOs réseau, `Channel`, Retrofit et OkHttp restent conservées.
+
 ---
 
 ## 5. 🛡️ PHASE 1 DE BLINDAGE SÉCURITAIRE — VALIDÉE ✅ (Audit 2026-11-19)
@@ -405,15 +425,15 @@ L'infrastructure de relais et de diffusion multimédia est conçue et validée p
 
 ---
 
-## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (244/244 TESTS PASSÉS)
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (262/262 TESTS PASSÉS)
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les **148 tests de `:app`** et les **96 tests de `:soukitv`** passent (**244/244**, 0 échec, 0 erreur). La validation de référence est :
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les **148 tests de `:app`** et les **114 tests de `:soukitv`** passent (**262/262**, 0 échec, 0 erreur). Le total exact de `:soukitv` est relevé dans `soukitv/build/test-results/testDebugUnitTest/`. La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
 ```
 
-L'APK `:soukitv:assembleRelease` `v3.6.2` (`versionCode = 8`) avec le moteur de recherche a été compilé, installé et validé sur appareil physique le 26 Novembre 2026.
+L'APK `:soukitv:assembleRelease` `v3.6.2` (`versionCode = 8`) avec le moteur de recherche et le blindage Sécurité Étape 1 a été compilé, installé et validé sur appareil physique le 26 Novembre 2026. La présence de `PCAPdroid` a été effectivement bloquée, puis l'application a repris un fonctionnement nominal après retrait de l'outil.
 
 Les en-têtes XML sont également soumis à une règle stricte : chaque fichier de ressources XML doit commencer en première ligne absolue par `<?xml version="1.0" encoding="utf-8"?>`, sans commentaire, espace ou déclaration dupliquée avant cet en-tête.
 
@@ -429,7 +449,7 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (96 tests unitaires validés)** :
+- **Module `:soukitv` (114 tests unitaires validés)** :
    - `ChannelSearchEngineTest` : normalisation NFD, accents latins, diacritiques/tatweel/unification arabe, casse, espaces multiples, formes compactes, suites numériques, recherche multi-mots, classement par pertinence, déduplication et tolérance Levenshtein sans faux positifs sur les acronymes courts ou les tokens avec chiffres.
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
       - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes, la conservation stricte des sources externes et l’isolement de `X-STV-Auth`.
@@ -439,7 +459,11 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
    - `HomeViewModelTest` : MVI du catalogue, filtres, recherche, gestion des favoris, fail-closed de la configuration distante, tri numérique des heures, rejet des heures invalides et retour Snackbar non bloquant sur `LaunchResult.Failed` avec conservation de l'état `Success`.
    - `SecretDecoderTest` : vérification du décodage XOR bidirectionnel.
    - `AppSignatureVerifierTest` : validation de la comparaison SHA-256 avec `MessageDigest.isEqual`.
-   - `SecurityEnvironmentCheckerTest` : validation JVM du parsing du port Frida et des maps mémoire suspectes.
+   - `SecurityEnvironmentCheckerTest` : validation JVM du parsing du port Frida, des maps mémoire suspectes, des proxies, threads Frida, `TracerPid`, marqueurs émulateurs/Android TV Box, clonage et packages hostiles/sniffers/patchers.
+   - `DefaultAppIntegrityGuardTest` : validation du contournement strict contrôlé en `BuildConfig.DEBUG` et du point de contrôle d'intégrité.
+   - `ChannelRepositoryImplIntegrityTest` : refus du catalogue, des matchs et de la configuration distante quand `AppIntegrityGuard` n'est pas fiable.
+   - `NetworkModuleTest` : application de `Proxy.NO_PROXY` et injection du `CertificatePinner`.
+   - `StvPlayerLauncherTest` : blocage de l'intégrité avant tout appel du dispatcher, avant toute émission d'Intent IPC et avant transmission de `X-STV-Auth`.
 
 ---
 

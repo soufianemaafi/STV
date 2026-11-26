@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import com.soufcom.soukitv.core.player.StvPlayerLauncher.LaunchResult
+import com.soufcom.soukitv.core.security.AppIntegrityGuard
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.features.home.domain.model.Channel
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
@@ -440,6 +441,38 @@ class StvPlayerLauncherTest {
         assertTrue(!called)
     }
 
+    @Test
+    fun launch_blocksBeforeDispatchAndIntent_whenIntegrityGuardIsUntrusted() = runTest {
+        installed(prod, versionCode = 2)
+        var dispatcherCalls = 0
+
+        val result = launcher(
+            streamDispatcher = StreamDispatcher { _, _ -> dispatcherCalls++; "https://edge.example.com/live" },
+            integrityGuard = AppIntegrityGuard { false }
+        ).launchChannel(
+            channel.copy(streamUrl = "https://balancer.example.com/dispatch/x"),
+            authSecret = testAuthSecret,
+            trustedHosts = trusted
+        )
+
+        assertEquals(LaunchResult.Failed(StvPlayerLauncher.INTEGRITY_ERROR_MESSAGE), result)
+        assertEquals(0, dispatcherCalls)
+        assertTrue(createdActions.isEmpty())
+        verify(exactly = 0) { context.startActivity(any()) }
+        verify(exactly = 0) { bundle.putString("X-STV-Auth", any()) }
+    }
+
+    @Test
+    fun launch_succeeds_whenIntegrityGuardIsTrusted() = runTest {
+        installed(prod, versionCode = 2)
+
+        val result = launcher(integrityGuard = AppIntegrityGuard { true })
+            .launchChannel(channel, authSecret = testAuthSecret)
+
+        assertEquals(LaunchResult.Launched, result)
+        verify(exactly = 1) { context.startActivity(intent) }
+    }
+
     @Suppress("DEPRECATION")
     private fun installed(packageName: String, versionCode: Int) {
         val info = PackageInfo().apply { this.versionCode = versionCode }
@@ -448,7 +481,8 @@ class StvPlayerLauncherTest {
 
     private fun launcher(
         minVersionCode: Long = StvPlayerLauncher.MIN_STV_VERSION_CODE,
-        streamDispatcher: StreamDispatcher = StreamDispatcher { _, _ -> null }
+        streamDispatcher: StreamDispatcher = StreamDispatcher { _, _ -> null },
+        integrityGuard: AppIntegrityGuard? = null
     ) =
         StvPlayerLauncher(
             context = context,
@@ -459,7 +493,8 @@ class StvPlayerLauncherTest {
             },
             bundleFactory = { bundle },
             uriParser = { uri },
-            streamDispatcher = streamDispatcher
+            streamDispatcher = streamDispatcher,
+            integrityGuard = integrityGuard
         )
 }
 

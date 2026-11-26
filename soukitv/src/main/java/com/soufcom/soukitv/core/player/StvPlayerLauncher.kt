@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import androidx.core.content.pm.PackageInfoCompat
 import com.soufcom.soukitv.BuildConfig
+import com.soufcom.soukitv.core.security.AppIntegrityGuard
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import com.soufcom.soukitv.features.home.domain.model.Channel
@@ -22,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.net.Proxy
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 /**
@@ -41,7 +43,8 @@ class StvPlayerLauncher(
     private val bundleFactory: () -> Bundle = { Bundle() },
     private val uriParser: (String) -> Uri = { Uri.parse(it) },
     private val streamDispatcher: StreamDispatcher = OkHttpStreamDispatcher(),
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val integrityGuard: AppIntegrityGuard? = null
 ) {
     suspend fun launchChannel(
         channel: Channel,
@@ -123,6 +126,10 @@ class StvPlayerLauncher(
         }
         if (authSecret.isBlank()) {
             return LaunchResult.Failed(SECURITY_CONFIGURATION_ERROR_MESSAGE)
+        }
+        // Avant toute résolution /dispatch : le secret X-STV-Auth ne sort jamais d'un environnement non fiable.
+        if (integrityGuard != null && !withContext(ioDispatcher) { integrityGuard.isTrusted() }) {
+            return LaunchResult.Failed(INTEGRITY_ERROR_MESSAGE)
         }
         val dispatchTrustedHosts = trustedHosts.map { it.trim().lowercase() }.toSet()
         val dispatchUrl = sequenceOf(channel.streamUrl)
@@ -327,6 +334,8 @@ class StvPlayerLauncher(
             "Please update STV Player from the Google Play Store to play this content."
         const val SECURITY_CONFIGURATION_ERROR_MESSAGE =
             "Configuration de sécurité indisponible. Veuillez vérifier votre connexion."
+        const val INTEGRITY_ERROR_MESSAGE =
+            "Environnement non sécurisé détecté. Lancement du flux refusé."
         private const val VIDEO_MIME_TYPE = "video/*"
         const val OFFICIAL_USER_AGENT = "NexiPlayer-Official-Client/v3.0"
         private const val HEADER_REFERER = "Referer"
@@ -362,6 +371,7 @@ private class OkHttpStreamDispatcher(
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(3, TimeUnit.SECONDS)
         .writeTimeout(3, TimeUnit.SECONDS)
+        .proxy(Proxy.NO_PROXY)
         .followRedirects(false)
         .followSslRedirects(false)
         .build()

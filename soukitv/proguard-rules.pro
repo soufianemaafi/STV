@@ -26,3 +26,21 @@
 
 # ── Gson ─────────────────────────────────────────────────────────────────────
 -keep class com.google.gson.** { *; }
+
+# ── Durcissement : suppression des traces en release (requiert l'optimisation R8) ──
+-assumenosideeffects class android.util.Log {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+    public static *** w(...);
+    public static *** e(...);
+    public static *** wtf(...);
+}
+-assumenosideeffects class kotlin.io.ConsoleKt {
+    public static void print(...);
+    public static void println(...);
+}
+
+# ── Durcissement : aplatit les packages pour brouiller l'arborescence dans JADX ──
+-repackageclasses 'o'
+-allowaccessmodification
