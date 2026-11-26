@@ -1,6 +1,7 @@
 package com.soufcom.soukitv.features.home.data
 
 import com.google.gson.Gson
+import com.soufcom.soukitv.core.security.TestSecurityVault
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.features.home.data.model.RemoteCatalogConfigDto
 import org.junit.Assert.assertEquals
@@ -18,7 +19,7 @@ class TrustedHostsMappingTest {
             RemoteCatalogConfigDto::class.java
         )
 
-        assertEquals(setOf("edge.example.com"), dto.toTrustedHosts())
+        assertEquals(setOf("edge.example.com"), dto.toTrustedHosts(TestSecurityVault))
     }
 
     @Test
@@ -26,14 +27,18 @@ class TrustedHostsMappingTest {
         val dto = gson.fromJson("""{"stvAuthSecret":"s"}""", RemoteCatalogConfigDto::class.java)
 
         assertNull(dto.trustedHosts)
-        assertEquals(defaultTrustedHosts(), dto.toTrustedHosts())
+        assertEquals(
+            defaultTrustedHosts(TestSecurityVault),
+            dto.toTrustedHosts(TestSecurityVault)
+        )
     }
 
     @Test
     fun trustedHostsEmptyOrOnlyWildcard_usesFallback() {
         assertEquals(
-            defaultTrustedHosts(),
-            RemoteCatalogConfigDto(trustedHosts = listOf("*", " ")).toTrustedHosts()
+            defaultTrustedHosts(TestSecurityVault),
+            RemoteCatalogConfigDto(trustedHosts = listOf("*", " "))
+                .toTrustedHosts(TestSecurityVault)
         )
     }
 }

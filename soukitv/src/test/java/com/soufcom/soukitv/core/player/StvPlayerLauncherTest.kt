@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Bundle
 import com.soufcom.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.soufcom.soukitv.core.security.AppIntegrityGuard
+import com.soufcom.soukitv.core.security.TestSecurityVault
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.features.home.domain.model.Channel
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
@@ -369,7 +370,7 @@ class StvPlayerLauncherTest {
     fun defaultTrustedHosts_decodesObfuscatedFallbackHosts() {
         assertEquals(
             setOf("196.200.156.190", "196.200.156.184", "196.200.156.186"),
-            defaultTrustedHosts()
+            defaultTrustedHosts(TestSecurityVault)
         )
     }
 
@@ -497,4 +498,3 @@ class StvPlayerLauncherTest {
             integrityGuard = integrityGuard
         )
 }
-

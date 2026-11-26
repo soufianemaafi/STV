@@ -27,6 +27,12 @@
 # ── Gson ─────────────────────────────────────────────────────────────────────
 -keep class com.google.gson.** { *; }
 
+# ── JNI ─────────────────────────────────────────────────────────────────────
+-keep class com.soufcom.soukitv.core.security.NativeSecurityBridge { *; }
+-keepclasseswithmembernames,includedescriptorclasses class * {
+    native <methods>;
+}
+
 # ── Durcissement : suppression des traces en release (requiert l'optimisation R8) ──
 -assumenosideeffects class android.util.Log {
     public static *** v(...);

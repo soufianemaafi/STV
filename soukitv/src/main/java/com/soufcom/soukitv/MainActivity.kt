@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.soufcom.soukitv.core.security.AppSignatureVerifier
+import com.soufcom.soukitv.core.security.NativeSecurityVault
 import com.soufcom.soukitv.core.security.SecurityAssessment
 import com.soufcom.soukitv.core.security.SecurityEnvironmentChecker
 import com.soufcom.soukitv.features.home.presentation.HomeUiState
@@ -22,10 +23,17 @@ import com.soufcom.soukitv.features.home.presentation.components.NetworkBlockedS
 import com.soufcom.soukitv.ui.home.HomeScreen
 import com.soufcom.soukitv.ui.theme.SoukiTVTheme
 
-internal fun evaluateAccess(context: Context): SecurityAssessment = when {
-    !AppSignatureVerifier.isGenuine(context) -> SecurityAssessment.COMPROMISED_SILENT_EXIT
-    BuildConfig.DEBUG -> SecurityAssessment.SAFE
-    else -> SecurityEnvironmentChecker.assessEnvironment(context)
+internal fun evaluateAccess(context: Context): SecurityAssessment {
+    val securityVault = NativeSecurityVault(context)
+    if (!BuildConfig.DEBUG && !securityVault.nativeVerifyIntegrity()) {
+        return SecurityAssessment.COMPROMISED_SILENT_EXIT
+    }
+    return when {
+        !AppSignatureVerifier.isGenuine(context, securityVault) ->
+            SecurityAssessment.COMPROMISED_SILENT_EXIT
+        BuildConfig.DEBUG -> SecurityAssessment.SAFE
+        else -> SecurityEnvironmentChecker.assessEnvironment(context)
+    }
 }
 
 class MainActivity : ComponentActivity() {

@@ -2,7 +2,8 @@ package com.soufcom.soukitv.features.home.data
 
 import com.soufcom.soukitv.core.network.NetworkModule
 import com.soufcom.soukitv.core.security.AppIntegrityGuard
-import com.soufcom.soukitv.core.security.SecretDecoder
+import com.soufcom.soukitv.core.security.SecurityVault
+import com.soufcom.soukitv.core.security.UnavailableSecurityVault
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.features.home.data.mapper.toCategories
 import com.soufcom.soukitv.features.home.data.mapper.toDomain
@@ -21,32 +22,28 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 /** Hôtes nettoyés du JSON ; repli obfusqué si absent ou vide. */
-internal fun RemoteCatalogConfigDto.toTrustedHosts(): Set<String> =
+internal fun RemoteCatalogConfigDto.toTrustedHosts(
+    securityVault: SecurityVault
+): Set<String> =
     trustedHosts.orEmpty()
         .map { it.trim().lowercase() }
         .filter { it.isNotEmpty() && it != "*" }
         .toSet()
-        .ifEmpty { defaultTrustedHosts() }
+        .ifEmpty { defaultTrustedHosts(securityVault) }
 
 class ChannelRepositoryImpl(
-    private val integrityGuard: AppIntegrityGuard? = null
+    private val integrityGuard: AppIntegrityGuard? = null,
+    private val securityVault: SecurityVault = UnavailableSecurityVault
 ) : ChannelRepository {
 
     private val httpClient = NetworkModule.createOkHttpClient()
-
-    private val apiService: ChannelApiService = Retrofit.Builder()
-        .baseUrl(SecretDecoder.decode(REMOTE_BASE_URL))
-        .addConverterFactory(GsonConverterFactory.create())
-        .client(httpClient)
-        .build()
-        .create(ChannelApiService::class.java)
 
     override fun getCategories(): Flow<List<Category>> = flow {
         ensureTrusted()
         emit(
             withContext(Dispatchers.IO) {
-                apiService.getChannels(
-                    SecretDecoder.decode(REMOTE_CHANNELS_URL),
+                apiService().getChannels(
+                    requireRemoteUrl(REMOTE_CHANNELS_KEY),
                     timestamp = System.currentTimeMillis()
                 )
             }.toCategories()
@@ -57,8 +54,8 @@ class ChannelRepositoryImpl(
         ensureTrusted()
         val dto = try {
             withContext(Dispatchers.IO) {
-                apiService.getRemoteConfig(
-                    SecretDecoder.decode(REMOTE_CONFIG_URL),
+                apiService().getRemoteConfig(
+                    requireRemoteUrl(REMOTE_CONFIG_KEY),
                     timestamp = System.currentTimeMillis()
                 )
             }
@@ -78,7 +75,7 @@ class ChannelRepositoryImpl(
                     .takeIf { it > 0L }
                     ?: RemoteCatalogConfigDto.DEFAULT_MIN_STV_VERSION_CODE,
                 authSecret = authSecret,
-                trustedHosts = dto.toTrustedHosts()
+                trustedHosts = dto.toTrustedHosts(securityVault)
             )
         )
     }
@@ -89,8 +86,8 @@ class ChannelRepositoryImpl(
         ensureTrusted()
         emit(
             withContext(Dispatchers.IO) {
-                apiService.getMatches(
-                    SecretDecoder.decode(REMOTE_MATCHES_URL),
+                apiService().getMatches(
+                    requireRemoteUrl(REMOTE_MATCHES_KEY),
                     timestamp = System.currentTimeMillis()
                 )
             }.toDomain()
@@ -104,40 +101,24 @@ class ChannelRepositoryImpl(
         }
     }
 
+    private fun apiService(): ChannelApiService =
+        Retrofit.Builder()
+            .baseUrl(requireRemoteUrl(REMOTE_BASE_KEY))
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(httpClient)
+            .build()
+            .create(ChannelApiService::class.java)
+
+    private fun requireRemoteUrl(key: Int): String =
+        securityVault.remoteUrl(key)
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?: throw SecurityException("Remote security configuration unavailable")
+
     companion object {
-        private val REMOTE_BASE_URL = byteArrayOf(
-            0x23, 0x3F, 0x3F, 0x3B, 0x38, 0x71, 0x64, 0x64, 0x39, 0x2A, 0x3C, 0x65,
-            0x2C, 0x22, 0x3F, 0x23, 0x3E, 0x29, 0x3E, 0x38, 0x2E, 0x39, 0x28, 0x24,
-            0x25, 0x3F, 0x2E, 0x25, 0x3F, 0x65, 0x28, 0x24, 0x26, 0x64
-        )
-        private val REMOTE_CONFIG_URL = byteArrayOf(
-            0x23, 0x3F, 0x3F, 0x3B, 0x38, 0x71, 0x64, 0x64, 0x39, 0x2A, 0x3C, 0x65,
-            0x2C, 0x22, 0x3F, 0x23, 0x3E, 0x29, 0x3E, 0x38, 0x2E, 0x39, 0x28, 0x24,
-            0x25, 0x3F, 0x2E, 0x25, 0x3F, 0x65, 0x28, 0x24, 0x26, 0x64, 0x2E, 0x27,
-            0x28, 0x24, 0x2F, 0x2E, 0x2D, 0x32, 0x64, 0x38, 0x24, 0x3E, 0x20, 0x22,
-            0x66, 0x28, 0x23, 0x2A, 0x25, 0x2E, 0x27, 0x38, 0x64, 0x39, 0x2E, 0x2D,
-            0x38, 0x64, 0x23, 0x2E, 0x2A, 0x2F, 0x38, 0x64, 0x26, 0x2A, 0x22, 0x25,
-            0x64, 0x28, 0x24, 0x25, 0x2D, 0x22, 0x2C, 0x65, 0x21, 0x38, 0x24, 0x25
-        )
-        private val REMOTE_CHANNELS_URL = byteArrayOf(
-            0x23, 0x3F, 0x3F, 0x3B, 0x38, 0x71, 0x64, 0x64, 0x39, 0x2A, 0x3C, 0x65,
-            0x2C, 0x22, 0x3F, 0x23, 0x3E, 0x29, 0x3E, 0x38, 0x2E, 0x39, 0x28, 0x24,
-            0x25, 0x3F, 0x2E, 0x25, 0x3F, 0x65, 0x28, 0x24, 0x26, 0x64, 0x2E, 0x27,
-            0x28, 0x24, 0x2F, 0x2E, 0x2D, 0x32, 0x64, 0x38, 0x24, 0x3E, 0x20, 0x22,
-            0x66, 0x28, 0x23, 0x2A, 0x25, 0x2E, 0x27, 0x38, 0x64, 0x39, 0x2E, 0x2D,
-            0x38, 0x64, 0x23, 0x2E, 0x2A, 0x2F, 0x38, 0x64, 0x26, 0x2A, 0x22, 0x25,
-            0x64, 0x28, 0x23, 0x2A, 0x25, 0x25, 0x2E, 0x27, 0x38, 0x65, 0x21, 0x38,
-            0x24, 0x25
-        )
-        private val REMOTE_MATCHES_URL = byteArrayOf(
-            0x23, 0x3F, 0x3F, 0x3B, 0x38, 0x71, 0x64, 0x64, 0x39, 0x2A, 0x3C, 0x65,
-            0x2C, 0x22, 0x3F, 0x23, 0x3E, 0x29, 0x3E, 0x38, 0x2E, 0x39, 0x28, 0x24,
-            0x25, 0x3F, 0x2E, 0x25, 0x3F, 0x65, 0x28, 0x24, 0x26, 0x64, 0x2E, 0x27,
-            0x28, 0x24, 0x2F, 0x2E, 0x2D, 0x32, 0x64, 0x38, 0x24, 0x3E, 0x20, 0x22,
-            0x66, 0x28, 0x23, 0x2A, 0x25, 0x2E, 0x27, 0x38, 0x64, 0x39, 0x2E, 0x2D,
-            0x38, 0x64, 0x23, 0x2E, 0x2A, 0x2F, 0x38, 0x64, 0x26, 0x2A, 0x22, 0x25,
-            0x64, 0x26, 0x2A, 0x3F, 0x28, 0x23, 0x2E, 0x38, 0x65, 0x21, 0x38, 0x24,
-            0x25
-        )
+        private const val REMOTE_BASE_KEY = 0
+        private const val REMOTE_CONFIG_KEY = 1
+        private const val REMOTE_CHANNELS_KEY = 2
+        private const val REMOTE_MATCHES_KEY = 3
     }
 }

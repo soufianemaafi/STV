@@ -1,0 +1,582 @@
+#include <jni.h>
+
+#include <array>
+#include <cctype>
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+#include <dirent.h>
+#include <fcntl.h>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <unistd.h>
+
+namespace {
+
+template <size_t N>
+void wipe(std::array<uint8_t, N>& value) {
+    volatile uint8_t* bytes = value.data();
+    for (size_t i = 0; i < N; ++i) {
+        bytes[i] = 0;
+    }
+}
+
+template <size_t N>
+std::array<uint8_t, N / 3> decodeBlob(const std::array<uint8_t, N>& encoded) {
+    static_assert(N % 3 == 0);
+    std::array<uint8_t, N / 3> decoded{};
+    for (size_t i = 0; i < decoded.size(); ++i) {
+        decoded[i] = encoded[i * 3] ^ encoded[i * 3 + 1] ^ encoded[i * 3 + 2];
+    }
+    return decoded;
+}
+
+template <size_t N>
+jstring decodeString(JNIEnv* env, const std::array<uint8_t, N>& encoded) {
+    auto decoded = decodeBlob(encoded);
+    std::array<char, N / 3 + 1> value{};
+    for (size_t i = 0; i < decoded.size(); ++i) {
+        value[i] = static_cast<char>(decoded[i]);
+    }
+    jstring result = env->NewStringUTF(value.data());
+    wipe(decoded);
+    volatile char* bytes = value.data();
+    for (size_t i = 0; i < value.size(); ++i) {
+        bytes[i] = 0;
+    }
+    return result;
+}
+
+constexpr std::array<uint8_t, 102> remote_base_url = {
+    0xc4, 0xeb, 0x47, 0xc9, 0xd9, 0x64, 0xba, 0x4f, 0x81, 0xaf, 0x41, 0x9e,
+    0x83, 0x4b, 0xbb, 0x3b, 0xd9, 0xd8, 0x3d, 0xe7, 0xf5, 0x0c, 0x31, 0x12,
+    0x46, 0x1b, 0x2f, 0x24, 0x09, 0x4c, 0x21, 0x3f, 0x69, 0x49, 0xe1, 0x86,
+    0x1f, 0xdb, 0xa3, 0xe0, 0x49, 0xc0, 0xee, 0x47, 0xdd, 0xc3, 0x51, 0xfa,
+    0xc9, 0xab, 0x17, 0xaf, 0xf9, 0x34, 0xab, 0x8f, 0x51, 0x9c, 0x81, 0x6e,
+    0x65, 0x8b, 0x8b, 0x63, 0xb9, 0xa8, 0x41, 0xe7, 0xc5, 0x5c, 0xd1, 0xe2,
+    0x2a, 0xbb, 0xff, 0x21, 0x49, 0x1c, 0x03, 0x5f, 0x39, 0x19, 0x21, 0x56,
+    0xfc, 0xfb, 0x73, 0xb7, 0x09, 0x90, 0xc9, 0x07, 0xad, 0xd4, 0x71, 0xca,
+    0xa1, 0x2b, 0xe7, 0xf2, 0xd9, 0x04
+};
+
+constexpr std::array<uint8_t, 252> remote_config_url = {
+    0xc4, 0xeb, 0x47, 0xc9, 0xd9, 0x64, 0xba, 0x4f, 0x81, 0xaf, 0x41, 0x9e,
+    0x83, 0x4b, 0xbb, 0x3b, 0xd9, 0xd8, 0x3d, 0xe7, 0xf5, 0x0c, 0x31, 0x12,
+    0x46, 0x1b, 0x2f, 0x24, 0x09, 0x4c, 0x21, 0x3f, 0x69, 0x49, 0xe1, 0x86,
+    0x1f, 0xdb, 0xa3, 0xe0, 0x49, 0xc0, 0xee, 0x47, 0xdd, 0xc3, 0x51, 0xfa,
+    0xc9, 0xab, 0x17, 0xaf, 0xf9, 0x34, 0xab, 0x8f, 0x51, 0x9c, 0x81, 0x6e,
+    0x65, 0x8b, 0x8b, 0x63, 0xb9, 0xa8, 0x41, 0xe7, 0xc5, 0x5c, 0xd1, 0xe2,
+    0x2a, 0xbb, 0xff, 0x21, 0x49, 0x1c, 0x03, 0x5f, 0x39, 0x19, 0x21, 0x56,
+    0xfc, 0xfb, 0x73, 0xb7, 0x09, 0x90, 0xc9, 0x07, 0xad, 0xd4, 0x71, 0xca,
+    0xa1, 0x2b, 0xe7, 0xf2, 0xd9, 0x04, 0x8b, 0xcf, 0x21, 0x93, 0xc1, 0x3e,
+    0x73, 0x4b, 0x5b, 0x4e, 0x59, 0x78, 0x56, 0xa7, 0x95, 0x26, 0xf1, 0xb2,
+    0x32, 0x9b, 0xcf, 0x1c, 0x89, 0xec, 0x59, 0x7f, 0x09, 0xf4, 0xa1, 0x26,
+    0xf7, 0xdb, 0x43, 0xdc, 0xc9, 0x60, 0xd1, 0xc7, 0x7d, 0xa2, 0x51, 0x9a,
+    0xf1, 0x6b, 0xb7, 0x8e, 0x39, 0xd4, 0x96, 0x0f, 0xf1, 0x6e, 0x01, 0x0e,
+    0x4e, 0x0b, 0x2b, 0x54, 0x79, 0x48, 0x2e, 0x27, 0x65, 0x20, 0xd1, 0x82,
+    0x4b, 0xfb, 0x9f, 0x07, 0xc9, 0xbc, 0xe3, 0x5f, 0xd9, 0xf1, 0x61, 0xf6,
+    0xdb, 0xbb, 0x13, 0x96, 0x89, 0x30, 0xa2, 0x87, 0x4d, 0xbe, 0xb1, 0x6a,
+    0x8d, 0x6b, 0x87, 0x99, 0x59, 0xa4, 0x7d, 0xcf, 0xc1, 0x30, 0xc1, 0xde,
+    0x5d, 0xcb, 0xfb, 0x20, 0x59, 0x18, 0x3b, 0x67, 0x35, 0x0d, 0x31, 0x52,
+    0x5b, 0x1b, 0x6f, 0xe6, 0x09, 0x8c, 0xf9, 0x3f, 0xa9, 0xc9, 0x61, 0xc6,
+    0xde, 0x5b, 0xe3, 0xa0, 0xc9, 0x00, 0xbd, 0xc7, 0x1d, 0xc5, 0xd1, 0x3a,
+    0x96, 0xab, 0x57, 0x7e, 0x79, 0x74, 0x71, 0x8f, 0x91, 0x41, 0x81, 0xae
+};
+
+constexpr std::array<uint8_t, 258> remote_channels_url = {
+    0xc4, 0xeb, 0x47, 0xc9, 0xd9, 0x64, 0xba, 0x4f, 0x81, 0xaf, 0x41, 0x9e,
+    0x83, 0x4b, 0xbb, 0x3b, 0xd9, 0xd8, 0x3d, 0xe7, 0xf5, 0x0c, 0x31, 0x12,
+    0x46, 0x1b, 0x2f, 0x24, 0x09, 0x4c, 0x21, 0x3f, 0x69, 0x49, 0xe1, 0x86,
+    0x1f, 0xdb, 0xa3, 0xe0, 0x49, 0xc0, 0xee, 0x47, 0xdd, 0xc3, 0x51, 0xfa,
+    0xc9, 0xab, 0x17, 0xaf, 0xf9, 0x34, 0xab, 0x8f, 0x51, 0x9c, 0x81, 0x6e,
+    0x65, 0x8b, 0x8b, 0x63, 0xb9, 0xa8, 0x41, 0xe7, 0xc5, 0x5c, 0xd1, 0xe2,
+    0x2a, 0xbb, 0xff, 0x21, 0x49, 0x1c, 0x03, 0x5f, 0x39, 0x19, 0x21, 0x56,
+    0xfc, 0xfb, 0x73, 0xb7, 0x09, 0x90, 0xc9, 0x07, 0xad, 0xd4, 0x71, 0xca,
+    0xa1, 0x2b, 0xe7, 0xf2, 0xd9, 0x04, 0x8b, 0xcf, 0x21, 0x93, 0xc1, 0x3e,
+    0x73, 0x4b, 0x5b, 0x4e, 0x59, 0x78, 0x56, 0xa7, 0x95, 0x26, 0xf1, 0xb2,
+    0x32, 0x9b, 0xcf, 0x1c, 0x89, 0xec, 0x59, 0x7f, 0x09, 0xf4, 0xa1, 0x26,
+    0xf7, 0xdb, 0x43, 0xdc, 0xc9, 0x60, 0xd1, 0xc7, 0x7d, 0xa2, 0x51, 0x9a,
+    0xf1, 0x6b, 0xb7, 0x8e, 0x39, 0xd4, 0x96, 0x0f, 0xf1, 0x6e, 0x01, 0x0e,
+    0x4e, 0x0b, 0x2b, 0x54, 0x79, 0x48, 0x2e, 0x27, 0x65, 0x20, 0xd1, 0x82,
+    0x4b, 0xfb, 0x9f, 0x07, 0xc9, 0xbc, 0xe3, 0x5f, 0xd9, 0xf1, 0x61, 0xf6,
+    0xdb, 0xbb, 0x13, 0x96, 0x89, 0x30, 0xa2, 0x87, 0x4d, 0xbe, 0xb1, 0x6a,
+    0x8d, 0x6b, 0x87, 0x99, 0x59, 0xa4, 0x7d, 0xcf, 0xc1, 0x30, 0xc1, 0xde,
+    0x5d, 0xcb, 0xfb, 0x20, 0x59, 0x18, 0x3b, 0x67, 0x35, 0x0d, 0x31, 0x52,
+    0x5b, 0x1b, 0x6f, 0xe6, 0x09, 0x8c, 0xfe, 0x3f, 0xa9, 0xc6, 0x61, 0xc6,
+    0xd6, 0x5b, 0xe3, 0xa7, 0xc9, 0x00, 0xbf, 0xc7, 0x1d, 0x87, 0xd1, 0x3a,
+    0x8f, 0xab, 0x57, 0x23, 0x79, 0x74, 0x74, 0x8f, 0x91, 0x5c, 0x81, 0xae,
+    0x2f, 0x8b, 0xcb, 0x3f, 0xb9, 0xe8
+};
+
+constexpr std::array<uint8_t, 255> remote_matches_url = {
+    0xc4, 0xeb, 0x47, 0xc9, 0xd9, 0x64, 0xba, 0x4f, 0x81, 0xaf, 0x41, 0x9e,
+    0x83, 0x4b, 0xbb, 0x3b, 0xd9, 0xd8, 0x3d, 0xe7, 0xf5, 0x0c, 0x31, 0x12,
+    0x46, 0x1b, 0x2f, 0x24, 0x09, 0x4c, 0x21, 0x3f, 0x69, 0x49, 0xe1, 0x86,
+    0x1f, 0xdb, 0xa3, 0xe0, 0x49, 0xc0, 0xee, 0x47, 0xdd, 0xc3, 0x51, 0xfa,
+    0xc9, 0xab, 0x17, 0xaf, 0xf9, 0x34, 0xab, 0x8f, 0x51, 0x9c, 0x81, 0x6e,
+    0x65, 0x8b, 0x8b, 0x63, 0xb9, 0xa8, 0x41, 0xe7, 0xc5, 0x5c, 0xd1, 0xe2,
+    0x2a, 0xbb, 0xff, 0x21, 0x49, 0x1c, 0x03, 0x5f, 0x39, 0x19, 0x21, 0x56,
+    0xfc, 0xfb, 0x73, 0xb7, 0x09, 0x90, 0xc9, 0x07, 0xad, 0xd4, 0x71, 0xca,
+    0xa1, 0x2b, 0xe7, 0xf2, 0xd9, 0x04, 0x8b, 0xcf, 0x21, 0x93, 0xc1, 0x3e,
+    0x73, 0x4b, 0x5b, 0x4e, 0x59, 0x78, 0x56, 0xa7, 0x95, 0x26, 0xf1, 0xb2,
+    0x32, 0x9b, 0xcf, 0x1c, 0x89, 0xec, 0x59, 0x7f, 0x09, 0xf4, 0xa1, 0x26,
+    0xf7, 0xdb, 0x43, 0xdc, 0xc9, 0x60, 0xd1, 0xc7, 0x7d, 0xa2, 0x51, 0x9a,
+    0xf1, 0x6b, 0xb7, 0x8e, 0x39, 0xd4, 0x96, 0x0f, 0xf1, 0x6e, 0x01, 0x0e,
+    0x4e, 0x0b, 0x2b, 0x54, 0x79, 0x48, 0x2e, 0x27, 0x65, 0x20, 0xd1, 0x82,
+    0x4b, 0xfb, 0x9f, 0x07, 0xc9, 0xbc, 0xe3, 0x5f, 0xd9, 0xf1, 0x61, 0xf6,
+    0xdb, 0xbb, 0x13, 0x96, 0x89, 0x30, 0xa2, 0x87, 0x4d, 0xbe, 0xb1, 0x6a,
+    0x8d, 0x6b, 0x87, 0x99, 0x59, 0xa4, 0x7d, 0xcf, 0xc1, 0x30, 0xc1, 0xde,
+    0x5d, 0xcb, 0xfb, 0x20, 0x59, 0x18, 0x3b, 0x67, 0x35, 0x0d, 0x31, 0x52,
+    0x5b, 0x1b, 0x6f, 0xe8, 0x09, 0x8c, 0xf7, 0x3f, 0xa9, 0xd3, 0x61, 0xc6,
+    0xdb, 0x5b, 0xe3, 0xa1, 0xc9, 0x00, 0xbf, 0xc7, 0x1d, 0x98, 0xd1, 0x3a,
+    0xd2, 0xab, 0x57, 0x67, 0x79, 0x74, 0x6d, 0x8f, 0x91, 0x40, 0x81, 0xae,
+    0x2e, 0x8b, 0xcb
+};
+
+constexpr std::array<uint8_t, 45> fallback_host_0 = {
+    0x9d, 0xeb, 0x47, 0x84, 0xd9, 0x64, 0xf8, 0x4f, 0x81, 0xf1, 0x41, 0x9e,
+    0xc2, 0x4b, 0xbb, 0x31, 0xd9, 0xd8, 0x22, 0xe7, 0xf5, 0x0d, 0x31, 0x12,
+    0x05, 0x1b, 0x2f, 0x70, 0x09, 0x4c, 0x60, 0x3f, 0x69, 0x49, 0xe1, 0x86,
+    0x49, 0xdb, 0xa3, 0xb0, 0x49, 0xc0, 0xaa, 0x47, 0xdd
+};
+constexpr std::array<uint8_t, 45> fallback_host_1 = {
+    0x9d, 0xeb, 0x47, 0x84, 0xd9, 0x64, 0xf8, 0x4f, 0x81, 0xf1, 0x41, 0x9e,
+    0xc2, 0x4b, 0xbb, 0x31, 0xd9, 0xd8, 0x22, 0xe7, 0xf5, 0x0d, 0x31, 0x12,
+    0x05, 0x1b, 0x2f, 0x70, 0x09, 0x4c, 0x60, 0x3f, 0x69, 0x49, 0xe1, 0x86,
+    0x49, 0xdb, 0xa3, 0xb1, 0x49, 0xc0, 0xae, 0x47, 0xdd
+};
+constexpr std::array<uint8_t, 45> fallback_host_2 = {
+    0x9d, 0xeb, 0x47, 0x84, 0xd9, 0x64, 0xf8, 0x4f, 0x81, 0xf1, 0x41, 0x9e,
+    0xc2, 0x4b, 0xbb, 0x31, 0xd9, 0xd8, 0x22, 0xe7, 0xf5, 0x0d, 0x31, 0x12,
+    0x05, 0x1b, 0x2f, 0x70, 0x09, 0x4c, 0x60, 0x3f, 0x69, 0x49, 0xe1, 0x86,
+    0x49, 0xdb, 0xa3, 0xb1, 0x49, 0xc0, 0xac, 0x47, 0xdd
+};
+
+constexpr std::array<uint8_t, 96> app_digest = {
+    0xf5, 0xeb, 0x47, 0xe6, 0xd9, 0x64, 0xab, 0x4f, 0x81, 0xf0, 0x41, 0x9e,
+    0xcc, 0x4b, 0xbb, 0x81, 0xd9, 0xd8, 0x53, 0xe7, 0xf5, 0xaa, 0x31, 0x12,
+    0x2c, 0x1b, 0x2f, 0x2f, 0x09, 0x4c, 0x4e, 0x3f, 0x69, 0xc7, 0xe1, 0x86,
+    0xb0, 0xdb, 0xa3, 0x33, 0x49, 0xc0, 0x0c, 0x47, 0xdd, 0x80, 0x51, 0xfa,
+    0x1f, 0xab, 0x17, 0x8c, 0xf9, 0x34, 0xc8, 0x8f, 0x51, 0xa1, 0x81, 0x6e,
+    0x44, 0x8b, 0x8b, 0xff, 0xb9, 0xa8, 0x09, 0xe7, 0xc5, 0x14, 0xd1, 0xe2,
+    0xfc, 0xbb, 0xff, 0xc5, 0x49, 0x1c, 0x32, 0x5f, 0x39, 0xfc, 0x21, 0x56,
+    0xb2, 0xfb, 0x73, 0x77, 0x09, 0x90, 0x1c, 0x07, 0xad, 0x3e, 0x71, 0xca
+};
+
+constexpr std::array<uint8_t, 96> player_digest_one = {
+    0x05, 0xeb, 0x47, 0x0f, 0xd9, 0x64, 0x9e, 0x4f, 0x81, 0xa3, 0x41, 0x9e,
+    0xa1, 0x4b, 0xbb, 0x7b, 0xd9, 0xd8, 0xea, 0xe7, 0xf5, 0x8f, 0x31, 0x12,
+    0x4f, 0x1b, 0x2f, 0xec, 0x09, 0x4c, 0x81, 0x3f, 0x69, 0xbb, 0xe1, 0x86,
+    0x0f, 0xdb, 0xa3, 0x18, 0x49, 0xc0, 0x97, 0x47, 0xdd, 0x52, 0x51, 0xfa,
+    0x5e, 0xab, 0x17, 0x32, 0xf9, 0x34, 0x47, 0x8f, 0x51, 0x60, 0x81, 0x6e,
+    0x6c, 0x8b, 0x8b, 0x17, 0xb9, 0xa8, 0xa1, 0xe7, 0xc5, 0x55, 0xd1, 0xe2,
+    0xea, 0xbb, 0xff, 0xca, 0x49, 0x1c, 0xcc, 0x5f, 0x39, 0x5d, 0x21, 0x56,
+    0x4e, 0xfb, 0x73, 0xf9, 0x09, 0x90, 0x42, 0x07, 0xad, 0xa4, 0x71, 0xca
+};
+
+constexpr std::array<uint8_t, 96> player_digest_two = {
+    0x64, 0xeb, 0x47, 0x80, 0xd9, 0x64, 0xa4, 0x4f, 0x81, 0x96, 0x41, 0x9e,
+    0x80, 0x4b, 0xbb, 0x10, 0xd9, 0xd8, 0x07, 0xe7, 0xf5, 0x97, 0x31, 0x12,
+    0x93, 0x1b, 0x2f, 0x35, 0x09, 0x4c, 0x10, 0x3f, 0x69, 0x29, 0xe1, 0x86,
+    0x54, 0xdb, 0xa3, 0x99, 0x49, 0xc0, 0x9c, 0x47, 0xdd, 0xa6, 0x51, 0xfa,
+    0x12, 0xab, 0x17, 0x07, 0xf9, 0x34, 0xfd, 0x8f, 0x51, 0x6d, 0x81, 0x6e,
+    0xc1, 0x8b, 0x8b, 0x65, 0xb9, 0xa8, 0xcd, 0xe7, 0xc5, 0xd2, 0xd1, 0xe2,
+    0x87, 0xbb, 0xff, 0xe9, 0x49, 0x1c, 0xea, 0x5f, 0x39, 0x28, 0x21, 0x56,
+    0x16, 0xfb, 0x73, 0xaa, 0x09, 0x90, 0xb0, 0x07, 0xad, 0xa2, 0x71, 0xca
+};
+
+bool clearException(JNIEnv* env) {
+    if (!env->ExceptionCheck()) return false;
+    env->ExceptionClear();
+    return true;
+}
+
+bool readProcFile(const char* path, std::string& contents) {
+    const int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return false;
+    char buffer[4096];
+    ssize_t count;
+    while (true) {
+        count = read(fd, buffer, sizeof(buffer));
+        if (count < 0 && errno == EINTR) continue;
+        if (count <= 0) break;
+        contents.append(buffer, static_cast<size_t>(count));
+    }
+    close(fd);
+    return count == 0;
+}
+
+std::string lower(std::string value) {
+    for (char& character : value) {
+        character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    }
+    return value;
+}
+
+bool containsSuspiciousMapping() {
+    std::string maps;
+    if (!readProcFile("/proc/self/maps", maps)) return true;
+    maps = lower(std::move(maps));
+    constexpr const char* markers[] = {
+        "frida", "xposed", "lsposed", "lspd", "riru", "zygisk",
+        "substrate", "edxp", "magisk"
+    };
+    for (const char* marker : markers) {
+        if (maps.find(marker) != std::string::npos) return true;
+    }
+    return false;
+}
+
+bool containsSuspiciousThread() {
+    DIR* directory = opendir("/proc/self/task");
+    if (directory == nullptr) return true;
+    bool suspicious = false;
+    while (dirent* entry = readdir(directory)) {
+        if (entry->d_name[0] == '.') continue;
+        char path[128];
+        const int written = snprintf(path, sizeof(path), "/proc/self/task/%s/comm", entry->d_name);
+        if (written <= 0 || static_cast<size_t>(written) >= sizeof(path)) continue;
+        const int fd = open(path, O_RDONLY | O_CLOEXEC);
+        if (fd < 0) continue;
+        char name[128] = {};
+        const ssize_t count = read(fd, name, sizeof(name) - 1);
+        close(fd);
+        if (count <= 0) continue;
+        const std::string threadName = lower(std::string(name, static_cast<size_t>(count)));
+        constexpr const char* markers[] = {
+            "gum-js-loop", "gmain", "gdbus", "pool-frida", "frida"
+        };
+        for (const char* marker : markers) {
+            if (threadName.find(marker) != std::string::npos) {
+                suspicious = true;
+                break;
+            }
+        }
+        if (suspicious) break;
+    }
+    closedir(directory);
+    return suspicious;
+}
+
+bool tracerAttached() {
+    std::string status;
+    if (!readProcFile("/proc/self/status", status)) return true;
+    const size_t marker = status.find("TracerPid:");
+    if (marker == std::string::npos) return true;
+    const char* value = status.c_str() + marker + 10;
+    return std::strtol(value, nullptr, 10) > 0;
+}
+
+bool listeningOnFridaPort(const char* path) {
+    std::string contents;
+    if (!readProcFile(path, contents)) return false;
+    std::istringstream lines(contents);
+    std::string line;
+    while (std::getline(lines, line)) {
+        std::istringstream fields(line);
+        std::string slot;
+        std::string localAddress;
+        std::string remoteAddress;
+        std::string state;
+        if (!(fields >> slot >> localAddress >> remoteAddress >> state)) continue;
+        const size_t separator = localAddress.rfind(':');
+        if (separator == std::string::npos) continue;
+        char* end = nullptr;
+        const unsigned long port = std::strtoul(
+            localAddress.c_str() + separator + 1, &end, 16
+        );
+        if (end != localAddress.c_str() + separator + 1 &&
+            port == 27042 &&
+            state == "0A") {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool nativeEnvironmentCompromised() {
+    return tracerAttached() ||
+        containsSuspiciousMapping() ||
+        containsSuspiciousThread() ||
+        listeningOnFridaPort("/proc/net/tcp") ||
+        listeningOnFridaPort("/proc/net/tcp6");
+}
+
+int sdkInt(JNIEnv* env) {
+    jclass versionClass = env->FindClass("android/os/Build$VERSION");
+    if (versionClass == nullptr || clearException(env)) return 0;
+    const jfieldID sdkField = env->GetStaticFieldID(versionClass, "SDK_INT", "I");
+    if (sdkField == nullptr || clearException(env)) return 0;
+    return env->GetStaticIntField(versionClass, sdkField);
+}
+
+bool applicationIsDebuggable(JNIEnv* env, jobject context) {
+    jclass contextClass = env->GetObjectClass(context);
+    if (contextClass == nullptr || clearException(env)) return true;
+    const jmethodID getApplicationInfo = env->GetMethodID(
+        contextClass, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;"
+    );
+    if (getApplicationInfo == nullptr || clearException(env)) return true;
+    jobject applicationInfo = env->CallObjectMethod(context, getApplicationInfo);
+    if (applicationInfo == nullptr || clearException(env)) return true;
+    jclass infoClass = env->GetObjectClass(applicationInfo);
+    if (infoClass == nullptr || clearException(env)) return true;
+    const jfieldID flagsField = env->GetFieldID(infoClass, "flags", "I");
+    if (flagsField == nullptr || clearException(env)) return true;
+    const jint flags = env->GetIntField(applicationInfo, flagsField);
+    if (clearException(env)) return true;
+    return (flags & 0x2) != 0;
+}
+
+bool constantTimeEqual(const std::array<uint8_t, 32>& actual,
+                       const std::array<uint8_t, 32>& expected) {
+    uint8_t difference = 0;
+    for (size_t i = 0; i < actual.size(); ++i) {
+        difference |= actual[i] ^ expected[i];
+    }
+    return difference == 0;
+}
+
+bool signedByOfficialCertificate(JNIEnv* env, jobject context) {
+    auto expected = decodeBlob(app_digest);
+    bool verified = false;
+    do {
+        jclass contextClass = env->GetObjectClass(context);
+        if (contextClass == nullptr || clearException(env)) break;
+        const jmethodID getPackageManager = env->GetMethodID(
+            contextClass, "getPackageManager", "()Landroid/content/pm/PackageManager;"
+        );
+        const jmethodID getPackageName = env->GetMethodID(
+            contextClass, "getPackageName", "()Ljava/lang/String;"
+        );
+        if (getPackageManager == nullptr || getPackageName == nullptr ||
+            clearException(env)) break;
+        jobject packageManager = env->CallObjectMethod(context, getPackageManager);
+        jstring packageName = static_cast<jstring>(
+            env->CallObjectMethod(context, getPackageName)
+        );
+        if (packageManager == nullptr || packageName == nullptr || clearException(env)) break;
+        jclass packageManagerClass = env->GetObjectClass(packageManager);
+        const jmethodID getPackageInfo = env->GetMethodID(
+            packageManagerClass,
+            "getPackageInfo",
+            "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;"
+        );
+        if (getPackageInfo == nullptr || clearException(env)) break;
+        const jint flags = sdkInt(env) >= 28 ? 0x08000000 : 0x00000040;
+        jobject packageInfo = env->CallObjectMethod(
+            packageManager, getPackageInfo, packageName, flags
+        );
+        if (packageInfo == nullptr || clearException(env)) break;
+        jclass packageInfoClass = env->GetObjectClass(packageInfo);
+        jobjectArray signatures = nullptr;
+        if (sdkInt(env) >= 28) {
+            const jfieldID signingInfoField = env->GetFieldID(
+                packageInfoClass,
+                "signingInfo",
+                "Landroid/content/pm/SigningInfo;"
+            );
+            if (signingInfoField == nullptr || clearException(env)) break;
+            jobject signingInfo = env->GetObjectField(packageInfo, signingInfoField);
+            if (signingInfo == nullptr || clearException(env)) break;
+            jclass signingInfoClass = env->GetObjectClass(signingInfo);
+            const jmethodID getApkContentsSignersMethod = env->GetMethodID(
+                signingInfoClass,
+                "getApkContentsSigners",
+                "()[Landroid/content/pm/Signature;"
+            );
+            if (getApkContentsSignersMethod == nullptr || clearException(env)) break;
+            signatures = static_cast<jobjectArray>(
+                env->CallObjectMethod(signingInfo, getApkContentsSignersMethod)
+            );
+            if (signatures == nullptr || clearException(env)) break;
+        } else {
+            const jfieldID signaturesField = env->GetFieldID(
+                packageInfoClass,
+                "signatures",
+                "[Landroid/content/pm/Signature;"
+            );
+            if (signaturesField == nullptr || clearException(env)) break;
+            signatures = static_cast<jobjectArray>(
+                env->GetObjectField(packageInfo, signaturesField)
+            );
+        }
+        if (signatures == nullptr || clearException(env)) break;
+        jclass signatureClass = env->FindClass("android/content/pm/Signature");
+        jclass digestClass = env->FindClass("java/security/MessageDigest");
+        if (signatureClass == nullptr || digestClass == nullptr || clearException(env)) break;
+        const jmethodID toByteArray = env->GetMethodID(
+            signatureClass, "toByteArray", "()[B"
+        );
+        const jmethodID getInstance = env->GetStaticMethodID(
+            digestClass,
+            "getInstance",
+            "(Ljava/lang/String;)Ljava/security/MessageDigest;"
+        );
+        const jmethodID digest = env->GetMethodID(
+            digestClass, "digest", "([B)[B"
+        );
+        jstring algorithm = env->NewStringUTF("SHA-256");
+        jobject messageDigest = env->CallStaticObjectMethod(
+            digestClass, getInstance, algorithm
+        );
+        if (toByteArray == nullptr || getInstance == nullptr || digest == nullptr ||
+            messageDigest == nullptr || clearException(env)) break;
+        const jsize count = env->GetArrayLength(signatures);
+        for (jsize i = 0; i < count && !verified; ++i) {
+            jobject signature = env->GetObjectArrayElement(signatures, i);
+            if (signature == nullptr || clearException(env)) continue;
+            jbyteArray certificate = static_cast<jbyteArray>(
+                env->CallObjectMethod(signature, toByteArray)
+            );
+            if (certificate == nullptr || clearException(env)) continue;
+            jbyteArray digestBytes = static_cast<jbyteArray>(
+                env->CallObjectMethod(messageDigest, digest, certificate)
+            );
+            if (digestBytes == nullptr || clearException(env) ||
+                env->GetArrayLength(digestBytes) != 32) {
+                continue;
+            }
+            std::array<uint8_t, 32> actual{};
+            env->GetByteArrayRegion(
+                digestBytes, 0, 32, reinterpret_cast<jbyte*>(actual.data())
+            );
+            if (!clearException(env)) verified = constantTimeEqual(actual, expected);
+            wipe(actual);
+        }
+    } while (false);
+    wipe(expected);
+    return verified;
+}
+
+jboolean nativeVerifyIntegrity(JNIEnv* env, jclass, jobject context) {
+#ifndef STV_RELEASE_BUILD
+    (void)env;
+    (void)context;
+    return JNI_TRUE;
+#else
+    if (context == nullptr) return JNI_FALSE;
+    return signedByOfficialCertificate(env, context) &&
+        !applicationIsDebuggable(env, context) &&
+        !nativeEnvironmentCompromised()
+        ? JNI_TRUE
+        : JNI_FALSE;
+#endif
+}
+
+jobjectArray emptyStringArray(JNIEnv* env) {
+    jclass stringClass = env->FindClass("java/lang/String");
+    if (stringClass == nullptr || clearException(env)) return nullptr;
+    return env->NewObjectArray(0, stringClass, nullptr);
+}
+
+jobjectArray nativeGetTrustedHosts(JNIEnv* env, jclass, jobject context) {
+    if (!nativeVerifyIntegrity(env, nullptr, context)) return emptyStringArray(env);
+    jclass stringClass = env->FindClass("java/lang/String");
+    if (stringClass == nullptr || clearException(env)) return nullptr;
+    jobjectArray result = env->NewObjectArray(3, stringClass, nullptr);
+    if (result == nullptr || clearException(env)) return nullptr;
+    const std::array<std::array<uint8_t, 45>, 3> encoded = {
+        fallback_host_0, fallback_host_1, fallback_host_2
+    };
+    for (jsize i = 0; i < 3; ++i) {
+        jstring host = decodeString(env, encoded[static_cast<size_t>(i)]);
+        if (host == nullptr || clearException(env)) return nullptr;
+        env->SetObjectArrayElement(result, i, host);
+        env->DeleteLocalRef(host);
+        if (clearException(env)) return nullptr;
+    }
+    return result;
+}
+
+jstring nativeGetRemoteUrl(JNIEnv* env, jclass, jobject context, jint key) {
+    if (!nativeVerifyIntegrity(env, nullptr, context)) return env->NewStringUTF("");
+    switch (key) {
+        case 0: return decodeString(env, remote_base_url);
+        case 1: return decodeString(env, remote_config_url);
+        case 2: return decodeString(env, remote_channels_url);
+        case 3: return decodeString(env, remote_matches_url);
+        default: return env->NewStringUTF("");
+    }
+}
+
+jobjectArray emptyByteArrayArray(JNIEnv* env) {
+    jclass byteArrayClass = env->FindClass("[B");
+    if (byteArrayClass == nullptr || clearException(env)) return nullptr;
+    return env->NewObjectArray(0, byteArrayClass, nullptr);
+}
+
+jobjectArray nativeGetPlayerDigests(JNIEnv* env, jclass, jobject context) {
+    if (!nativeVerifyIntegrity(env, nullptr, context)) return emptyByteArrayArray(env);
+    jclass byteArrayClass = env->FindClass("[B");
+    if (byteArrayClass == nullptr || clearException(env)) return nullptr;
+    jobjectArray result = env->NewObjectArray(2, byteArrayClass, nullptr);
+    if (result == nullptr || clearException(env)) return nullptr;
+    const std::array<std::array<uint8_t, 96>, 2> encoded = {
+        player_digest_one, player_digest_two
+    };
+    for (jsize i = 0; i < 2; ++i) {
+        auto digest = decodeBlob(encoded[static_cast<size_t>(i)]);
+        jbyteArray value = env->NewByteArray(32);
+        if (value == nullptr || clearException(env)) {
+            wipe(digest);
+            return nullptr;
+        }
+        env->SetByteArrayRegion(
+            value, 0, 32, reinterpret_cast<const jbyte*>(digest.data())
+        );
+        wipe(digest);
+        if (clearException(env)) return nullptr;
+        env->SetObjectArrayElement(result, i, value);
+        env->DeleteLocalRef(value);
+        if (clearException(env)) return nullptr;
+    }
+    return result;
+}
+
+JNINativeMethod nativeMethods[] = {
+    {
+        "nativeVerifyIntegrity",
+        "(Landroid/content/Context;)Z",
+        reinterpret_cast<void*>(nativeVerifyIntegrity)
+    },
+    {
+        "nativeGetRemoteUrl",
+        "(Landroid/content/Context;I)Ljava/lang/String;",
+        reinterpret_cast<void*>(nativeGetRemoteUrl)
+    },
+    {
+        "nativeGetTrustedHosts",
+        "(Landroid/content/Context;)[Ljava/lang/String;",
+        reinterpret_cast<void*>(nativeGetTrustedHosts)
+    },
+    {
+        "nativeGetPlayerDigests",
+        "(Landroid/content/Context;)[[B",
+        reinterpret_cast<void*>(nativeGetPlayerDigests)
+    }
+};
+
+}  // namespace
+
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
+    JNIEnv* env = nullptr;
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        return JNI_ERR;
+    }
+    jclass bridge = env->FindClass(
+        "com/soufcom/soukitv/core/security/NativeSecurityBridge"
+    );
+    if (bridge == nullptr || clearException(env)) return JNI_ERR;
+    if (env->RegisterNatives(
+            bridge,
+            nativeMethods,
+            static_cast<jint>(sizeof(nativeMethods) / sizeof(nativeMethods[0]))
+        ) != JNI_OK) {
+        return JNI_ERR;
+    }
+    return JNI_VERSION_1_6;
+}

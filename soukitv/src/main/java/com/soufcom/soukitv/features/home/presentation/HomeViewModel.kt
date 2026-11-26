@@ -6,6 +6,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.soufcom.soukitv.core.player.StvPlayerLauncher
 import com.soufcom.soukitv.core.security.DefaultAppIntegrityGuard
+import com.soufcom.soukitv.core.security.NativeSecurityVault
+import com.soufcom.soukitv.core.security.SecurityVault
+import com.soufcom.soukitv.core.security.UnavailableSecurityVault
 import com.soufcom.soukitv.core.security.defaultTrustedHosts
 import com.soufcom.soukitv.core.player.StvPlayerLauncher.LaunchResult
 import com.soufcom.soukitv.features.home.data.ChannelRepositoryImpl
@@ -35,7 +38,8 @@ class HomeViewModel(
     private val repository: ChannelRepository,
     private val stvPlayerLauncher: StvPlayerLauncher,
     private val favoritesStore: FavoritesStore = InMemoryFavoritesStore(),
-    private val launchDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val launchDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val securityVault: SecurityVault = UnavailableSecurityVault
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -59,7 +63,7 @@ class HomeViewModel(
         runCatching { favoritesStore.load() }.getOrDefault(emptySet())
     private var minStvVersionCode: Long = StvPlayerLauncher.MIN_STV_VERSION_CODE
     private var authSecret: String = ""
-    private var trustedHosts: Set<String> = defaultTrustedHosts()
+    private var trustedHosts: Set<String> = defaultTrustedHosts(securityVault)
 
     init {
         loadChannels()
@@ -170,7 +174,9 @@ class HomeViewModel(
                         matches = todayMatches.sortedBy { it.parseStartMinutes() ?: Int.MAX_VALUE }
                         minStvVersionCode = remoteConfig.minVersionCode
                         authSecret = validatedAuthSecret
-                        trustedHosts = remoteConfig.trustedHosts.ifEmpty { defaultTrustedHosts() }
+                        trustedHosts = remoteConfig.trustedHosts.ifEmpty {
+                            defaultTrustedHosts(securityVault)
+                        }
                         currentCategoryPath = currentCategoryPath?.takeIf { path ->
                             categoryPaths().contains(path)
                         }
@@ -412,14 +418,19 @@ class HomeViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             val appContext = context.applicationContext
-            val integrityGuard = DefaultAppIntegrityGuard(appContext)
+            val securityVault = NativeSecurityVault(appContext)
+            val integrityGuard = DefaultAppIntegrityGuard(appContext, securityVault)
             return HomeViewModel(
-                repository = ChannelRepositoryImpl(integrityGuard),
-                stvPlayerLauncher = StvPlayerLauncher(appContext, integrityGuard = integrityGuard),
-                favoritesStore = SharedPrefsFavoritesStore(appContext)
+                repository = ChannelRepositoryImpl(integrityGuard, securityVault),
+                stvPlayerLauncher = StvPlayerLauncher(
+                    appContext,
+                    integrityGuard = integrityGuard,
+                    securityVault = securityVault
+                ),
+                favoritesStore = SharedPrefsFavoritesStore(appContext),
+                securityVault = securityVault
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
-

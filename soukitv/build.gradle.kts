@@ -8,6 +8,14 @@ plugins {
 android {
     namespace = "com.soufcom.soukitv"
     compileSdk = 36
+    ndkVersion = "28.0.13004108"
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 
     // ✅ Charger les propriétés locales (keystore, etc.)
     val localProperties = Properties()
@@ -24,6 +32,16 @@ android {
         versionName = "3.6.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                cppFlags += listOf(
+                    "-std=c++17",
+                    "-fvisibility=hidden",
+                    "-O2",
+                    "-fstack-protector-strong"
+                )
+            }
+        }
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -56,6 +74,19 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            }
+            externalNativeBuild {
+                cmake {
+                    cppFlags += "-DSTV_RELEASE_BUILD=1"
+                }
+            }
+        }
+        debug {
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            }
         }
     }
     // Permet aux stubs android.jar (Intent, Bundle, PackageInfo...) de fonctionner en tests JVM purs.

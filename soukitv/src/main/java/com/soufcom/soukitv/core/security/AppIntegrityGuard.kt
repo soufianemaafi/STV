@@ -9,8 +9,15 @@ fun interface AppIntegrityGuard {
 }
 
 /** Signature de l'APK puis environnement ; l'environnement est ignoré en debug. */
-class DefaultAppIntegrityGuard(private val context: Context) : AppIntegrityGuard {
-    override fun isTrusted(): Boolean =
-        AppSignatureVerifier.isGenuine(context) &&
-            (BuildConfig.DEBUG || SecurityEnvironmentChecker.isEnvironmentSafe(context))
+class DefaultAppIntegrityGuard(
+    private val context: Context,
+    private val securityVault: SecurityVault = NativeSecurityVault(context)
+) : AppIntegrityGuard {
+    override fun isTrusted(): Boolean {
+        val nativeTrusted = securityVault.nativeVerifyIntegrity()
+        if (BuildConfig.DEBUG) return true
+        return nativeTrusted &&
+            AppSignatureVerifier.isGenuine(context, securityVault) &&
+            SecurityEnvironmentChecker.isEnvironmentSafe(context)
+    }
 }

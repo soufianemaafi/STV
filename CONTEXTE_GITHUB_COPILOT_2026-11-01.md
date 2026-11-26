@@ -4,7 +4,7 @@
 > **Repository** : `D:\STV`
 > **Date de mise à jour** : 26 Novembre 2026
 > **Version Global Architecture** : V4.0 — Phase 1 Production-Ready (Clean Architecture + MVI)
-> **Git Release Tag** : `v3.6.2-soukitv-sec-step1-final` (26 Novembre 2026) — maintien des jalons précédents `v3.6.2-soukitv`, `v3.6.1-soukitv`, `v3.6.0-soukitv-p2-ux-data`, `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
+> **Git Release Tag** : `v3.6.2-soukitv-sec-step2-ndk` (26 Novembre 2026) — maintien des jalons précédents `v3.6.2-soukitv-sec-step1-final`, `v3.6.2-soukitv`, `v3.6.1-soukitv`, `v3.6.0-soukitv-p2-ux-data`, `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
 > **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer - Google Play Store)
 > **Production Release `:soukitv`** : `v3.6.2` — **Version Code 8** (`versionCode = 8`, `versionName = "3.6.2"`) (Catalogue Hors-Store)
 
@@ -93,6 +93,9 @@ app/src/main/java/com/stv/videoplayer/
 ```
 soukitv/src/main/java/com/soufcom/soukitv/
 ├── MainActivity.kt                      # Point d'entrée catalogue (contrôles signature & environnement)
+├── cpp/
+│   ├── CMakeLists.txt                   # Build CMake partagé `stvsecurity`, C++17, alignement 16 KB
+│   └── stv_security.cpp                 # Coffre-fort natif JNI/NDK, intégrité et secrets masqués
 ├── core/
 │   ├── network/
 │   │   └── NetworkModule.kt             # Factory OkHttpClient unique (timeouts, retry, hook CertificatePinner)
@@ -102,6 +105,7 @@ soukitv/src/main/java/com/soufcom/soukitv/
 │       ├── AppIntegrityGuard.kt         # Point de contrôle injectable et implémentation par défaut de l'intégrité
 │       ├── AppSignatureVerifier.kt      # Contrôle d'intégrité signature SHA-256 XOR-obfusqué (MessageDigest.isEqual)
 │       ├── NetworkSecurityProvider.kt   # Contrat TLS CertificatePinner (désactivé Phase 1)
+│       ├── SecurityVault.kt             # `SecurityVault`, `NativeSecurityBridge`, `NativeSecurityVault` JNI/NDK
 │       ├── SecretDecoder.kt             # Décodage XOR 0x4B des endpoints distants
 │       ├── TrustedHosts.kt              # Liste fallback obfusquée XOR 0x4B des hôtes STV de confiance, sans IP en clair
 │       └── SecurityEnvironmentChecker.kt# Détection Root, Magisk, test-keys, Debugger, Frida (port 27042, maps)
@@ -389,6 +393,43 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
 
 ---
 
+### Sécurité Étape 2 — Coffre-fort Natif C++ JNI/NDK (`:soukitv`, validée le 26 Novembre 2026)
+
+- **Migration complète des secrets hors du DEX** :
+  - Les quatre URLs GitHub distantes (base, configuration, chaînes et matchs), les trois hôtes fallback STV, l'empreinte SHA-256 de SoukiTV et les deux empreintes SHA-256 de NexiPlayer sont encodés dans `soukitv/src/main/cpp/stv_security.cpp`.
+  - Le masquage est multi-octets positionnel : aucune URL, aucun IP/hôte et aucune empreinte n'est stockée en clair dans le C++, le Kotlin `src/main/` ou le DEX de production.
+  - Les buffers locaux déchiffrés sont systématiquement effacés via `wipe(...)` avant restitution ; les chaînes temporaires sont également nettoyées après `NewStringUTF` ou construction d'un tableau JNI.
+  - Zéro chaîne lisible par l'utilitaire `strings` sur la librairie native et aucune découverte directe des secrets via la décompilation JADX-GUI.
+- **Signature Binding natif** :
+  - Sous `-DSTV_RELEASE_BUILD=1`, `libstvsecurity.so` vérifie elle-même la signature de l'APK.
+  - Android 9+ extrait les signataires via `SigningInfo.getApkContentsSigners()` ; Android 7/8 conserve le chemin rétrocompatible `PackageInfo.signatures`.
+  - Le certificat est calculé en SHA-256 via l'API Java `MessageDigest` appelée depuis JNI, puis comparé au digest officiel natif avec une comparaison à temps constant de 32 octets.
+  - Toute altération de la signature retourne une intégrité non fiable : les URLs, les hôtes fallback et les empreintes NexiPlayer ne sont jamais délivrés (fail-closed).
+- **Contrôles d'intégrité noyau natifs** :
+  - Vérification de `TracerPid > 0` dans `/proc/self/status`.
+  - Détection de Frida/Xposed/LSPosed/riru/zygisk/Substrate/EdXposed/Magisk dans `/proc/self/maps`.
+  - Détection des threads suspects dans `/proc/self/task/*/comm` : `gum-js-loop`, `gmain`, `gdbus`, `pool-frida` et `frida`.
+  - Détection du port Frida `27042` en état LISTEN dans `/proc/net/tcp` et `/proc/net/tcp6`, avec tolérance Android 10+ lorsqu'un SELinux normal rend ces fichiers `/proc` inaccessibles.
+  - Vérification native du `ApplicationInfo.FLAG_DEBUGGABLE == 0` en release.
+- **Durcissement C++/NDK** :
+  - `JNI_OnLoad` + `RegisterNatives` enregistrent dynamiquement les quatre méthodes sur `com/soufcom/soukitv/core/security/NativeSecurityBridge`.
+  - `-fvisibility=hidden` cache les symboles internes ; seuls les points JNI nécessaires restent exportables.
+  - C++17, `-O2`, `-fstack-protector-strong` et alignement ELF 16 KB via `-Wl,-z,max-page-size=16384`.
+  - `CMakeLists.txt` compile `stvsecurity` depuis `stv_security.cpp` et prépare les ABI ARM32/ARM64 Release ainsi que les ABI Debug nécessaires.
+- **Abstraction Kotlin injectable** :
+  - `SecurityVault.kt` contient `SecurityVault`, `NativeSecurityBridge` et `NativeSecurityVault`.
+  - `NativeSecurityVault` charge `libstvsecurity.so` via `System.loadLibrary("stvsecurity")` et ferme toutes les sorties en sécurité lors d'un échec de chargement ou de JNI.
+  - Les tests JVM injectent `TestSecurityVault`/stubs, sans charger la `.so` sur machine hôte ni exposer de secret de production en clair.
+- **Protection R8 JNI** :
+  - `soukitv/proguard-rules.pro` conserve `com.soufcom.soukitv.core.security.NativeSecurityBridge` avec `-keep class com.soufcom.soukitv.core.security.NativeSecurityBridge { *; }`.
+  - Les méthodes natives sont protégées par `-keepclasseswithmembernames,includedescriptorclasses class * { native <methods>; }`.
+  - Ces règles garantissent la compatibilité avec `-repackageclasses 'o'` utilisé par la release.
+- **Validation native physique** :
+  - `assembleRelease` compile les librairies C++ pour les ABI retenues et intègre `libstvsecurity.so` dans l'APK v3.6.2.
+  - Le chargement, la liaison de signature et la lecture des flux vers NexiPlayer ont été validés sur Redmi Note 13 sous Android 15.
+
+---
+
 ## 5. 🛡️ PHASE 1 DE BLINDAGE SÉCURITAIRE — VALIDÉE ✅ (Audit 2026-11-19)
 
 La Phase 1 du durcissement de `:soukitv` est implémentée et validée sur la release `v3.6.0` (`versionCode = 6`). **Audit de sécurité complet réalisé le 2026-11-19 — verdict FEU VERT** après application des correctifs suivants :
@@ -405,7 +446,7 @@ La Phase 1 du durcissement de `:soukitv` est implémentée et validée sur la re
 
 - **[B1 — CRITIQUE résolu]** `proguard-rules.pro` : ajout de `-keep class com.soufcom.soukitv.features.home.data.model.** { *; }` pour protéger les 5 DTOs Gson/Retrofit (`ChannelsCatalogResponseDto`, `CatalogCategoryDto`, `ChannelDto`, `MatchItemDto`, `RemoteCatalogConfigDto`, `StreamSourceDto`) ainsi que `-keepattributes Signature`, `-keepattributes *Annotation*`, `-keepattributes EnclosingMethod`, `-dontwarn` et `-keep class retrofit2.**/gson.**`.
 - **[B3 — MAJEUR résolu]** `HomeViewModel.kt` : le chemin `LaunchResult.Failed` n'expose plus jamais `result.message` (exception Android brute) dans `HomeUiState.Error`. Un message générique localisé est utilisé à la place (`"Impossible de lancer la lecture. Veuillez réessayer."`).
-- **[B4 — PROPRETÉ résolu]** `NativeSecurityBridge.kt` supprimé de la release Phase 1 : les stubs `external fun` non chargés trahissaient l'architecture JNI Phase 2 à un reverse engineer. Le contrat sera réintroduit avec l'implémentation C/C++ complète en Phase 2 NDK.
+- **[B4 — PROPRETÉ résolu]** `NativeSecurityBridge.kt` supprimé historiquement de la release Phase 1 : les stubs `external fun` non chargés trahissaient l'architecture JNI Phase 2 à un reverse engineer. Le pont est désormais réintroduit dans `SecurityVault.kt` avec l'implémentation C/C++ complète validée en Étape 2 NDK.
 - **[B7 — SIGNATURE résolu]** `build.gradle.kts` : activation explicite de `enableV2Signing = true`, `enableV3Signing = true`, `enableV4Signing = true` dans `signingConfigs { create("release") }`. L'APK release est désormais signé avec les schémas v2, v3 (rotation Android 9+) et v4.
 
 ### 5.1. 📡 Infrastructure Streaming Validée (Lab & Scripts `cluster.env`)
@@ -431,15 +472,15 @@ L'infrastructure de relais et de diffusion multimédia est conçue et validée p
 
 ---
 
-## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (268/268 TESTS PASSÉS)
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (270/270 TESTS PASSÉS)
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les **148 tests de `:app`** et les **120 tests de `:soukitv`** passent (**268/268**, 0 échec, 0 erreur). Le total exact de `:soukitv` est relevé dans `soukitv/build/test-results/testDebugUnitTest/`. La validation de référence est :
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les **148 tests de `:app`** et les **122 tests de `:soukitv`** passent (**270/270**, 0 échec, 0 erreur). Le total exact de `:soukitv` est relevé dans `soukitv/build/test-results/testDebugUnitTest/`. La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
 ```
 
-L'APK `:soukitv:assembleRelease` `v3.6.2` (`versionCode = 8`) avec le moteur de recherche et le blindage Sécurité Étape 1 a été compilé, installé et validé sur appareil physique Redmi Note 13 le 26 Novembre 2026. Le blocage de `PCAPdroid` a été confirmé, un proxy Wi-Fi manuel a déclenché l'écran générique sobre, et l'action "Réessayer" a permis une reprise immédiate dès que l'environnement réseau autorisé a été rétabli.
+L'APK `:soukitv:assembleRelease` `v3.6.2` (`versionCode = 8`) avec le moteur de recherche et le Coffre-fort Natif C++ JNI/NDK Étape 2 a été compilé, installé et validé sur appareil physique Redmi Note 13 (Android 15) le 26 Novembre 2026. Le chargement de `libstvsecurity.so`, la validation native de signature et la lecture de flux vers NexiPlayer sont opérationnels à 100 %. Le blocage de `PCAPdroid` reste confirmé, un proxy Wi-Fi manuel déclenche l'écran générique sobre, et l'action "Réessayer" permet une reprise dès que l'environnement réseau autorisé est rétabli.
 
 Les en-têtes XML sont également soumis à une règle stricte : chaque fichier de ressources XML doit commencer en première ligne absolue par `<?xml version="1.0" encoding="utf-8"?>`, sans commentaire, espace ou déclaration dupliquée avant cet en-tête.
 
@@ -455,7 +496,7 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (120 tests unitaires validés)** :
+- **Module `:soukitv` (122 tests unitaires validés)** :
    - `ChannelSearchEngineTest` : normalisation NFD, accents latins, diacritiques/tatweel/unification arabe, casse, espaces multiples, formes compactes, suites numériques, recherche multi-mots, classement par pertinence, déduplication et tolérance Levenshtein sans faux positifs sur les acronymes courts ou les tokens avec chiffres.
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
       - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes, la conservation stricte des sources externes et l’isolement de `X-STV-Auth`.
@@ -613,9 +654,9 @@ La structure Kotlin de `:soukitv` prépare dès maintenant l'activation du blind
 
 ### Coffre-fort natif JNI/NDK
 
-- `NativeSecurityBridge.kt` a été **supprimé de la release Phase 1** (audit 2026-11-19 — correctif B4). En Phase 2 NDK, le fichier sera réintroduit avec l'implémentation C/C++ complète : chargement `System.loadLibrary("stvsecurity")`, implémentation `getAuthKey()` et `verifyIntegrity()` en natif, gestion des erreurs JNI et tests d'intégrité. Le contrat Kotlin reste inchangé dans son interface publique.
-- La Phase 2 NDK déplacera progressivement le XOR, la vérification de signature et le masquage des clés vers le NDK sans modifier les appelants ni l'architecture MVI.
-- Le chargement de la bibliothèque, la gestion des erreurs JNI et les tests d'intégrité devront être ajoutés uniquement après définition du modèle de menace, des ABI supportées et du pipeline de compilation natif.
+- L'Étape 2 du Coffre-fort natif est **implémentée et validée** dans `SecurityVault.kt`, `CMakeLists.txt` et `stv_security.cpp` : chargement `System.loadLibrary("stvsecurity")`, liaison dynamique `JNI_OnLoad`/`RegisterNatives`, vérification de signature native, masquage des secrets et tests JVM injectables.
+- Les protections JNI/NDK sont intégrées à la release courante sans modification de l'architecture MVI ni des appelants publics.
+- Les évolutions futures restent limitées aux tokens éphémères, à la rotation backend et au SSL Pinning de production décrits ci-dessous.
 
 Ces deux mécanismes sont donc prêts à être activés dès que les certificats de production (Let's Encrypt / Cloudflare) seront générés sur les VPS et que leur rotation aura été testée en staging.
 
