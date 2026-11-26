@@ -3,13 +3,97 @@ package com.soufcom.soukitv.core.security
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.ApplicationInfo
 import io.mockk.every
 import io.mockk.mockk
+import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SecurityEnvironmentCheckerTest {
+    private fun contextWithPackages(installed: Set<String>): Context {
+        val context = mockk<Context>()
+        val packageManager = mockk<PackageManager>()
+        val filesDir = mockk<File>()
+        every { filesDir.absolutePath } returns "/data/user/0/com.soufcom.soukitv/files"
+        every { context.filesDir } returns filesDir
+        every { context.packageName } returns "com.soufcom.soukitv"
+        every { context.applicationInfo } returns ApplicationInfo()
+        every { context.getSystemService(Context.CONNECTIVITY_SERVICE) } returns null
+        every { context.packageManager } returns packageManager
+        every { packageManager.getPackageInfo(any<String>(), any<Int>()) } answers {
+            if (firstArg<String>() !in installed) throw PackageManager.NameNotFoundException()
+            PackageInfo()
+        }
+        return context
+    }
+
+    @Test
+    fun assessEnvironment_healthyDeviceIsSafe() {
+        assertEquals(
+            SecurityAssessment.SAFE,
+            SecurityEnvironmentChecker.assessEnvironment(contextWithPackages(emptySet()))
+        )
+    }
+
+    @Test
+    fun assessEnvironment_networkToolsAloneBlockWithGenericScreen() {
+        listOf("com.emanuelef.remote_capture", "com.reqable.android", "com.network.proxy").forEach {
+            assertEquals(
+                SecurityAssessment.NETWORK_ENVIRONMENT_BLOCKED,
+                SecurityEnvironmentChecker.assessEnvironment(contextWithPackages(setOf(it)))
+            )
+        }
+    }
+
+    @Test
+    fun assessEnvironment_systemProxyAloneBlocksWithGenericScreen() {
+        System.setProperty("http.proxyHost", "127.0.0.1")
+        try {
+            assertEquals(
+                SecurityAssessment.NETWORK_ENVIRONMENT_BLOCKED,
+                SecurityEnvironmentChecker.assessEnvironment(contextWithPackages(emptySet()))
+            )
+        } finally {
+            System.clearProperty("http.proxyHost")
+        }
+    }
+
+    @Test
+    fun assessEnvironment_tamperToolsCloseSilently() {
+        listOf("bin.mt.plus", "com.chelpus.lackypatch", "com.topjohnwu.magisk").forEach {
+            assertEquals(
+                SecurityAssessment.COMPROMISED_SILENT_EXIT,
+                SecurityEnvironmentChecker.assessEnvironment(contextWithPackages(setOf(it)))
+            )
+        }
+    }
+
+    @Test
+    fun assessEnvironment_severeThreatTakesPriorityOverNetworkTool() {
+        val context = contextWithPackages(setOf("bin.mt.plus", "com.emanuelef.remote_capture"))
+        assertEquals(
+            SecurityAssessment.COMPROMISED_SILENT_EXIT,
+            SecurityEnvironmentChecker.assessEnvironment(context)
+        )
+    }
+
+    @Test
+    fun isEnvironmentSafe_falseForBothUnsafeCases() {
+        assertFalse(
+            SecurityEnvironmentChecker.isEnvironmentSafe(
+                contextWithPackages(setOf("com.reqable.android"))
+            )
+        )
+        assertFalse(
+            SecurityEnvironmentChecker.isEnvironmentSafe(
+                contextWithPackages(setOf("bin.mt.plus"))
+            )
+        )
+    }
+
     @Test
     fun hasHostilePackage_detectsNetworkCaptureAndApkModificationTools() {
         val newHostilePackages = setOf(

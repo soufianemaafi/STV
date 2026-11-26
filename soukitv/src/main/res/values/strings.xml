@@ -37,4 +37,7 @@
         <item quantity="one">%d chaîne</item>
         <item quantity="other">%d chaînes</item>
     </plurals>
+    <string name="security_network_blocked_title">Environnement réseau non autorisé</string>
+    <string name="security_network_blocked_message">Veuillez désactiver tout proxy ou outil d\'analyse réseau sur cet appareil, puis réessayer.</string>
+    <string name="action_close">Fermer</string>
 </resources>

@@ -7,6 +7,8 @@ import android.os.Build
 import android.os.Debug
 import java.io.File
 
+enum class SecurityAssessment { SAFE, NETWORK_ENVIRONMENT_BLOCKED, COMPROMISED_SILENT_EXIT }
+
 /**
  * Contrôles locaux de réduction du risque sur les appareils instrumentés ou compromis.
  *
@@ -24,34 +26,41 @@ object SecurityEnvironmentChecker {
         "/system/sd/xbin/su"
     )
 
-    private val hostilePackages = setOf(
+    // Outils root, hooks et édition d'APK : fermeture silencieuse.
+    private val tamperAndRootPackages = setOf(
         "com.topjohnwu.magisk",
+        "io.github.vvb2060.magisk",
         "eu.chainfire.supersu",
         "com.noshufou.android.su",
         "com.thirdparty.superuser",
         "com.koushikdutta.superuser",
         "stericson.busybox",
         "ru.meefik.busybox",
+        "org.meowcat.edxposed.manager",
+        "org.lsposed.manager",
+        "com.chelpus.lackypatch",
+        "com.dimonvideo.luckypatcher",
+        "com.forpda.lp",
+        "ru.sxbuido.luckypatcher",
+        "bin.mt.plus",
+        "bin.mt.plus.canary"
+    )
+
+    // Capture / proxy réseau : écran générique si l'appareil est sain.
+    private val networkCapturePackages = setOf(
         "com.emanuelef.remote_capture",
         "com.guoshi.httpcanary",
         "com.guoshi.httpcanary.premium",
         "app.greyshirts.sslcapture",
         "com.minhui.networkcapture",
         "com.egorovandreyrm.pcapremote",
-        "com.chelpus.lackypatch",
-        "com.dimonvideo.luckypatcher",
-        "com.forpda.lp",
-        "ru.sxbuido.luckypatcher",
-        "io.github.vvb2060.magisk",
-        "org.meowcat.edxposed.manager",
-        "org.lsposed.manager",
         "com.reqable.android",
         "com.network.proxy",
         "tech.httptoolkit.android.v1",
-        "jp.co.taosoftware.android.packetcapture",
-        "bin.mt.plus",
-        "bin.mt.plus.canary"
+        "jp.co.taosoftware.android.packetcapture"
     )
+
+    private val hostilePackages = tamperAndRootPackages + networkCapturePackages
 
     private val suspiciousMapTokens = setOf(
         "frida-agent.so",
@@ -98,27 +107,38 @@ object SecurityEnvironmentChecker {
     private val standardDataPrefixes = listOf("/data/user/", "/data/data/")
 
     fun isEnvironmentSafe(context: Context): Boolean =
-        !hasSuBinary() &&
-            !hasHostilePackage(context) &&
-            !hasTestKeys() &&
-            !isDebuggerAttached() &&
-            !isApplicationDebuggable(context) &&
-            !hasFridaPort() &&
-            !hasSuspiciousMappedLibrary() &&
-            !isSystemProxyActive(context) &&
-            !hasSuspiciousThread() &&
-            !isTracerAttached() &&
-            !hasHookFramework() &&
-            !isPcEmulator() &&
-            !isClonedOrVirtualized(context)
+        assessEnvironment(context) == SecurityAssessment.SAFE
+
+    fun assessEnvironment(context: Context): SecurityAssessment {
+        val severeThreat = hasSuBinary() ||
+            hasAnyPackage(context, tamperAndRootPackages) ||
+            hasTestKeys() ||
+            isDebuggerAttached() ||
+            isApplicationDebuggable(context) ||
+            hasFridaPort() ||
+            hasSuspiciousMappedLibrary() ||
+            hasSuspiciousThread() ||
+            isTracerAttached() ||
+            hasHookFramework() ||
+            isPcEmulator() ||
+            isClonedOrVirtualized(context)
+        if (severeThreat) return SecurityAssessment.COMPROMISED_SILENT_EXIT
+        if (isSystemProxyActive(context) || hasAnyPackage(context, networkCapturePackages)) {
+            return SecurityAssessment.NETWORK_ENVIRONMENT_BLOCKED
+        }
+        return SecurityAssessment.SAFE
+    }
 
     private fun hasSuBinary(): Boolean = suPaths.any { path ->
         runCatching { File(path).exists() }.getOrDefault(false)
     }
 
-    internal fun hasHostilePackage(context: Context): Boolean {
+    internal fun hasHostilePackage(context: Context): Boolean =
+        hasAnyPackage(context, hostilePackages)
+
+    private fun hasAnyPackage(context: Context, packages: Set<String>): Boolean {
         val packageManager = context.packageManager
-        return hostilePackages.any { packageName ->
+        return packages.any { packageName ->
             runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     packageManager.getPackageInfo(
