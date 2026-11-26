@@ -17,6 +17,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -26,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -86,8 +89,19 @@ fun HomeScreen(
         if (!isChannelsRoot) isSearchExpanded = false
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val launchFailedText = stringResource(R.string.stv_launch_failed_message)
+    val launchErrorEventId = success?.launchErrorEventId
+    LaunchedEffect(launchErrorEventId) {
+        if (launchErrorEventId != null) {
+            snackbarHostState.showSnackbar(launchFailedText)
+            viewModel.onAction(HomeUiAction.DismissLaunchError)
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {

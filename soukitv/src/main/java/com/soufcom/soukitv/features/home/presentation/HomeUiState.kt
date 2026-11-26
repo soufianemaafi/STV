@@ -32,6 +32,8 @@ sealed interface HomeUiState {
         val isFlatChannelMode: Boolean = false,
         /** Null = aucun dialogue STV ; sinon prompt d'installation ou de mise a jour. */
         val stvPromptType: StvPromptType? = null,
+        /** Identifiant unique d'un échec de lancement à signaler (snackbar) ; null = rien à afficher. */
+        val launchErrorEventId: Long? = null,
         val favorites: Set<String> = emptySet(),
         val liveMatchIds: Set<String> = emptySet(),
         /** true pendant un rechargement : le contenu déjà affiché est conservé (pas de flash). */

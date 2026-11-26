@@ -8,6 +8,8 @@ import com.soufcom.soukitv.features.home.domain.model.Category
 import com.soufcom.soukitv.features.home.domain.model.Channel
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
 import com.soufcom.soukitv.features.home.domain.model.StreamSource
+import com.soufcom.soukitv.features.home.domain.model.isLiveAt
+import com.soufcom.soukitv.features.home.domain.model.parseStartMinutes
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -196,6 +198,82 @@ class MappersTest {
         assertNull(ChannelDto(name = "X", streamUrl = "https://s/x").toDomain())
         assertNull(ChannelDto(id = " ", name = "X", streamUrl = "https://s/x").toDomain())
         assertNull(ChannelDto(id = "x", name = "X", streamUrl = null).toDomain())
+    }
+
+    @Test
+    fun channelDto_rejectsNonHttpStreamUrls() {
+        listOf("rtmp://host/live", "javascript:alert(1)", "host/live.m3u8", "//host/live.m3u8")
+            .forEach { url ->
+                assertNull("Flux accepté à tort : $url", ChannelDto("1", "X", "", url).toDomain())
+            }
+    }
+
+    @Test
+    fun channelDto_sanitizesInvalidLogoUrlToEmpty() {
+        val invalid = ChannelDto("1", "X", "javascript:bad", "https://s/x.m3u8").toDomain()!!
+        val valid = ChannelDto("2", "X", " https://l/logo.png ", "https://s/x.m3u8").toDomain()!!
+
+        assertEquals("", invalid.logoUrl)
+        assertEquals("https://l/logo.png", valid.logoUrl)
+    }
+
+    @Test
+    fun matchItemDto_sanitizesInvalidUrlsToNullAndKeepsMatch() {
+        val match = MatchItemDto(
+            id = "m",
+            teamALogo = "file:///a.png",
+            teamBLogo = "logo.png",
+            streamUrl = "rtmp://s/live",
+            sources = listOf(
+                StreamSourceDto("HD", " https://s/hd "),
+                StreamSourceDto("SD", "rtmp://s/sd"),
+                StreamSourceDto("LD", "s/ld")
+            )
+        ).toDomain()
+
+        assertEquals("m", match.id)
+        assertNull(match.teamALogo)
+        assertNull(match.teamBLogo)
+        assertNull(match.streamUrl)
+        assertEquals(listOf(StreamSource("HD", "https://s/hd")), match.sources)
+    }
+
+    @Test
+    fun matchItemDtoList_deduplicatesByNonBlankIdKeepingFirst() {
+        val matches = listOf(
+            MatchItemDto(id = "a", teamA = "first"),
+            MatchItemDto(id = "a", teamA = "second"),
+            MatchItemDto(id = null, teamA = "noId1"),
+            MatchItemDto(id = " ", teamA = "noId2"),
+            MatchItemDto(id = "b", teamA = "third")
+        ).toDomain()
+
+        assertEquals(listOf("first", "noId1", "noId2", "third"), matches.map { it.teamA })
+    }
+
+    @Test
+    fun matchItem_isLiveAt_handlesWindowAndMidnight() {
+        fun live(time: String?, h: Int, m: Int) = MatchItem(time = time).isLiveAt(h * 60 + m)
+
+        assertTrue(live("23:00", 23, 30))
+        assertTrue(live("23:00", 0, 30))
+        assertEquals(false, live("23:00", 1, 0))
+        assertTrue(live("00:30", 2, 29))
+        assertEquals(false, live("00:30", 2, 30))
+        assertEquals(false, live("21:00", 20, 59))
+        assertTrue(live("9:00", 9, 0))
+        assertEquals(false, MatchItem(time = "21:00").isLiveAt(-1))
+        assertEquals(false, MatchItem(time = "21:00").isLiveAt(1440))
+    }
+
+    @Test
+    fun matchItem_parseStartMinutes_isStrict() {
+        assertEquals(540, MatchItem(time = "9:00").parseStartMinutes())
+        assertEquals(1260, MatchItem(time = "21:00").parseStartMinutes())
+        listOf(null, "", "25:00", "12:60", "12:30:45", "LIVE", "12", "-1:00", "12:5")
+            .forEach { assertNull("Heure acceptée à tort : $it", MatchItem(time = it).parseStartMinutes()) }
+        assertEquals(false, MatchItem(time = "25:00").isLiveAt(25 * 60 % 1440))
+        assertEquals(false, MatchItem(time = "12:30:45").isLiveAt(12 * 60 + 30))
     }
 
     @Test

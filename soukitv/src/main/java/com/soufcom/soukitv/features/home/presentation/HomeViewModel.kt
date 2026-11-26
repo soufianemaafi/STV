@@ -13,6 +13,7 @@ import com.soufcom.soukitv.features.home.domain.model.Category
 import com.soufcom.soukitv.features.home.domain.model.Channel
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
 import com.soufcom.soukitv.features.home.domain.model.isLiveAt
+import com.soufcom.soukitv.features.home.domain.model.parseStartMinutes
 import com.soufcom.soukitv.features.home.domain.repository.ChannelRepository
 import com.soufcom.soukitv.features.home.domain.repository.FavoritesStore
 import com.soufcom.soukitv.features.home.domain.repository.InMemoryFavoritesStore
@@ -46,6 +47,8 @@ class HomeViewModel(
     private var currentCategoryPath: String? = null
     private var isDarkTheme: Boolean = true
     private var searchQuery: String = ""
+    private var launchErrorEventId: Long? = null
+    private var launchErrorCounter: Long = 0L
     private var matchFilter: String? = null
     private var channelFilter: String? = null
     private var favorites: Set<String> =
@@ -65,6 +68,13 @@ class HomeViewModel(
                 handleSelectMatch(action.match)
             }
             HomeUiAction.DismissInstallDialog -> restoreSuccessState()
+            HomeUiAction.DismissLaunchError -> {
+                launchErrorEventId = null
+                val current = _uiState.value
+                if (current is HomeUiState.Success) {
+                    _uiState.value = current.copy(launchErrorEventId = null)
+                }
+            }
             HomeUiAction.InstallStv -> {
                 stvPlayerLauncher.openPlayStore()
                 restoreSuccessState()
@@ -157,8 +167,8 @@ class HomeViewModel(
                             .takeIf(String::isNotEmpty)
                             ?: throw SecurityException("Remote security configuration unavailable")
                         this@HomeViewModel.categories = categories
-                        // Tri chronologique des matchs (format HH:mm).
-                        matches = todayMatches.sortedBy { it.time }
+                        // Tri chronologique numérique ; heures absentes ou invalides en fin de liste.
+                        matches = todayMatches.sortedBy { it.parseStartMinutes() ?: Int.MAX_VALUE }
                         minStvVersionCode = remoteConfig.minVersionCode
                         authSecret = validatedAuthSecret
                         trustedHosts = remoteConfig.trustedHosts.ifEmpty { defaultTrustedHosts() }
@@ -230,7 +240,12 @@ class HomeViewModel(
                 showStvPrompt(StvPromptType.Update)
             }
             is LaunchResult.Failed -> {
-                if (_uiState.value !is HomeUiState.Success) {
+                val current = _uiState.value
+                if (current is HomeUiState.Success) {
+                    launchErrorCounter += 1
+                    launchErrorEventId = launchErrorCounter
+                    _uiState.value = current.copy(launchErrorEventId = launchErrorEventId)
+                } else {
                     // [B3] Ne jamais exposer result.message en production :
                     // e.message peut contenir des noms de classes Android internes
                     // (ActivityNotFoundException, etc.) visibles par instrumentation.
@@ -347,6 +362,7 @@ class HomeViewModel(
             visibleMatches = visibleMatches,
             visibleChannels = visibleChannels,
             isFlatChannelMode = flat,
+            launchErrorEventId = launchErrorEventId,
             favorites = favorites,
             liveMatchIds = liveIds,
             isRefreshing = isRefreshing

@@ -29,12 +29,30 @@ fun MatchItem.toChannel(): Channel = Channel(
     streamUrl = streamUrl.orEmpty(),
     category = tournament.orEmpty()
 )
+
 /** Durée supposée d'un match, en minutes. */
 private const val MATCH_DURATION_MINUTES = 120
-/** Vrai si l'heure "HH:mm" du match est comprise dans la fenêtre [début, début + 2h[. */
-fun MatchItem.isLiveAt(minutesOfDay: Int): Boolean {
-    val parts = time?.split(":") ?: return false
-    val start = (parts.getOrNull(0)?.trim()?.toIntOrNull() ?: return false) * 60 +
-        (parts.getOrNull(1)?.trim()?.toIntOrNull() ?: return false)
-    return minutesOfDay in start until start + MATCH_DURATION_MINUTES
+private const val MINUTES_PER_DAY = 1440
+
+/** Minutes depuis minuit pour une heure stricte "H:mm" / "HH:mm" ; null si absente ou invalide. */
+fun MatchItem.parseStartMinutes(): Int? {
+    val parts = time?.trim()?.split(":") ?: return null
+    if (parts.size != 2) return null
+    val (hourText, minuteText) = parts
+    if (hourText.length !in 1..2 || minuteText.length != 2) return null
+    if (!hourText.all(Char::isAsciiDigit) || !minuteText.all(Char::isAsciiDigit)) return null
+    val hour = hourText.toInt()
+    val minute = minuteText.toInt()
+    if (hour !in 0..23 || minute !in 0..59) return null
+    return hour * 60 + minute
+}
+
+private fun Char.isAsciiDigit(): Boolean = this in '0'..'9'
+
+/** Vrai si l'instant est dans la fenêtre [début, début + 2h[, passage de minuit compris. */
+fun MatchItem.isLiveAt(currentMinutes: Int): Boolean {
+    if (currentMinutes !in 0 until MINUTES_PER_DAY) return false
+    val startMinutes = parseStartMinutes() ?: return false
+    val diff = (currentMinutes - startMinutes + MINUTES_PER_DAY) % MINUTES_PER_DAY
+    return diff in 0 until MATCH_DURATION_MINUTES
 }

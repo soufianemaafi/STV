@@ -1,10 +1,10 @@
-# 📋 CONTEXTE PROJET GITHUB COPILOT — 25 NOVEMBRE 2026 (V4.0)
+# 📋 CONTEXTE PROJET GITHUB COPILOT — 26 NOVEMBRE 2026 (V4.0)
 
 > **Projet** : STV Ecosystem Monorepo
 > **Repository** : `D:\STV`
-> **Date de mise à jour** : 25 Novembre 2026
+> **Date de mise à jour** : 26 Novembre 2026
 > **Version Global Architecture** : V4.0 — Phase 1 Production-Ready (Clean Architecture + MVI)
-> **Git Release Tag** : `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) — maintien de `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
+> **Git Release Tag** : `v3.6.0-soukitv-p2-ux-data` (26 Novembre 2026) — maintien de `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et de `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
 > **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer - Google Play Store)
 > **Production Release `:soukitv`** : `v3.6.0` — **Version Code 6** (Catalogue Hors-Store)
 
@@ -114,7 +114,8 @@ soukitv/src/main/java/com/soufcom/soukitv/
 │   │   │   └── RemoteCatalogConfigDto.kt# DTO Configuration distante (minStvVersionCode, stvAuthSecret)
 │   │   ├── mapper/
 │   │   │   ├── ChannelMapper.kt         # Mapping DTO -> Domain (hiérarchie, déduplication, safe URLs)
-│   │   │   └── MatchItemMapper.kt       # Mapping DTO -> Domain
+│   │   │   ├── MatchItemMapper.kt       # Mapping DTO -> Domain
+│   │   │   └── UrlValidation.kt         # Validation uniforme des URLs HTTP(S) absolues
 │   │   ├── remote/
 │   │   │   └── ChannelApiService.kt     # Interface Retrofit 3.0.0 avec timestamps anti-cache
 │   │   ├── ChannelRepositoryImpl.kt     # Implémentation Repository réseau (Fail-Closed stvAuthSecret)
@@ -240,6 +241,19 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
       `category` reste accepté uniquement comme fallback legacy.
     - Une chaîne est rejetée si `id`, `name` ou `streamUrl` est nul/vide. Les URLs d'images de catégories
       sont limitées à `http://` et `https://` avec un hôte valide.
+    - `UrlValidation.kt` fournit `toSafeHttpUrlOrNull()` : validation uniforme des URI absolues HTTP(S),
+      insensible à la casse, avec hôte non nul/non vide. Dans `ChannelMapper`, `streamUrl` est rejeté
+      lorsqu'il n'est pas une URL HTTP(S) valide ; `logoUrl` invalide devient `""` ; les `imageUrl` de
+      catégories continuent d'utiliser cette validation. Dans `MatchItemMapper`, `streamUrl`,
+      `teamALogo` et `teamBLogo` invalides deviennent `null`, et les `sources` sont filtrées pour ne
+      conserver que celles dont l'URL est valide HTTP(S), trimmée avant stockage.
+    - `MatchItemMapper` déduplique les matchs par `id` non vide en conservant la première occurrence ;
+      les matchs sans `id` ou avec un `id` blank restent conservés sans être dédupliqués.
+    - `MatchItem.kt` expose `parseStartMinutes()` pour accepter strictement uniquement `H:mm` / `HH:mm`,
+      avec heure dans `0..23`, minutes dans `00..59` et exactement deux segments séparés par `:`. Les
+      valeurs absentes, vides ou malformées sont refusées. `isLiveAt()` utilise une fenêtre Live de
+      120 minutes sur 24h avec passage de minuit : un match à `23:00` reste Live jusqu'à `01:00`,
+      tandis qu'à `00:30` il reste Live jusqu'à `02:30`.
     - `Channel.categories` conserve tous les chemins multi-taggués et `primaryCategory` fournit le libellé
       d'affichage. Une chaîne est dédupliquée par identifiant dans la recherche globale et dans les compteurs.
     - La navigation de l'onglet Chaînes est à deux niveaux : racines dans l'ordre JSON, puis sous-catégories
@@ -251,6 +265,11 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
      * `CategoryCard` : visuel distant (`imageUrl`) mémorisé par `remember`, fallback sombre `#242424` vers `#141414` avec badge cinéma translucide accentué par `#C41E3A`, radius extérieur unifié de `10.dp`, footer compact `#181818` (titre et compteur de chaînes).
      * `ChannelTile` : grille 2 colonnes avec hauteur compacte de `136.dp`, fond rectangulaire `#202020`, `ContentScale.Fit` avec padding `12.dp`, séparateur `0.5.dp` `#2E2E2E`, footer `#161616` et bouton favori cœur déporté à droite (animé avec rebond `Animatable`).
      * `SearchAndFilterBar` : loupe déployable avec `AnimatedVisibility`, fond Glassmorphism `Color.White.copy(alpha = 0.08f)`, bordure fine, curseur rouge, focus clavier automatique via `FocusRequester` et `FilterChip` horizontaux scrollables.
+     * Retour `LaunchResult.Failed` non bloquant : lorsque `HomeUiState.Success` est déjà affiché,
+       `HomeViewModel` conserve les données de l'écran et publie un `launchErrorEventId` unique via
+       `HomeUiAction.DismissLaunchError` lorsque le snackbar est fermé. `HomeScreen` observe cet
+       événement dans `LaunchedEffect` avec un `SnackbarHostState` / `SnackbarHost`, affiche la chaîne
+       localisée `stv_launch_failed_message` et ne dévoile aucune exception technique.
    - `AutoCropTransparentTransformation` : Transformation Coil personnalisée avec garde mémoire strict `MAX_SCAN_DIMENSION = 2048px` empêchant tout DoS mémoire OOM sur images distantes volumineuses.
    - `OfflineErrorView` : écran d'erreur hors-ligne M3 hermétique, avec bouton Réessayer et zéro fuite de détails techniques.
 
@@ -275,6 +294,9 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
 4. **Résilience MVI & Réseau** :
    - Suppression des faux fallbacks en dur dans `ChannelRepositoryImpl` afin de propager les erreurs réseau et JSON GitHub réelles.
    - Timeouts explicites sur `OkHttpClient` : connexion `10s`, lecture `15s`, écriture `15s`, avec retry réseau activé.
+   - Le tri des matchs est numérique par heure de démarrage via
+     `sortedBy { it.parseStartMinutes() ?: Int.MAX_VALUE }` : `"9:00"` précède `"21:00"` et les heures
+     absentes ou invalides sont placées en fin de liste.
    - Pull-to-Refresh universel dans `HomeScreen`, actif sur les états `Loading`, `Error` et `Success`.
    - `StvErrorDialog` strictement découplé des erreurs réseau et réservé aux prompts d'installation ou de mise à jour du lecteur STV.
    - **Herméticité UI** : dans `HomeViewModel`, `LaunchResult.Failed` et tout échec de configuration renvoient des messages génériques sécurisés (`"Impossible de lancer la lecture. Veuillez réessayer."` ou message réseau générique). Zéro exception Android interne, zéro nom de classe ni fragment de stacktrace n'est exposé à l'utilisateur.
@@ -349,15 +371,15 @@ L'infrastructure de relais et de diffusion multimédia est conçue et validée p
 
 ---
 
-## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (72 TESTS `:soukitv` PASSÉS)
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (83 TESTS `:soukitv` PASSÉS)
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 72 tests de `:soukitv` passent (216/216). La validation de référence est :
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 83 tests de `:soukitv` passent (227/227). La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
 ```
 
-Le build Release `:soukitv:assembleRelease` avec R8, `shrinkResources` et signature v2/v3/v4 a été validé sur appareil physique le 25 Novembre 2026.
+Le build Release `:soukitv:assembleRelease` avec R8, `shrinkResources` et signature v2/v3/v4 a été compilé, installé et validé sur appareil physique le 26 Novembre 2026.
 
 Les en-têtes XML sont également soumis à une règle stricte : chaque fichier de ressources XML doit commencer en première ligne absolue par `<?xml version="1.0" encoding="utf-8"?>`, sans commentaire, espace ou déclaration dupliquée avant cet en-tête.
 
@@ -373,13 +395,13 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (72 tests unitaires validés)** :
+- **Module `:soukitv` (83 tests unitaires validés)** :
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
       - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes, la conservation stricte des sources externes et l’isolement de `X-STV-Auth`.
       - Nouveaux cas validés : URL `/dispatch` sur hôte non autorisé sans appel du dispatcher ni injection du secret, chaînes et matchs externes avec `User-Agent` sans `X-STV-Auth`, URL `/dispatch` autorisée avec résolution et injection du secret, et hôtes Edge résolus dans `sessionTrustedHosts`.
    - `TrustedHostsMappingTest` : valeur présente/absente de `trustedHosts`, normalisation des entrées, retrait des chaînes vides ou `*` et vérification du fallback obfusqué. Le décodage exact du fallback XOR `0x4B` est également couvert par les tests du launcher.
-  - `MappersTest` : Mapping DTO -> Domain (`ChannelMapper`, `MatchItemMapper`).
-   - `HomeViewModelTest` : MVI du catalogue, filtres, recherche, gestion des favoris et fail-closed de la configuration distante.
+  - `MappersTest` : Mapping DTO -> Domain (`ChannelMapper`, `MatchItemMapper`, `UrlValidation`), rejet des URLs non HTTP(S), nettoyage des logos, filtrage des sources, déduplication des matchs et parsing Live horaire.
+   - `HomeViewModelTest` : MVI du catalogue, filtres, recherche, gestion des favoris, fail-closed de la configuration distante, tri numérique des heures, rejet des heures invalides et retour Snackbar non bloquant sur `LaunchResult.Failed` avec conservation de l'état `Success`.
    - `SecretDecoderTest` : vérification du décodage XOR bidirectionnel.
    - `AppSignatureVerifierTest` : validation de la comparaison SHA-256 avec `MessageDigest.isEqual`.
    - `SecurityEnvironmentCheckerTest` : validation JVM du parsing du port Frida et des maps mémoire suspectes.

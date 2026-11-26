@@ -107,6 +107,58 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun selectMatch_failedLaunchOnSuccess_setsLaunchErrorEventAndKeepsData() {
+        coEvery { launcher.launchMatch(any(), any<String>(), any<Long>(), any()) } returns
+            StvPlayerLauncher.LaunchResult.Failed("ActivityNotFoundException: internal")
+        val viewModel = viewModel(matches = listOf(match))
+
+        viewModel.onAction(HomeUiAction.SelectMatch(match))
+
+        val state = viewModel.success()
+        assertTrue(state.launchErrorEventId != null)
+        assertEquals(catalogue, state.categories)
+        assertEquals(listOf(match), state.matches)
+
+        viewModel.onAction(HomeUiAction.DismissLaunchError)
+        assertNull(viewModel.success().launchErrorEventId)
+        assertEquals(listOf(match), viewModel.success().matches)
+    }
+
+    @Test
+    fun selectChannel_repeatedFailures_produceDistinctEventIds() {
+        coEvery { launcher.launchChannel(any(), any<String>(), any<Long>(), any()) } returns
+            StvPlayerLauncher.LaunchResult.Failed("boom")
+        val viewModel = viewModel()
+        val channel = sports.channels.first()
+
+        viewModel.onAction(HomeUiAction.SelectChannel(channel))
+        val first = viewModel.success().launchErrorEventId
+        viewModel.onAction(HomeUiAction.SelectChannel(channel))
+        val second = viewModel.success().launchErrorEventId
+
+        assertTrue(first != null && second != null && first != second)
+    }
+
+    @Test
+    fun matches_areSortedNumerically_withMissingOrInvalidTimesLast() {
+        val state = viewModel(
+            matches = listOf(
+                matchAt("invalid", "LIVE"),
+                matchAt("nine", "9:00"),
+                matchAt("none", null),
+                matchAt("evening", "21:00"),
+                matchAt("bad", "25:00")
+            )
+        ).success()
+
+        assertEquals(listOf("nine", "evening"), state.matches.take(2).map { it.id })
+        assertEquals(
+            setOf("invalid", "none", "bad"),
+            state.matches.drop(2).map { it.id }.toSet()
+        )
+    }
+
+    @Test
     fun switchTab_togglesBetweenChannelsAndMatches() {
         val viewModel = viewModel()
 
@@ -435,7 +487,7 @@ class HomeViewModelTest {
         country = country
     )
 
-    private fun matchAt(id: String, time: String) = MatchItem(
+    private fun matchAt(id: String, time: String?) = MatchItem(
         id = id,
         teamA = "Real Madrid",
         teamALogo = "https://example.com/rm.png",

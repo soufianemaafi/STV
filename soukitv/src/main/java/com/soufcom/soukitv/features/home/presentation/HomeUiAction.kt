@@ -18,6 +18,7 @@ sealed interface HomeUiAction {
     data class SelectChannel(val channel: Channel) : HomeUiAction
     data class SelectMatch(val match: MatchItem) : HomeUiAction
     data object DismissInstallDialog : HomeUiAction
+    data object DismissLaunchError : HomeUiAction
     data object InstallStv : HomeUiAction
     data object Retry : HomeUiAction
     data object ToggleTheme : HomeUiAction

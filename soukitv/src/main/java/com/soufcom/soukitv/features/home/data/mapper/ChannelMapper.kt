@@ -1,6 +1,5 @@
 package com.soufcom.soukitv.features.home.data.mapper
 
-import java.net.URI
 import com.soufcom.soukitv.features.home.data.model.ChannelDto
 import com.soufcom.soukitv.features.home.data.model.ChannelsCatalogResponseDto
 import com.soufcom.soukitv.features.home.domain.model.Category
@@ -8,18 +7,6 @@ import com.soufcom.soukitv.features.home.domain.model.Channel
 
 /** Catégorie par défaut quand le JSON distant n'en précise pas. */
 const val DEFAULT_CATEGORY_NAME = "Autres"
-
-/** Retourne uniquement une URL d’image absolue HTTP(S) exploitable par Coil. */
-private fun String?.toSafeImageUrl(): String? {
-    val candidate = this?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    return runCatching {
-        URI(candidate).takeIf { uri ->
-            (uri.scheme.equals("http", ignoreCase = true) ||
-                uri.scheme.equals("https", ignoreCase = true)) &&
-                !uri.host.isNullOrBlank()
-        }?.toString()
-    }.getOrNull()
-}
 
 /**
  * Convertit un [ChannelDto] en [Channel] du Domain.
@@ -31,8 +18,8 @@ private fun String?.toSafeImageUrl(): String? {
 fun ChannelDto.toDomain(): Channel? {
     val safeId = id?.trim().orEmpty()
     val safeName = name?.trim().orEmpty()
-    val safeStreamUrl = streamUrl?.trim().orEmpty()
-    if (safeId.isEmpty() || safeName.isEmpty() || safeStreamUrl.isEmpty()) return null
+    val safeStreamUrl = streamUrl.toSafeHttpUrlOrNull()
+    if (safeId.isEmpty() || safeName.isEmpty() || safeStreamUrl == null) return null
 
     val safeCategories = (categories.orEmpty() + category.orEmpty())
         .map(String::trim)
@@ -44,11 +31,11 @@ fun ChannelDto.toDomain(): Channel? {
     return Channel(
         id = safeId,
         name = safeName,
-        logoUrl = logoUrl?.trim().orEmpty(),
+        logoUrl = logoUrl.toSafeHttpUrlOrNull() ?: "",
         streamUrl = safeStreamUrl,
         category = primaryCategory,
         country = country?.trim()?.takeIf { it.isNotEmpty() },
-        categoryImageUrl = imageUrl.toSafeImageUrl(),
+        categoryImageUrl = imageUrl.toSafeHttpUrlOrNull(),
         categories = safeCategories,
         primaryCategory = primaryCategory
     )
@@ -77,7 +64,7 @@ fun ChannelsCatalogResponseDto.toCategories(): List<Category> {
         Category(
             name = name,
             channels = validChannels.filter { name in it.categories },
-            imageUrl = metadataByName[name]?.imageUrl.toSafeImageUrl()
+            imageUrl = metadataByName[name]?.imageUrl.toSafeHttpUrlOrNull()
                 ?: validChannels.filter { name in it.categories }
                 .firstOrNull { !it.categoryImageUrl.isNullOrBlank() }
                 ?.categoryImageUrl
