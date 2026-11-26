@@ -4,9 +4,9 @@
 > **Repository** : `D:\STV`
 > **Date de mise à jour** : 26 Novembre 2026
 > **Version Global Architecture** : V4.0 — Phase 1 Production-Ready (Clean Architecture + MVI)
-> **Git Release Tag** : `v3.6.0-soukitv-p2-ux-data` (26 Novembre 2026) — maintien de `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et de `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
+> **Git Release Tag** : `v3.6.1-soukitv` (26 Novembre 2026) — maintien des jalons `v3.6.0-soukitv-p2-ux-data`, `v3.6.0-soukitv-p1-sec` (25 Novembre 2026) et `v3.6.0-soukitv-phase1-final` comme tag Phase 1 (19 Novembre 2026)
 > **Production Release `:app`** : `v1.0.3` — **Version Code 4** (NexiPlayer - Google Play Store)
-> **Production Release `:soukitv`** : `v3.6.0` — **Version Code 6** (Catalogue Hors-Store)
+> **Production Release `:soukitv`** : `v3.6.1` — **Version Code 7** (`versionCode = 7`, `versionName = "3.6.1"`) (Catalogue Hors-Store)
 
 ---
 
@@ -27,7 +27,7 @@ Le projet est un monorepo Android construit sous **Gradle 9.2.1 / AGP 9.0.1** av
 ### Versioning officiel synchronisé
 
 - **`:app`** : `versionCode = 4`, `versionName = "1.0.3"` — release de production `com.soufcom.stv` publiée sur Google Play Store.
-- **`:soukitv`** : `versionCode = 6`, `versionName = "3.6.0"` — release catalogue hors-store.
+- **`:soukitv`** : `versionCode = 7`, `versionName = "3.6.1"` — release catalogue hors-store.
 
 Ces valeurs constituent le versioning officiel de référence et ne doivent pas être régressées ou désynchronisées lors d'un audit ou d'un refactoring.
 
@@ -135,7 +135,6 @@ soukitv/src/main/java/com/soufcom/soukitv/
 │       │   ├── CategoryCard.kt          # Carte catégorie cinéma (remember ImageRequest, fallback sombre)
 │       │   ├── ChannelTile.kt           # Tuile chaîne compacte 136.dp (SoukiLogoImage, cœur favori déporté)
 │       │   ├── ChannelsTab.kt           # Onglet chaînes (grille adaptative 2 colonnes, mode plat/arborescent)
-│       │   ├── CountryCard.kt           # Carte pays (navigation 2e niveau)
 │       │   ├── InfoCard.kt              # Carte informative
 │       │   ├── LogoImage.kt             # Image Coil avec transformation et cache mémoire
 │       │   ├── MatchCard.kt             # Carte match en direct (scores, badge live, chaînes)
@@ -258,6 +257,19 @@ La règle est donc duale : **HTTP autorisé pour les médias et ressources dista
       d'affichage. Une chaîne est dédupliquée par identifiant dans la recherche globale et dans les compteurs.
     - La navigation de l'onglet Chaînes est à deux niveaux : racines dans l'ordre JSON, puis sous-catégories
       `Parent/Enfant` (ex: `Arabe/Maroc`, `International/France`), avec masquage des catégories vides et retour vers le parent via `BackHandler`/TopBar.
+    - Priorité 3 finalisée dans `v3.6.1-soukitv` : suppression du code mort de l'ancienne navigation pays
+      (`CountryCard.kt`, `HomeUiAction.SelectCountry`, `HomeUiState.activeCountryDetail`) sans modification
+      des métadonnées domaine/DTO `Channel.country` et `ChannelDto.country`.
+    - `AndroidManifest.xml` conserve `com.soufcom.stv` / `com.soufcom.stv.dev` ainsi que les packages root,
+      Magisk, SuperSU et BusyBox utilisés par `SecurityEnvironmentChecker`, tandis que les quatre packages
+      hérités `com.stv.videoplayer*` / `com.example.stv*` ont été retirés de `<queries>`.
+    - Les chaînes visibles de `OfflineErrorView.kt` et `MatchCard.kt` sont externalisées dans `strings.xml`
+      sous `error_network_unavailable`, `error_network_hint`, `action_retry`, `match_time_placeholder`,
+      `match_live_badge` et `match_versus`.
+    - Retrofit `3.0.0`, OkHttp `4.12.0` et Coil `2.7.0` sont centralisés dans
+      `gradle/libs.versions.toml` et consommés via les alias `libs.retrofit`,
+      `libs.retrofit.converter.gson`, `libs.okhttp` et `libs.coil.compose` dans
+      `soukitv/build.gradle.kts`.
     - Gestion robuste des `streamUrl: null` ou vides (ex: entrée match non diffusée ou chaîne temporairement inactive) : le mapper et le launcher éliminent proprement ces éléments sans crash.
 
 2. **Interface Utilisateur & Expérience Visuelle Cinéma (Material 3)** :
@@ -371,19 +383,19 @@ L'infrastructure de relais et de diffusion multimédia est conçue et validée p
 
 ---
 
-## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (83 TESTS `:soukitv` PASSÉS)
+## 6. 🧪 COUVERTURE DE TESTS UNITAIRES (227/227 TESTS PASSÉS)
 
-La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les 144 tests de `:app` et les 83 tests de `:soukitv` passent (227/227). La validation de référence est :
+La suite JVM des deux modules est validée sans émulateur et sans régression à **100%** : les **148 tests de `:app`** et les **79 tests de `:soukitv`** passent (**227/227**, 0 échec, 0 erreur). La validation de référence est :
 
 ```powershell
 .\gradlew :app:testProdDebugUnitTest :soukitv:testDebugUnitTest --no-daemon
 ```
 
-Le build Release `:soukitv:assembleRelease` avec R8, `shrinkResources` et signature v2/v3/v4 a été compilé, installé et validé sur appareil physique le 26 Novembre 2026.
+L'APK `:soukitv:assembleRelease` `v3.6.1` (`versionCode = 7`) avec R8, `shrinkResources` et signature v2/v3/v4 a été compilé, installé et validé sur appareil physique le 26 Novembre 2026.
 
 Les en-têtes XML sont également soumis à une règle stricte : chaque fichier de ressources XML doit commencer en première ligne absolue par `<?xml version="1.0" encoding="utf-8"?>`, sans commentaire, espace ou déclaration dupliquée avant cet en-tête.
 
-- **Module `:app` (144 tests unitaires validés)** :
+- **Module `:app` (148 tests unitaires validés)** :
   - `VideoItemTest` : Validation des entités vidéo.
   - `IntentSecurityManagerTest` : Validation de sécurité des URIs et filtrage anti-hijacking.
   - `AdFlowControllerTest` : Tests MVI du flux publicitaire, timeouts et retries.
@@ -395,7 +407,7 @@ Les en-têtes XML sont également soumis à une règle stricte : chaque fichier 
   - `PermissionHelperTest` : Validation des signatures d'appelants IPC.
   - `PlayerUiStateTest` : Machine à états du lecteur.
 
-- **Module `:soukitv` (83 tests unitaires validés)** :
+- **Module `:soukitv` (79 tests unitaires validés)** :
    - `StvPlayerLauncherTest` : Construction des Intents IPC vers `:app`, résolution unique du Stream Dispatcher et réécriture sélective de `sources_json`.
       - Les tests couvrent les URLs primaires nulles, les schémas interdits, le fallback, la résolution d’un ticket `/dispatch`, l’appel réseau unique, la réécriture des sources internes, la conservation stricte des sources externes et l’isolement de `X-STV-Auth`.
       - Nouveaux cas validés : URL `/dispatch` sur hôte non autorisé sans appel du dispatcher ni injection du secret, chaînes et matchs externes avec `User-Agent` sans `X-STV-Auth`, URL `/dispatch` autorisée avec résolution et injection du secret, et hôtes Edge résolus dans `sessionTrustedHosts`.

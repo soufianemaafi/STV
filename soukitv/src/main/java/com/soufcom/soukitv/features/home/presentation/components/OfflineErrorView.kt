@@ -15,8 +15,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.soufcom.soukitv.R
 import com.soufcom.soukitv.ui.theme.SoukiRed
 
 @Composable
@@ -35,18 +37,18 @@ fun OfflineErrorView(
         ) {
             Icon(
                 imageVector = Icons.Default.WifiOff,
-                contentDescription = "Connexion réseau indisponible",
+                contentDescription = stringResource(R.string.error_network_unavailable),
                 tint = SoukiRed,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
             Text(
-                text = "Connexion réseau indisponible",
+                text = stringResource(R.string.error_network_unavailable),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "Vérifiez votre connexion Wi-Fi ou mobile pour accéder aux flux en direct.",
+                text = stringResource(R.string.error_network_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -55,7 +57,7 @@ fun OfflineErrorView(
                 onClick = onRetry,
                 colors = ButtonDefaults.buttonColors(containerColor = SoukiRed)
             ) {
-                Text(text = "Réessayer")
+                Text(text = stringResource(R.string.action_retry))
             }
         }
     }

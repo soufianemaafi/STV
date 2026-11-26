@@ -26,6 +26,10 @@
     <string name="empty_search_results">Aucun résultat</string>
     <string name="error_stv_not_installed">STV Player est requis pour lire ce contenu.</string>
     <string name="stv_launch_failed_message">Impossible de lancer la lecture. Veuillez réessayer.</string>
+    <string name="error_network_unavailable">Connexion réseau indisponible</string>
+    <string name="error_network_hint">Vérifiez votre connexion Wi-Fi ou mobile pour accéder aux flux en direct.</string>
+    <string name="match_time_placeholder">--:--</string>
+    <string name="match_live_badge">EN DIRECT</string>
     <string name="theme_light_mode">Activer le mode clair</string>
     <string name="theme_dark_mode">Activer le mode sombre</string>
 

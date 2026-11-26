@@ -20,8 +20,8 @@ android {
         applicationId = "com.soufcom.soukitv"
         minSdk = 24
         targetSdk = 36
-        versionCode = 6
-        versionName = "3.6.0"
+        versionCode = 7
+        versionName = "3.6.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -101,10 +101,10 @@ dependencies {
     // Using Retrofit for fetching dynamic content if needed, or just standard HTTP.
     // For simplicity, let's stick to standard libraries or add Retrofit if the user asked for fetching from dashboard.
     // Assuming simple JSON fetching via URL or similar. Let's add OkHttp/Retrofit to be robust as requested.
-    implementation("com.squareup.retrofit2:retrofit:3.0.0")
-    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("io.coil-kt:coil-compose:2.7.0") // Load images (logos)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
+    implementation(libs.coil.compose) // Load images (logos)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

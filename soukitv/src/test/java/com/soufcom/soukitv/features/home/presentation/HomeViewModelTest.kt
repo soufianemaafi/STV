@@ -174,12 +174,10 @@ class HomeViewModelTest {
         val viewModel = viewModel()
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
         viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
-        viewModel.onAction(HomeUiAction.SelectCountry("France"))
 
         viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.MATCHES))
 
         assertNull(viewModel.success().activeCategoryDetail)
-        assertNull(viewModel.success().activeCountryDetail)
     }
 
     @Test
@@ -204,31 +202,6 @@ class HomeViewModelTest {
         val state = viewModel.success()
         assertNull(state.activeCategoryDetail)
         assertEquals(NavigationTab.CHANNELS, state.currentTab)
-    }
-
-    @Test
-    fun selectCountry_entersLevelThreeWithSelectedCountry() {
-        val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
-        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
-
-        viewModel.onAction(HomeUiAction.SelectCountry("France"))
-
-        assertEquals("France", viewModel.success().activeCountryDetail)
-        assertEquals(news, viewModel.success().activeCategoryDetail)
-    }
-
-    @Test
-    fun navigateBack_fromLevelThree_returnsToCountries() {
-        val viewModel = viewModel()
-        viewModel.onAction(HomeUiAction.SwitchTab(NavigationTab.CHANNELS))
-        viewModel.onAction(HomeUiAction.SelectCategoryDetail(news))
-        viewModel.onAction(HomeUiAction.SelectCountry("France"))
-
-        viewModel.onAction(HomeUiAction.NavigateBack)
-
-        assertNull(viewModel.success().activeCountryDetail)
-        assertEquals(news, viewModel.success().activeCategoryDetail)
     }
 
     @Test

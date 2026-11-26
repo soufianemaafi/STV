@@ -11,8 +11,6 @@ sealed interface HomeUiAction {
     data class SwitchTab(val tab: NavigationTab) : HomeUiAction
     /** Niveau 2 : ouvre la navigation d'une catégorie. */
     data class SelectCategoryDetail(val category: Category) : HomeUiAction
-    /** Niveau 3 : ouvre la grille des chaînes d'un pays. */
-    data class SelectCountry(val country: String) : HomeUiAction
     /** Retourne au niveau hiérarchique précédent. */
     data object NavigateBack : HomeUiAction
     data class SelectChannel(val channel: Channel) : HomeUiAction

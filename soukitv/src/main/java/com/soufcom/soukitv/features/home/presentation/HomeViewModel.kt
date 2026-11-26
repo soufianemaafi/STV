@@ -43,7 +43,6 @@ class HomeViewModel(
     private var matches: List<MatchItem> = emptyList()
     private var currentTab: NavigationTab = NavigationTab.MATCHES
     private var activeCategoryDetail: Category? = null
-    private var activeCountryDetail: String? = null
     private var currentCategoryPath: String? = null
     private var isDarkTheme: Boolean = true
     private var searchQuery: String = ""
@@ -88,24 +87,16 @@ class HomeViewModel(
                 currentTab = action.tab
                 searchQuery = ""
                 activeCategoryDetail = null
-                activeCountryDetail = null
                 currentCategoryPath = null
                 refreshState()
             }
             is HomeUiAction.SelectCategoryDetail -> {
                 activeCategoryDetail = action.category
-                activeCountryDetail = null
                 currentCategoryPath = action.category.name
                 refreshState()
             }
-            is HomeUiAction.SelectCountry -> {
-                activeCountryDetail = action.country
-                refreshState()
-            }
             HomeUiAction.NavigateBack -> {
-                if (activeCountryDetail != null) {
-                    activeCountryDetail = null
-                } else if (currentCategoryPath?.contains('/') == true) {
+                if (currentCategoryPath?.contains('/') == true) {
                     currentCategoryPath = currentCategoryPath?.substringBeforeLast('/')
                     activeCategoryDetail = findCategory(currentCategoryPath)
                 } else if (currentCategoryPath != null) {
@@ -177,9 +168,6 @@ class HomeViewModel(
                         }
                         // Re-résout le chemin ouvert sur le nouveau catalogue.
                         activeCategoryDetail = currentCategoryPath?.let(::findCategory)
-                        if (activeCountryDetail != null && activeCategoryDetail == null) {
-                            activeCountryDetail = null
-                        }
                         publishSuccess(isRefreshing = false)
                     }
             }.onFailure { throwable ->
@@ -354,7 +342,6 @@ class HomeViewModel(
             currentCategoryPath = currentPath,
             visibleCategories = visibleCategories,
             activeCategoryDetail = activeCategoryDetail,
-            activeCountryDetail = activeCountryDetail,
             isDarkTheme = isDarkTheme,
             searchQuery = searchQuery,
             selectedCategoryFilter = if (isMatches) matchFilter else channelFilter,

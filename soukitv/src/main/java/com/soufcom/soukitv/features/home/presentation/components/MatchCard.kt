@@ -38,11 +38,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.soufcom.soukitv.R
 import com.soufcom.soukitv.features.home.domain.model.MatchItem
 import com.soufcom.soukitv.ui.theme.SoukiCrimson
 import com.soufcom.soukitv.ui.theme.SoukiDarkBorder
@@ -86,7 +88,7 @@ fun MatchCard(
                     modifier = Modifier.weight(1f)
                 )
                 ScoreboardCenter(
-                    time = match.time ?: "--:--",
+                    time = match.time ?: stringResource(R.string.match_time_placeholder),
                     isLive = isLive,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
@@ -184,7 +186,7 @@ fun LiveBadge(modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "EN DIRECT",
+            text = stringResource(R.string.match_live_badge),
             color = SoukiCrimson,
             fontSize = 10.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -208,7 +210,7 @@ private fun ScoreboardCenter(time: String, isLive: Boolean, modifier: Modifier =
             fontWeight = FontWeight.Black
         )
         Text(
-            text = "VS",
+            text = stringResource(R.string.match_versus),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,

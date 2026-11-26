@@ -19,7 +19,6 @@ sealed interface HomeUiState {
         /** Enfants visibles du dossier courant, déjà filtrés des catégories vides. */
         val visibleCategories: List<Category> = emptyList(),
         val activeCategoryDetail: Category? = null,
-        val activeCountryDetail: String? = null,
         val isDarkTheme: Boolean = true,
         val searchQuery: String = "",
         /** Filtre actif (tournoi ou catégorie) ; null = "Tous". */

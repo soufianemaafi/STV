@@ -65,11 +65,10 @@ fun HomeScreen(
 ) {
     val currentUiState by viewModel.uiState.collectAsState()
     val activeDetail = (currentUiState as? HomeUiState.Success)?.activeCategoryDetail
-    val activeCountry = (currentUiState as? HomeUiState.Success)?.activeCountryDetail
     val currentCategoryPath = (currentUiState as? HomeUiState.Success)?.currentCategoryPath
     val activeTab = (currentUiState as? HomeUiState.Success)?.currentTab
 
-    BackHandler(enabled = currentCategoryPath != null || activeDetail != null || activeCountry != null) {
+    BackHandler(enabled = currentCategoryPath != null || activeDetail != null) {
         viewModel.onAction(HomeUiAction.NavigateBack)
     }
 
@@ -82,8 +81,7 @@ fun HomeScreen(
     val stvPromptType = success?.stvPromptType
     val selectedTab = success?.currentTab ?: NavigationTab.MATCHES
     val isChannelsRoot = selectedTab == NavigationTab.CHANNELS &&
-        activeDetail == null &&
-        activeCountry == null
+        activeDetail == null
     var isSearchExpanded by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(isChannelsRoot) {
         if (!isChannelsRoot) isSearchExpanded = false

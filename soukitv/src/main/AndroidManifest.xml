@@ -8,10 +8,6 @@
     <queries>
         <package android:name="com.soufcom.stv" />
         <package android:name="com.soufcom.stv.dev" />
-        <package android:name="com.stv.videoplayer" />
-        <package android:name="com.stv.videoplayer.dev" />
-        <package android:name="com.example.stv" />
-        <package android:name="com.example.stv.dev" />
         <package android:name="com.topjohnwu.magisk" />
         <package android:name="eu.chainfire.supersu" />
         <package android:name="com.noshufou.android.su" />
